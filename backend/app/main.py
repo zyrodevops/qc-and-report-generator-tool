@@ -47,7 +47,36 @@ async def lifespan(app: FastAPI):
         # If database is not ready or tables not yet migrated at startup, continue
         pass
 
+    # 3. Schema migrations — add new columns safely (idempotent)
+    try:
+        _run_schema_migrations()
+    except Exception as exc:
+        # Log but don't block startup — the DB might be in an expected state
+        import logging
+        logging.getLogger(__name__).warning(f"Schema migration warning: {exc}")
+
     yield
+
+
+def _run_schema_migrations() -> None:
+    """
+    Run lightweight, idempotent schema migrations.
+    Adds columns that may be missing from older DB instances.
+    Uses IF NOT EXISTS pattern via information_schema to be safe.
+    """
+    from sqlalchemy import text as sql_text
+    from app.database import sync_engine
+
+    with sync_engine.begin() as conn:
+        # Week 2 — optimistic concurrency version column
+        result = conn.execute(sql_text("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'reports' AND column_name = 'version'
+        """))
+        if not result.fetchone():
+            conn.execute(sql_text(
+                "ALTER TABLE reports ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+            ))
 
 
 app = FastAPI(

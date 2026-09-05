@@ -63,7 +63,11 @@ def test_block_renderers_coverage():
     Verifies that distinct renderer functions exist for all required block types:
     particulars, narrative, measurements, table, fixed_text, photo_plate.
     """
-    render_mod = try_import("backend.app.render.docx.blocks") or try_import("backend.app.render.docx")
+    render_mod = (
+        try_import("backend.app.render.docx.engine")
+        or try_import("backend.app.render.docx.blocks")
+        or try_import("backend.app.render.docx")
+    )
     if render_mod is None:
         pytest.skip("Block renderers not yet implemented (M3 pending)")
 

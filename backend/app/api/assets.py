@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -72,6 +73,22 @@ async def upload_photo(
     )
     db.add(db_asset)
 
+    # Sync asset into report.block_state so renderers and preview can access it
+    current_state = dict(report.block_state) if report.block_state else {}
+    if "assets" not in current_state or not isinstance(current_state["assets"], dict):
+        current_state["assets"] = {}
+    
+    asset_url = f"/api/reports/{report_id}/assets/{asset_record['id']}/image"
+    current_state["assets"][asset_record["id"]] = {
+        "id": asset_record["id"],
+        "sha256": asset_record["sha256"],
+        "original_path": asset_record["original_path"],
+        "derived_paths": asset_record["derived_paths"],
+        "url": asset_url,
+    }
+    report.block_state = current_state
+    flag_modified(report, "block_state")
+
     await AuditService.record_async(
         session=db,
         actor=actor,
@@ -91,6 +108,7 @@ async def upload_photo(
         "provenance": provenance,
         "original_path": asset_record["original_path"],
         "derived_paths": asset_record["derived_paths"],
+        "url": asset_url,
         "exif_integrity": "INTACT",
     }
 
@@ -118,6 +136,52 @@ async def verify_photo_integrity(
     }
     intact = verify_original_integrity(record)
     return {"asset_id": asset_id, "integrity": "INTACT" if intact else "TAMPERED"}
+
+
+@router.get("/{report_id}/assets/{asset_id}/image")
+async def get_asset_image(
+    report_id: str,
+    asset_id: str,
+    kind: str = "display",
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Serve the uploaded photo image for in-browser preview and UI display."""
+    try:
+        rid = uuid.UUID(report_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid report_id format")
+
+    stmt = select(Asset).where(
+        Asset.id == str(asset_id),
+        Asset.report_id == rid,
+    )
+    res = await db.execute(stmt)
+    asset = res.scalars().first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    # Resolve file path: display copy (800px) > report copy (1600px) > original
+    file_path = None
+    if kind == "display" and asset.derived_paths:
+        file_path = asset.derived_paths.get("display")
+    elif kind == "report" and asset.derived_paths:
+        file_path = asset.derived_paths.get("report")
+
+    if not file_path or not Path(file_path).exists():
+        file_path = asset.original_path
+
+    if not file_path or not Path(file_path).exists():
+        raise HTTPException(status_code=404, detail="Image file not found on disk")
+
+    img_bytes = Path(file_path).read_bytes()
+    return Response(
+        content=img_bytes,
+        media_type="image/jpeg",
+        headers={
+            "Content-Type": "image/jpeg",
+            "Cache-Control": "public, max-age=86400",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

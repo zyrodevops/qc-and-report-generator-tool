@@ -11,10 +11,13 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  Eye,
+  Edit3,
 } from 'lucide-react';
-import { ReportSummary, updateBlockState, getDownloadDocxUrl, getAuthHeaders } from '../api/client';
+import { ReportSummary, patchBlockState, getDownloadDocxUrl, getAuthHeaders } from '../api/client';
 import { TableGrid } from '../components/tables/TableGrid';
 import { PhotoTray } from '../components/photos/PhotoTray';
+import { ReportPreview } from '../components/preview/ReportPreview';
 
 interface ReportFormProps {
   report: ReportSummary;
@@ -22,6 +25,7 @@ interface ReportFormProps {
 }
 
 export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [blockState, setBlockState] = useState<any>(report.block_state || {});
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
@@ -29,23 +33,50 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
 
+  const [version, setVersion] = useState<number>(report.version || 1);
+  const [conflictMsg, setConflictMsg] = useState<string | null>(null);
+
   const mode = blockState?.transport?.mode || 'SEA';
   const blocks = blockState?.blocks || [];
 
   const handleBlockChange = (updatedBlock: any) => {
-    const updated = blocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
-    setBlockState({ ...blockState, blocks: updated });
+    setBlockState((prev: any) => {
+      const currentBlocks = prev?.blocks || [];
+      const updated = currentBlocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
+      return { ...prev, blocks: updated };
+    });
     setSavedMsg(false);
+    setConflictMsg(null);
+  };
+
+  const handlePhotoBlockUpdate = (updatedBlock: any, updatedAssets?: Record<string, any>) => {
+    setBlockState((prev: any) => {
+      const currentBlocks = prev?.blocks || [];
+      const updated = currentBlocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
+      return {
+        ...prev,
+        blocks: updated,
+        assets: updatedAssets ? { ...(prev?.assets || {}), ...updatedAssets } : prev?.assets,
+      };
+    });
+    setSavedMsg(false);
+    setConflictMsg(null);
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      await updateBlockState(report.id, blockState);
+      setConflictMsg(null);
+      const res = await patchBlockState(report.id, blockState, version);
+      setVersion(res.new_version);
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 3000);
     } catch (err: any) {
-      alert(err.message);
+      if (err.name === 'VersionConflictError') {
+        setConflictMsg(err.message);
+      } else {
+        alert(err.message);
+      }
     } finally {
       setSaving(false);
     }
@@ -137,6 +168,34 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           </div>
         </div>
 
+        {/* VIEW TABS */}
+        <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab('edit')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition ${
+              activeTab === 'edit'
+                ? 'bg-white text-blue-900 shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            Form Editor
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('preview')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition ${
+              activeTab === 'preview'
+                ? 'bg-white text-blue-900 shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            A4 HTML Preview
+          </button>
+        </div>
+
         <div className="flex items-center gap-3">
           {savedMsg && (
             <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 animate-fade-in">
@@ -165,8 +224,27 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
         </div>
       </div>
 
-      {/* TRANSPORT METADATA CARD */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+      {conflictMsg && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-lg flex items-center gap-2 text-sm shadow-xs animate-fade-in">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          <div>
+            <p className="font-semibold">Version Conflict Detected (HTTP 409)</p>
+            <p className="text-xs text-amber-700 mt-0.5">{conflictMsg}</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'preview' ? (
+        <ReportPreview
+          report={report}
+          blockState={blockState}
+          reportNumber={report.report_number}
+          onBackToEdit={() => setActiveTab('edit')}
+        />
+      ) : (
+        <>
+          {/* TRANSPORT METADATA CARD */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
         <div className="flex items-center gap-2 pb-2 border-b border-gray-100 font-bold text-gray-800">
           <Layers className="w-5 h-5 text-blue-600" />
           <span>Shipment Transport Details ({mode})</span>
@@ -349,7 +427,9 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                 key={block.id}
                 block={block}
                 reportId={report.id}
+                assets={blockState?.assets || {}}
                 onChange={handleBlockChange}
+                onUpdateBlockAndAssets={handlePhotoBlockUpdate}
               />
             );
           }
@@ -366,6 +446,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           return null;
         })}
       </div>
+      </>
+      )}
 
       {/* SPREADSHEET IMPORT MODAL */}
       {csvModalBlockId && (

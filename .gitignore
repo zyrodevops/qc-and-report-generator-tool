@@ -11,6 +11,7 @@ samples/
 *.doc
 real_templates/
 private/
+backend/PART*/
 
 # 2. Environment & Secret Credentials
 .env

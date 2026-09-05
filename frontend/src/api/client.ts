@@ -16,6 +16,7 @@ export interface ReportSummary {
   state: string;
   status: string;
   template_id: string;
+  version?: number;
   block_state: any;
   created_at: string;
   updated_at: string;
@@ -259,6 +260,58 @@ export async function createReport(params: CreateReportParams): Promise<ReportSu
   return res.json();
 }
 
+export class VersionConflictError extends Error {
+  currentVersion: number;
+  submittedVersion: number;
+
+  constructor(currentVersion: number, submittedVersion: number) {
+    super(
+      `Version conflict: you submitted version ${submittedVersion} but the current version is ${currentVersion}. ` +
+      `Re-fetch the report and reapply your changes.`
+    );
+    this.name = 'VersionConflictError';
+    this.currentVersion = currentVersion;
+    this.submittedVersion = submittedVersion;
+  }
+}
+
+/**
+ * Patch a report's block_state with optimistic concurrency.
+ * Throws VersionConflictError if the server returns 409 (stale version).
+ * Returns { new_version } on success.
+ */
+export async function patchBlockState(
+  reportId: string,
+  blockState: any,
+  version: number
+): Promise<{ new_version: number }> {
+  const res = await fetch(`/api/reports/${reportId}/block-state`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ block_state: blockState, version }),
+  });
+
+  if (res.status === 409) {
+    const body = await res.json();
+    const detail = body.detail || {};
+    throw new VersionConflictError(
+      detail.current_version ?? 1,
+      detail.submitted_version ?? version
+    );
+  }
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Failed to update report state (${res.status}): ${err}`);
+  }
+
+  return res.json();
+}
+
+/** @deprecated Use patchBlockState (with version) instead. */
 export async function updateBlockState(reportId: string, blockState: any): Promise<void> {
   const res = await fetch(`/api/reports/${reportId}/block-state`, {
     method: 'PATCH',
@@ -266,7 +319,7 @@ export async function updateBlockState(reportId: string, blockState: any): Promi
       'Content-Type': 'application/json',
       ...getAuthHeaders(),
     },
-    body: JSON.stringify(blockState),
+    body: JSON.stringify({ block_state: blockState, version: 1 }),
   });
   if (!res.ok) {
     throw new Error(`Failed to update report state: ${res.statusText}`);
@@ -276,4 +329,28 @@ export async function updateBlockState(reportId: string, blockState: any): Promi
 export function getDownloadDocxUrl(reportId: string): string {
   const token = getStoredToken();
   return `/api/reports/${reportId}/download/docx${token ? `?auth_token=${encodeURIComponent(token)}` : ''}`;
+}
+
+export function getDownloadPdfUrl(reportId: string): string {
+  const token = getStoredToken();
+  return `/api/reports/${reportId}/download/pdf${token ? `?auth_token=${encodeURIComponent(token)}` : ''}`;
+}
+
+export async function fetchReport(reportId: string): Promise<ReportSummary> {
+  const res = await fetch(`/api/reports/${reportId}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    if (res.status === 401) {
+      clearStoredSession();
+      throw new Error('UNAUTHORIZED');
+    }
+    throw new Error(`Failed to fetch report: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export function getPreviewHtmlUrl(reportId: string): string {
+  const token = getStoredToken();
+  return `/api/reports/${reportId}/preview/html${token ? `?auth_token=${encodeURIComponent(token)}` : ''}`;
 }

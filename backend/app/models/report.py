@@ -13,7 +13,7 @@ Remediated for Milestone M1 Iteration 2:
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,6 +40,9 @@ class Report(Base):
         String(128), ForeignKey("templates.id", ondelete="RESTRICT"), nullable=False
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
     block_state: Mapped[Dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict
     )

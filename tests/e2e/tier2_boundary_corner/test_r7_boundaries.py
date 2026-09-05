@@ -94,5 +94,5 @@ def test_unauthorized_download_blocked(api_client, synthetic_state_sea):
         pytest.skip("Backend API not yet available (M1/M5 pending)")
 
     headers = {}  # No auth header
-    res = api_client.post("/api/reports/download", json=synthetic_state_sea, headers=headers)
+    res = api_client.get("/api/reports/00000000-0000-0000-0000-000000000000/download/docx", headers=headers)
     assert res.status_code in [401, 403]

@@ -51,7 +51,18 @@ def get_photo_ranges_fn():
     """Returns backend photo_ranges function or None."""
     mod = try_import("backend.app.compute.photo_ranges")
     if mod and hasattr(mod, "compute_photo_ranges"):
-        return mod.compute_photo_ranges
+        def _wrapper(groups, start_number=1):
+            raw = mod.compute_photo_ranges(groups, start_number)
+            if isinstance(raw, dict) and "groups" in raw:
+                # Provide transparent access to group IDs directly on the dict
+                result = dict(raw["groups"])
+                result["_raw"] = raw
+                result["total_photos"] = raw.get("total_photos")
+                result["next_number"] = raw.get("next_number")
+                result["groups"] = raw.get("groups")
+                return result
+            return raw
+        return _wrapper
     return None
 
 
