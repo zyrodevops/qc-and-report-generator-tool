@@ -1,0 +1,98 @@
+# ==============================================================================
+# Marine Cargo Survey & QC Platform - .gitignore
+# Strictly enforced before Commit #1 (CRITICAL-RULES.md §8)
+# ==============================================================================
+
+# 1. Client & Sample Data (NON-NEGOTIABLE EXCLUSION per CRITICAL-RULES §8)
+sample-data/
+sample_data/
+sample-reports/
+samples/
+*.doc
+real_templates/
+private/
+
+# 2. Environment & Secret Credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.cert
+credentials.json
+secrets/
+
+# 3. Storage, Uploads & Runtime Generated Artifacts
+storage/
+backend/storage/
+uploads/
+backend/uploads/
+derived/
+backend/derived/
+output/
+generated/
+# Exclude ad-hoc docx/pdf/xlsx files, but keep tracked templates and synthetic test fixtures
+*.docx
+!templates/*.docx
+!tools/test_fixtures/*.docx
+*.pdf
+!templates/*.pdf
+!tools/test_fixtures/*.pdf
+*.xlsx
+!templates/*.xlsx
+!tools/test_fixtures/*.xlsx
+
+# 4. Python & Backend Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+ENV/
+
+# 5. Node & Frontend Artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 6. Operating System & Editor Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# 7. Agent Workspace Metadata
+.agents/

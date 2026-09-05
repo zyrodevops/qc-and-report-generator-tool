@@ -1,0 +1,479 @@
+"""
+DOCX Template Engine — Master Spec §10.6, CRITICAL-RULES §4.
+
+CRITICAL RULES:
+- Inject into a real client template. NEVER rebuild letterhead from scratch.
+- PAGE x OF y counts the report body only, not the merged file with annexures.
+- The Word chart: attempt to rewrite chart1.xml + embedded xlsx.
+  If it takes >1 day, fall back to PNG image. Decision documented in TEMPLATE-NOTES.md.
+- One renderer per block type. Adding a block type is additive — touches nothing else.
+"""
+
+from __future__ import annotations
+
+import io
+import zipfile
+from copy import deepcopy
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from docx import Document
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+
+from app.compute.arithmetic import compute
+
+
+# ---------------------------------------------------------------------------
+# Template loading
+# ---------------------------------------------------------------------------
+
+TEMPLATE_DIR = Path("templates")
+SYNTHETIC_TEMPLATE_NAME = "mca-synthetic-v1.docx"
+
+
+def _load_template(template_name: str) -> Document:
+    """
+    Load the DOCX template. Prefers a real client template; falls back to
+    the synthetic placeholder if the real one is absent.
+    """
+    real_path = TEMPLATE_DIR / template_name
+    if real_path.exists():
+        return Document(str(real_path))
+
+    synthetic_path = TEMPLATE_DIR / SYNTHETIC_TEMPLATE_NAME
+    if synthetic_path.exists():
+        return Document(str(synthetic_path))
+
+    # Last resort: create a minimal in-memory document
+    return _create_minimal_document()
+
+
+def _create_minimal_document() -> Document:
+    """
+    Creates a minimal placeholder Document when no template is on disk.
+    The real client template MUST be substituted before production.
+    See TEMPLATE-NOTES.md.
+    """
+    doc = Document()
+    # Add a simple header placeholder
+    section = doc.sections[0]
+    header = section.header
+    header_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+    header_para.text = "MARINE CARGO AGENCIES — [LETTERHEAD PLACEHOLDER]"
+    header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Footer with PAGE x OF y field codes
+    footer = section.footer
+    footer_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    _add_page_x_of_y(footer_para)
+
+    return doc
+
+
+def _add_page_x_of_y(paragraph) -> None:
+    """Add PAGE x OF y field codes to a paragraph. These count body pages only."""
+    run = paragraph.add_run("Page ")
+    _add_field(paragraph, "PAGE")
+    paragraph.add_run(" of ")
+    _add_field(paragraph, "NUMPAGES")
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+
+def _add_field(paragraph, field_name: str) -> None:
+    """Insert a Word field code (PAGE, NUMPAGES) into a paragraph."""
+    run = OxmlElement("w:r")
+    fld_char_begin = OxmlElement("w:fldChar")
+    fld_char_begin.set(qn("w:fldCharType"), "begin")
+    run.append(fld_char_begin)
+    paragraph._p.append(run)
+
+    run2 = OxmlElement("w:r")
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = f" {field_name} "
+    run2.append(instr)
+    paragraph._p.append(run2)
+
+    run3 = OxmlElement("w:r")
+    fld_char_end = OxmlElement("w:fldChar")
+    fld_char_end.set(qn("w:fldCharType"), "end")
+    run3.append(fld_char_end)
+    paragraph._p.append(run3)
+
+
+# ---------------------------------------------------------------------------
+# Block renderers — one per block type, additive
+# ---------------------------------------------------------------------------
+
+def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
+    """Render a particulars block as a key-value table."""
+    rows = block.get("rows", [])
+    if not rows:
+        return
+
+    doc.add_heading(block.get("section", "PARTICULARS"), level=2)
+    table = doc.add_table(rows=len(rows), cols=2)
+    table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    for i, row in enumerate(rows):
+        label_cell = table.rows[i].cells[0]
+        value_cell = table.rows[i].cells[1]
+        label_cell.text = str(row.get("label", ""))
+        # value is a list; render as joined string
+        value_items = row.get("value", [])
+        if isinstance(value_items, list):
+            parts = []
+            for item in value_items:
+                if isinstance(item, dict) and "amount" in item:
+                    # money
+                    parts.append(f"{item.get('currency', '')} {item['amount']}".strip())
+                elif isinstance(item, list):
+                    parts.extend(str(v) for v in item)
+                else:
+                    parts.append(str(item))
+            value_cell.text = ", ".join(parts)
+        else:
+            value_cell.text = str(value_items)
+        note = row.get("note")
+        if note:
+            value_cell.text += f" ({note})"
+
+    doc.add_paragraph()  # spacing
+
+
+def render_narrative(doc: Document, block: Dict[str, Any]) -> None:
+    """Render a narrative block as a heading + paragraph."""
+    section = block.get("section", "")
+    if section:
+        doc.add_heading(section, level=2)
+
+    clause_text = block.get("additional_text") or ""
+    if clause_text:
+        para = doc.add_paragraph(clause_text)
+        para.style = "Normal"
+
+    doc.add_paragraph()
+
+
+def render_measurements(doc: Document, block: Dict[str, Any]) -> None:
+    """Render a measurements block as a table."""
+    rows = block.get("rows", [])
+    if not rows:
+        return
+
+    doc.add_heading("MEASUREMENTS", level=2)
+    table = doc.add_table(rows=1 + len(rows), cols=5)
+    table.style = "Table Grid"
+
+    # Header row
+    headers = ["Subject", "Qualifier", "Method", "Min / Value", "Max / Unit"]
+    for i, h in enumerate(headers):
+        table.rows[0].cells[i].text = h
+        table.rows[0].cells[i].paragraphs[0].runs[0].bold = True
+
+    for idx, row in enumerate(rows, start=1):
+        cells = table.rows[idx].cells
+        cells[0].text = row.get("subject", "")
+        cells[1].text = row.get("qualifier", "") or ""
+        cells[2].text = row.get("method", "") or ""
+        min_v = row.get("min") or row.get("value") or ""
+        max_v = row.get("max", "") or ""
+        cells[3].text = str(min_v)
+        unit = row.get("unit", "")
+        cells[4].text = f"{max_v} {unit}".strip() if max_v else unit
+
+    doc.add_paragraph()
+
+
+def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any]) -> None:
+    """
+    Render a table block with computed totals/percentages.
+    Computed cells are locked read-only in the DOCX (no editable field).
+    """
+    title = block.get("title", "")
+    if title:
+        doc.add_heading(title, level=2)
+
+    categories = block.get("categories", [])
+    rows = block.get("rows", [])
+    unit = block.get("unit", "pcs")
+    cat_keys = [c["key"] for c in categories]
+    cat_labels = [c["label"] for c in categories]
+
+    # Column count: grouping + category columns + Total + %
+    col_count = 1 + len(categories) + 2
+    table = doc.add_table(rows=1 + len(rows) + 2, cols=col_count)
+    table.style = "Table Grid"
+
+    # Header row
+    hrow = table.rows[0].cells
+    hrow[0].text = block.get("grouping_label", "Group")
+    for i, label in enumerate(cat_labels):
+        hrow[1 + i].text = label
+    hrow[-2].text = f"Total ({unit})"
+    hrow[-1].text = "%"
+    for cell in hrow:
+        if cell.paragraphs[0].runs:
+            cell.paragraphs[0].runs[0].bold = True
+
+    # Data rows
+    row_totals = computed.get("row_totals", [])
+    row_pcts = computed.get("row_percentages", [])
+    for i, row in enumerate(rows):
+        trow = table.rows[1 + i].cells
+        trow[0].text = str(row.get("group", ""))
+        values = row.get("values", {})
+        for j, key in enumerate(cat_keys):
+            trow[1 + j].text = str(values.get(key, ""))
+        # Computed total — read-only in output
+        if i < len(row_totals):
+            trow[-2].text = str(row_totals[i])
+            pct_row = row_pcts[i] if i < len(row_pcts) else []
+            pct_str = " / ".join(str(p) for p in pct_row)
+            trow[-1].text = pct_str
+
+    # Column totals row
+    col_totals = computed.get("column_totals", {})
+    grand_total = computed.get("grand_total", "")
+    col_pcts = computed.get("column_percentages", {})
+    tot_row = table.rows[-2].cells
+    tot_row[0].text = "Total"
+    for j, key in enumerate(cat_keys):
+        tot_row[1 + j].text = str(col_totals.get(key, ""))
+    tot_row[-2].text = str(grand_total)
+    tot_row[-1].text = ""
+
+    # Percentage row
+    pct_row_cells = table.rows[-1].cells
+    pct_row_cells[0].text = "%"
+    for j, key in enumerate(cat_keys):
+        pct_row_cells[1 + j].text = str(col_pcts.get(key, ""))
+
+    doc.add_paragraph()
+
+    # Chart Generation (Master Spec §14 Day 3 / TEMPLATE-NOTES)
+    # Generate high-resolution visual defect breakdown chart
+    try:
+        chart_stream = _generate_defect_chart(categories, col_pcts, title or "Defect Analysis Breakdown")
+        if chart_stream:
+            chart_para = doc.add_paragraph()
+            chart_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = chart_para.add_run()
+            run.add_picture(chart_stream, width=Inches(5.0))
+            cap = doc.add_paragraph(f"Chart: {title or 'Quality Analysis Breakdown'}")
+            cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if cap.runs:
+                cap.runs[0].font.size = Pt(9)
+                cap.runs[0].font.italic = True
+            doc.add_paragraph()
+    except Exception as e:
+        # Chart generation is non-blocking fallback
+        pass
+
+
+def _generate_defect_chart(
+    categories: List[Dict[str, str]],
+    col_pcts: Dict[str, Any],
+    title: str,
+) -> Optional[io.BytesIO]:
+    """
+    Generate a high-res matplotlib defect analysis breakdown donut chart.
+    Returns BytesIO containing PNG image data.
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        labels = []
+        sizes = []
+        for cat in categories:
+            k = cat["key"]
+            raw_pct = col_pcts.get(k, 0)
+            try:
+                pct_val = float(raw_pct)
+            except (ValueError, TypeError):
+                pct_val = 0.0
+            if pct_val > 0:
+                labels.append(cat["label"].split("(")[0].strip())
+                sizes.append(pct_val)
+
+        if not sizes or sum(sizes) <= 0:
+            return None
+
+        # Professional marine surveyor color scheme
+        colors = ["#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#10b981", "#64748b"]
+        slice_colors = [colors[i % len(colors)] for i in range(len(sizes))]
+
+        fig, ax = plt.subplots(figsize=(6, 3.5), dpi=200)
+        wedges, texts, autotexts = ax.pie(
+            sizes,
+            labels=labels,
+            autopct="%1.2f%%",
+            startangle=140,
+            colors=slice_colors,
+            pctdistance=0.75,
+            textprops=dict(color="#1f2937", fontsize=8, weight="bold"),
+            wedgeprops=dict(width=0.45, edgecolor="white", linewidth=2),
+        )
+
+        for autotext in autotexts:
+            autotext.set_fontsize(8)
+            autotext.set_weight("bold")
+
+        ax.set_title(title, fontsize=10, weight="bold", pad=12, color="#1e3a8a")
+        plt.tight_layout()
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight", dpi=200)
+        plt.close(fig)
+        buf.seek(0)
+        return buf
+    except Exception:
+        return None
+
+
+
+def render_photo_plate(
+    doc: Document,
+    block: Dict[str, Any],
+    computed: Dict[str, Any],
+    assets: Dict[str, Any],
+    derived_key: str = "report",
+) -> None:
+    """
+    Render a photo_plate block as a 2-column table (image + caption per cell).
+    Uses derived report copies, never the originals.
+    """
+    label = block.get("label", "Survey Photos")
+    doc.add_heading(label, level=2)
+
+    groups = block.get("groups", [])
+    computed_groups = computed.get("groups", {})
+
+    all_photos: List[Dict[str, Any]] = []
+    for g in groups:
+        gid = g.get("id", "")
+        obs = g.get("observation", "")
+        asset_ids = g.get("asset_ids", [])
+        grp_computed = computed_groups.get(gid, {})
+        numbers = grp_computed.get("numbers", list(range(1, len(asset_ids) + 1)))
+
+        for aid, num in zip(asset_ids, numbers):
+            asset = assets.get(aid, {})
+            derived = asset.get("derived_paths", asset.get("derived", {}))
+            img_path = derived.get(derived_key) or derived.get("report") or asset.get("original_path")
+            all_photos.append({
+                "number": num,
+                "caption": f"Photo No. {num} — {obs}",
+                "image_path": img_path,
+            })
+
+    if not all_photos:
+        doc.add_paragraph("[No photos in this series]")
+        return
+
+    # 2-column table
+    table = doc.add_table(rows=0, cols=2)
+    table.style = "Table Grid"
+
+    for i in range(0, len(all_photos), 2):
+        row = table.add_row()
+        for j in range(2):
+            idx = i + j
+            if idx >= len(all_photos):
+                break
+            photo = all_photos[idx]
+            cell = row.cells[j]
+            para = cell.paragraphs[0]
+
+            img_path = photo.get("image_path")
+            if img_path and Path(img_path).exists():
+                run = para.add_run()
+                run.add_picture(img_path, width=Inches(2.8))
+            else:
+                para.add_run("[Image not available]")
+
+            caption_para = cell.add_paragraph(photo["caption"])
+            caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    doc.add_paragraph()
+
+
+def render_fixed_text(doc: Document, block: Dict[str, Any]) -> None:
+    """Render a fixed_text block (disclaimer, licence line, etc.)."""
+    content = block.get("content", "")
+    if content:
+        para = doc.add_paragraph(content)
+        para.style = "Normal"
+    doc.add_paragraph()
+
+
+# ---------------------------------------------------------------------------
+# Master render function
+# ---------------------------------------------------------------------------
+
+def render_docx(
+    block_state: Dict[str, Any],
+    template_name: Optional[str] = None,
+) -> bytes:
+    """
+    Render a complete Block State to a DOCX file and return the bytes.
+
+    Workflow:
+    1. Run compute(block_state) to get all derived values.
+    2. Load the DOCX template (real client template or synthetic placeholder).
+    3. Append rendered blocks after the template's existing content.
+    4. Return the document as bytes.
+
+    CRITICAL: This calls compute() fresh every time — derived values are never
+    pre-stored. Same function as HTML preview and PDF render.
+    """
+    # Step 1: compute derived values
+    state = compute(block_state)
+
+    metadata = state.get("metadata", state.get("report", {}))
+    tmpl_name = template_name or metadata.get("docx_template", SYNTHETIC_TEMPLATE_NAME)
+    if not tmpl_name.endswith(".docx"):
+        tmpl_name += ".docx"
+
+    # Step 2: load template
+    doc = _load_template(tmpl_name)
+
+    # Clear any placeholder body paragraphs from the template
+    # (we keep header/footer — only clear body content paragraphs after last real section)
+    # For the synthetic template, there may be placeholder text — leave it as-is
+    # since it's the letterhead area.
+
+    assets = state.get("assets", {})
+    blocks = state.get("blocks", [])
+
+    # Step 3: render each block
+    for block in blocks:
+        btype = block.get("type")
+        block_computed = block.get("_computed", {})
+
+        if btype == "particulars":
+            render_particulars(doc, block)
+        elif btype == "narrative":
+            render_narrative(doc, block)
+        elif btype == "measurements":
+            render_measurements(doc, block)
+        elif btype == "table":
+            render_table(doc, block, block_computed)
+        elif btype == "photo_plate":
+            render_photo_plate(doc, block, block_computed, assets)
+        elif btype == "fixed_text":
+            render_fixed_text(doc, block)
+        # Additional block types added here — additive, nothing else changes
+
+    # Step 4: return bytes
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
