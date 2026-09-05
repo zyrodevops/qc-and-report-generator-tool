@@ -405,6 +405,190 @@ def render_photo_plate(
     doc.add_paragraph()
 
 
+def render_parties(doc: Document, block: Dict[str, Any]) -> None:
+    """Render a parties block as a 2-column key-value table."""
+    doc.add_heading("Parties Involved", level=2)
+    rows = block.get("rows", [])
+    if not rows:
+        return
+    table = doc.add_table(rows=len(rows), cols=2)
+    table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, r in enumerate(rows):
+        cell_role = table.cell(i, 0)
+        cell_val = table.cell(i, 1)
+        p0 = cell_role.paragraphs[0]
+        r0 = p0.add_run(r.get("role", ""))
+        r0.bold = True
+        p1 = cell_val.paragraphs[0]
+        text = r.get("name", "")
+        if r.get("details"):
+            text += f" ({r.get('details')})"
+        p1.add_run(text)
+    doc.add_paragraph()
+
+
+def render_attendance(doc: Document, block: Dict[str, Any]) -> None:
+    """Render attendance block as a 3-column table (Name, Designation, Representing)."""
+    doc.add_heading("Attendance at Survey", level=2)
+    rows = block.get("rows", [])
+    if not rows:
+        return
+    table = doc.add_table(rows=len(rows) + 1, cols=3)
+    table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    headers = ["Name", "Designation", "Representing"]
+    for col_idx, h in enumerate(headers):
+        cell = table.cell(0, col_idx)
+        p = cell.paragraphs[0]
+        run = p.add_run(h)
+        run.bold = True
+    for row_idx, r in enumerate(rows, start=1):
+        table.cell(row_idx, 0).paragraphs[0].add_run(r.get("name", ""))
+        table.cell(row_idx, 1).paragraphs[0].add_run(r.get("designation", ""))
+        table.cell(row_idx, 2).paragraphs[0].add_run(r.get("representing", ""))
+    doc.add_paragraph()
+
+
+def render_timeline(doc: Document, block: Dict[str, Any], computed: Dict[str, Any]) -> None:
+    """Render timeline block with event dates, locations, and transit days."""
+    doc.add_heading("Shipment & Survey Timeline", level=2)
+    rows = block.get("rows", [])
+    if rows:
+        table = doc.add_table(rows=len(rows) + 1, cols=4)
+        table.style = "Table Grid"
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        headers = ["Event", "Date", "Location", "Basis"]
+        for col_idx, h in enumerate(headers):
+            cell = table.cell(0, col_idx)
+            p = cell.paragraphs[0]
+            run = p.add_run(h)
+            run.bold = True
+        for row_idx, r in enumerate(rows, start=1):
+            table.cell(row_idx, 0).paragraphs[0].add_run(r.get("event", ""))
+            table.cell(row_idx, 1).paragraphs[0].add_run(r.get("date", ""))
+            table.cell(row_idx, 2).paragraphs[0].add_run(r.get("location", "") or "-")
+            table.cell(row_idx, 3).paragraphs[0].add_run(r.get("basis", "as reported") or "-")
+    transit_days = computed.get("transit_days")
+    if transit_days is not None:
+        p_trans = doc.add_paragraph()
+        run_trans = p_trans.add_run(f"Total Transit Duration: {transit_days} day(s)")
+        run_trans.italic = True
+    doc.add_paragraph()
+
+
+def render_reconciliation(doc: Document, block: Dict[str, Any], computed: Dict[str, Any]) -> None:
+    """Render weight reconciliation table with formula calculations."""
+    title = block.get("title", "Weight Reconciliation")
+    doc.add_heading(title, level=2)
+    rows = computed.get("rows", block.get("rows", []))
+    if not rows:
+        return
+    table = doc.add_table(rows=len(rows) + 2, cols=6)
+    table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    headers = ["Container / Item", "Gross Wt (kg)", "Tare (kg)", "Found Net (kg)", "Declared (kg)", "Difference (kg)"]
+    for col_idx, h in enumerate(headers):
+        cell = table.cell(0, col_idx)
+        p = cell.paragraphs[0]
+        run = p.add_run(h)
+        run.bold = True
+    for row_idx, r in enumerate(rows, start=1):
+        tare_val = r.get("container_tare") or r.get("trailer_tare") or "-"
+        table.cell(row_idx, 0).paragraphs[0].add_run(str(r.get("subject", "")))
+        table.cell(row_idx, 1).paragraphs[0].add_run(str(r.get("gross", "-")))
+        table.cell(row_idx, 2).paragraphs[0].add_run(str(tare_val))
+        table.cell(row_idx, 3).paragraphs[0].add_run(str(r.get("found_net", "-")))
+        table.cell(row_idx, 4).paragraphs[0].add_run(str(r.get("reference", "-")))
+        diff_str = str(r.get("difference", "0"))
+        dir_str = r.get("direction", "")
+        if dir_str and dir_str != "NIL":
+            diff_str += f" ({dir_str})"
+        table.cell(row_idx, 5).paragraphs[0].add_run(diff_str)
+    # Total row
+    tot_row = len(rows) + 1
+    t0 = table.cell(tot_row, 0).paragraphs[0].add_run("TOTAL / SUMMARY")
+    t0.bold = True
+    table.cell(tot_row, 1).paragraphs[0].add_run(str(computed.get("total_gross", "-"))).bold = True
+    table.cell(tot_row, 2).paragraphs[0].add_run("-")
+    table.cell(tot_row, 3).paragraphs[0].add_run(str(computed.get("total_found_net", "-"))).bold = True
+    table.cell(tot_row, 4).paragraphs[0].add_run(str(computed.get("total_reference", "-"))).bold = True
+    tot_diff_str = str(computed.get("total_difference", "0"))
+    tot_dir = computed.get("direction", "")
+    if tot_dir and tot_dir != "NIL":
+        tot_diff_str += f" ({tot_dir})"
+    table.cell(tot_row, 5).paragraphs[0].add_run(tot_diff_str).bold = True
+    doc.add_paragraph()
+
+
+def render_inventory(doc: Document, block: Dict[str, Any]) -> None:
+    """Render machinery/package inventory block."""
+    doc.add_heading("Machinery & Package Damage Inventory", level=2)
+    packages = block.get("packages", [])
+    if not packages:
+        doc.add_paragraph("[No damaged items recorded]")
+        return
+    for pkg in packages:
+        p_head = doc.add_paragraph()
+        run_h = p_head.add_run(f"Package {pkg.get('package_no', '')}: {pkg.get('contents', '')} ({pkg.get('package_type', '')})")
+        run_h.bold = True
+        parts = pkg.get("parts", [])
+        if parts:
+            table = doc.add_table(rows=len(parts) + 1, cols=4)
+            table.style = "Table Grid"
+            headers = ["Part No.", "Description", "Qty", "Damage Findings"]
+            for c_idx, h in enumerate(headers):
+                table.cell(0, c_idx).paragraphs[0].add_run(h).bold = True
+            for r_idx, part in enumerate(parts, start=1):
+                table.cell(r_idx, 0).paragraphs[0].add_run(str(part.get("part_no", "-")))
+                table.cell(r_idx, 1).paragraphs[0].add_run(part.get("description", ""))
+                table.cell(r_idx, 2).paragraphs[0].add_run(str(part.get("quantity", 1)))
+                damages = part.get("damages", [])
+                dmg_text = "; ".join(f"{d.get('description', '')} ({d.get('severity', '')})" for d in damages) if damages else "None"
+                table.cell(r_idx, 3).paragraphs[0].add_run(dmg_text)
+            doc.add_paragraph()
+
+
+def render_annexures_list(doc: Document, block: Dict[str, Any], computed: Dict[str, Any]) -> None:
+    """Render documentation list of annexures."""
+    doc.add_heading("List of Annexures", level=2)
+    doc_list = computed.get("documentation_list", [])
+    if not doc_list:
+        rows = block.get("rows", [])
+        doc_list = [f"Annexure {r.get('prefix', 'A')}: {r.get('title', '')}" for r in rows]
+    for item in doc_list:
+        doc.add_paragraph(item, style="List Bullet")
+    doc.add_paragraph()
+
+
+def render_unit_group(
+    doc: Document,
+    block: Dict[str, Any],
+    computed: Dict[str, Any],
+    assets: Dict[str, Any],
+) -> None:
+    """Render multi-unit container group repeating child blocks per unit."""
+    units = computed.get("units", [])
+    for unit in units:
+        heading = unit.get("heading") or f"CONTAINER {unit.get('identifier')}"
+        doc.add_heading(heading, level=2)
+        for ub in unit.get("blocks", []):
+            ubtype = ub.get("type")
+            ub_comp = ub.get("_computed", {})
+            if ubtype == "particulars":
+                render_particulars(doc, ub)
+            elif ubtype == "table":
+                render_table(doc, ub, ub_comp)
+            elif ubtype == "reconciliation":
+                render_reconciliation(doc, ub, ub_comp)
+            elif ubtype == "measurements":
+                render_measurements(doc, ub)
+            elif ubtype == "photo_plate":
+                render_photo_plate(doc, ub, ub_comp, assets)
+            elif ubtype == "narrative":
+                render_narrative(doc, ub)
+
+
 def render_fixed_text(doc: Document, block: Dict[str, Any]) -> None:
     """Render a fixed_text block (disclaimer, licence line, etc.)."""
     content = block.get("content", "")
@@ -445,11 +629,6 @@ def render_docx(
     # Step 2: load template
     doc = _load_template(tmpl_name)
 
-    # Clear any placeholder body paragraphs from the template
-    # (we keep header/footer — only clear body content paragraphs after last real section)
-    # For the synthetic template, there may be placeholder text — leave it as-is
-    # since it's the letterhead area.
-
     assets = state.get("assets", {})
     blocks = state.get("blocks", [])
 
@@ -470,7 +649,20 @@ def render_docx(
             render_photo_plate(doc, block, block_computed, assets)
         elif btype == "fixed_text":
             render_fixed_text(doc, block)
-        # Additional block types added here — additive, nothing else changes
+        elif btype == "parties":
+            render_parties(doc, block)
+        elif btype == "attendance":
+            render_attendance(doc, block)
+        elif btype == "timeline":
+            render_timeline(doc, block, block_computed)
+        elif btype == "reconciliation":
+            render_reconciliation(doc, block, block_computed)
+        elif btype == "inventory":
+            render_inventory(doc, block)
+        elif btype == "annexures":
+            render_annexures_list(doc, block, block_computed)
+        elif btype == "unit_group":
+            render_unit_group(doc, block, block_computed, assets)
 
     # Step 4: return bytes
     buf = io.BytesIO()

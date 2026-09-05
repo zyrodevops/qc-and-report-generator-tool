@@ -238,6 +238,124 @@ class FixedTextBlock(BaseModel):
     content: Optional[str] = None         # actual text fetched from clauses table at render
 
 
+# ---------------------------------------------------------------------------
+# Week 3 Block Models — Master Spec §7, §8, §9, §14
+# ---------------------------------------------------------------------------
+
+class PartiesRow(BaseModel):
+    role: str                              # "Insurers", "Insured", "Consignees", etc.
+    name: str
+    details: Optional[str] = None
+
+
+class PartiesBlock(BaseModel):
+    id: str
+    type: str = "parties"
+    scope: str = "SHIPMENT"
+    rows: List[PartiesRow] = Field(default_factory=list)
+
+
+class AttendanceRow(BaseModel):
+    name: str
+    designation: str
+    representing: str
+
+
+class AttendanceBlock(BaseModel):
+    id: str
+    type: str = "attendance"
+    scope: str = "SHIPMENT"
+    rows: List[AttendanceRow] = Field(default_factory=list)
+
+
+class TimelineRow(BaseModel):
+    event: str                             # "DISCHARGE", "SURVEY", "FLIGHT_ARRIVAL", etc.
+    date: str                              # ISO format "YYYY-MM-DD"
+    location: Optional[str] = None
+    basis: Optional[str] = "as reported"
+
+
+class TimelineBlock(BaseModel):
+    id: str
+    type: str = "timeline"
+    scope: str = "SHIPMENT"
+    rows: List[TimelineRow] = Field(default_factory=list)
+
+
+class ReconciliationRow(BaseModel):
+    subject: str                           # Container number or description
+    slip_no: Optional[str] = None
+    slip_date: Optional[str] = None
+    gross: Optional[str] = None            # Gross weighbridge weight
+    container_tare: Optional[str] = None   # Tare weight
+    trailer_tare: Optional[str] = None     # Trailer tare weight
+    reference: Optional[str] = None        # Declared weight (e.g. B/L gross)
+    note: Optional[str] = None
+
+
+class ReconciliationBlock(BaseModel):
+    id: str
+    type: str = "reconciliation"
+    title: Optional[str] = "Weight Reconciliation"
+    formula: str = "GROSS_MINUS_CONTAINER_TARE"
+    reference_label: Optional[str] = "Gross weight of cargo as per Bill of Lading"
+    annexure_prefix: Optional[str] = None
+    scope: str = "SHIPMENT"               # "SHIPMENT" or "UNIT"
+    rolls_up_from: Optional[str] = None   # ID of per-unit reconciliation block to aggregate
+    rows: List[ReconciliationRow] = Field(default_factory=list)
+
+
+class UnitGroupBlock(BaseModel):
+    id: str
+    type: str = "unit_group"
+    repeat_for: str = "carriage_units"
+    heading_template: str = "{index}) CONDITION OF CONTAINER NO. {identifier} & CARGO: (SEE {photo_ref})"
+    photo_numbering: str = "SHARED_SERIES_SEGMENTED"  # "SHARED_SERIES_SEGMENTED" | "SERIES_PER_UNIT"
+    blocks: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AnnexureRow(BaseModel):
+    prefix: str = "A"                      # Series prefix (A, B, C...)
+    title: str
+    asset_id: Optional[str] = None
+    file_path: Optional[str] = None
+    sub_id: Optional[str] = None           # Computed: A1, A2, etc.
+
+
+class AnnexuresBlock(BaseModel):
+    id: str
+    type: str = "annexures"
+    scope: str = "SHIPMENT"
+    rows: List[AnnexureRow] = Field(default_factory=list)
+
+
+class InventoryDamage(BaseModel):
+    description: str
+    severity: Optional[str] = None        # "CRUSHED", "BENT", "BROKEN", etc.
+    photo_ref: Optional[str] = None
+
+
+class InventoryPart(BaseModel):
+    part_no: Optional[str] = None
+    description: str
+    quantity: int = 1
+    damages: List[InventoryDamage] = Field(default_factory=list)
+
+
+class InventoryPackage(BaseModel):
+    package_no: str
+    package_type: str                     # "WOODEN_CRATE", "CASE", "PALLET", etc.
+    contents: str
+    parts: List[InventoryPart] = Field(default_factory=list)
+
+
+class InventoryBlock(BaseModel):
+    id: str
+    type: str = "inventory"
+    scope: str = "SHIPMENT"
+    packages: List[InventoryPackage] = Field(default_factory=list)
+
+
 # Union of all supported block types
 AnyBlock = Union[
     ParticularsBlock,
@@ -246,6 +364,13 @@ AnyBlock = Union[
     TableBlock,
     PhotoPlateBlock,
     FixedTextBlock,
+    PartiesBlock,
+    AttendanceBlock,
+    TimelineBlock,
+    ReconciliationBlock,
+    UnitGroupBlock,
+    AnnexuresBlock,
+    InventoryBlock,
 ]
 
 

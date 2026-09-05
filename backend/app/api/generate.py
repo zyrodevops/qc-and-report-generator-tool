@@ -117,6 +117,17 @@ async def preview_pdf(
             detail=f"PDF preview conversion failed: {exc}",
         )
 
+    # Merge annexures if present
+    blocks = report.block_state.get("blocks", [])
+    annexures_block = next((b for b in blocks if b.get("type") == "annexures"), None)
+    if annexures_block:
+        from app.render.annexures import merge_pdf_annexures
+        pdf_bytes = merge_pdf_annexures(
+            body_pdf_bytes=pdf_bytes,
+            annexures_block=annexures_block,
+            assets=report.block_state.get("assets", {}),
+        )
+
     safe_number = report.report_number.replace("/", "-").replace(" ", "_")
     filename = f"{safe_number}.pdf"
 
@@ -260,6 +271,17 @@ async def download_pdf(
         raise HTTPException(
             status_code=500,
             detail=f"PDF conversion failed: {exc}",
+        )
+
+    # Merge annexures if present
+    blocks = report.block_state.get("blocks", [])
+    annexures_block = next((b for b in blocks if b.get("type") == "annexures"), None)
+    if annexures_block:
+        from app.render.annexures import merge_pdf_annexures
+        pdf_bytes = merge_pdf_annexures(
+            body_pdf_bytes=pdf_bytes,
+            annexures_block=annexures_block,
+            assets=report.block_state.get("assets", {}),
         )
 
     safe_number = report.report_number.replace("/", "-").replace(" ", "_")

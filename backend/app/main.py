@@ -41,7 +41,21 @@ async def lifespan(app: FastAPI):
                         role="surveyor",
                         is_active=True,
                     )
-                    db.add(user)
+            # Seed the six canonical report templates
+            from app.seeds.templates import SIX_CANONICAL_TEMPLATES
+            from app.models.template import Template
+            for t_data in SIX_CANONICAL_TEMPLATES:
+                stmt = select(Template).where(Template.id == t_data["id"])
+                res = await db.execute(stmt)
+                if not res.scalars().first():
+                    tmpl = Template(
+                        id=t_data["id"],
+                        name=t_data["name"],
+                        family=t_data["family"],
+                        mode=t_data["mode"],
+                        block_sequence=t_data["block_sequence"],
+                    )
+                    db.add(tmpl)
             await db.commit()
     except Exception:
         # If database is not ready or tables not yet migrated at startup, continue
