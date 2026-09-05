@@ -19,6 +19,13 @@ import {
   TableBlock,
   PhotoPlateBlock,
   FixedTextBlock,
+  PartiesBlock,
+  AttendanceBlock,
+  TimelineBlock,
+  ReconciliationBlock,
+  InventoryBlock,
+  AnnexuresBlock,
+  UnitGroupBlock,
 } from './blocks';
 import { getDownloadDocxUrl, getDownloadPdfUrl, getPreviewHtmlUrl } from '../../api/client';
 
@@ -50,13 +57,14 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
   const assets = computedState?.assets || {};
 
   // Separate blocks for realistic pagination:
-  // Page 1: Overview & Quantitative Data (particulars, narrative, measurements, table)
-  // Page 2+: Evidence (photo plates chunked 4 per page) & Legal (fixed_text)
+  // Page 1: Overview & Survey Data
+  // Page 2+: Evidence (photos), Documentation (annexures), Legal (fixed_text)
   const page1Blocks = blocks.filter((b) =>
-    ['particulars', 'narrative', 'measurements', 'table'].includes(b.type)
+    ['parties', 'attendance', 'particulars', 'timeline', 'narrative', 'measurements', 'table', 'reconciliation', 'inventory', 'unit_group'].includes(b.type)
   );
   const photoBlocks = blocks.filter((b) => b.type === 'photo_plate');
   const fixedTextBlocks = blocks.filter((b) => b.type === 'fixed_text');
+  const annexureBlocks = blocks.filter((b) => b.type === 'annexures');
 
   // Flatten all photos for pagination
   const allPhotos: Array<{
@@ -302,8 +310,17 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
             </h1>
 
             {page1Blocks.map((b) => {
+              if (b.type === 'parties') {
+                return <PartiesBlock key={b.id} block={b} />;
+              }
+              if (b.type === 'attendance') {
+                return <AttendanceBlock key={b.id} block={b} />;
+              }
               if (b.type === 'particulars') {
                 return <ParticularsBlock key={b.id} block={b} />;
+              }
+              if (b.type === 'timeline') {
+                return <TimelineBlock key={b.id} block={b} />;
               }
               if (b.type === 'narrative') {
                 return <NarrativeBlock key={b.id} block={b} />;
@@ -314,14 +331,29 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
               if (b.type === 'table') {
                 return <TableBlock key={b.id} block={b} computed={b._computed} />;
               }
+              if (b.type === 'reconciliation') {
+                return <ReconciliationBlock key={b.id} block={b} />;
+              }
+              if (b.type === 'inventory') {
+                return <InventoryBlock key={b.id} block={b} />;
+              }
+              if (b.type === 'unit_group') {
+                return <UnitGroupBlock key={b.id} block={b} reportId={report?.id} />;
+              }
               return null;
             })}
 
-            {/* If no photos, render fixed text at bottom of page 1 */}
-            {photoPages.length === 0 &&
-              fixedTextBlocks.map((fb) => (
-                <FixedTextBlock key={fb.id} block={fb} metadata={metadata} />
-              ))}
+            {/* If no photos, render annexures and fixed text at bottom of page 1 */}
+            {photoPages.length === 0 && (
+              <>
+                {annexureBlocks.map((ab) => (
+                  <AnnexuresBlock key={ab.id} block={ab} />
+                ))}
+                {fixedTextBlocks.map((fb) => (
+                  <FixedTextBlock key={fb.id} block={fb} metadata={metadata} />
+                ))}
+              </>
+            )}
           </PageContainer>
         )}
 
@@ -348,11 +380,17 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
                 reportId={report?.id}
               />
 
-              {/* Fixed text on the final page */}
-              {isLast &&
-                fixedTextBlocks.map((fb) => (
-                  <FixedTextBlock key={fb.id} block={fb} metadata={metadata} />
-                ))}
+              {/* Annexures and Fixed text on the final page */}
+              {isLast && (
+                <>
+                  {annexureBlocks.map((ab) => (
+                    <AnnexuresBlock key={ab.id} block={ab} />
+                  ))}
+                  {fixedTextBlocks.map((fb) => (
+                    <FixedTextBlock key={fb.id} block={fb} metadata={metadata} />
+                  ))}
+                </>
+              )}
             </PageContainer>
           );
         })}

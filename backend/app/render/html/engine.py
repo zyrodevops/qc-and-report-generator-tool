@@ -494,6 +494,167 @@ def render_fixed_text_html(block: Dict[str, Any]) -> str:
     return f'<div class="fixed-text-block"><p>{html.escape(content)}</p></div>'
 
 
+def render_parties_html(block: Dict[str, Any]) -> str:
+    """Render parties block as key-value table."""
+    rows = block.get("rows", [])
+    if not rows:
+        return ""
+    out = ['<h2 class="block-heading">Parties Involved</h2>', '<table class="preview-table">']
+    for r in rows:
+        role = html.escape(str(r.get("role", "")))
+        name = html.escape(str(r.get("name", "")))
+        details = r.get("details")
+        val_text = f"{name} ({html.escape(str(details))})" if details else name
+        out.append(f'<tr><td style="width: 35%; font-weight: 700; background-color: #f8fafc;">{role}</td><td>{val_text}</td></tr>')
+    out.append('</table>')
+    return "\n".join(out)
+
+
+def render_attendance_html(block: Dict[str, Any]) -> str:
+    """Render attendance block as 3-column table."""
+    rows = block.get("rows", [])
+    if not rows:
+        return ""
+    out = [
+        '<h2 class="block-heading">Attendance at Survey</h2>',
+        '<table class="preview-table">',
+        '<thead><tr><th>Name</th><th>Designation</th><th>Representing</th></tr></thead>',
+        '<tbody>'
+    ]
+    for r in rows:
+        name = html.escape(str(r.get("name", "")))
+        desig = html.escape(str(r.get("designation", "")))
+        rep = html.escape(str(r.get("representing", "")))
+        out.append(f'<tr><td>{name}</td><td>{desig}</td><td>{rep}</td></tr>')
+    out.append('</tbody></table>')
+    return "\n".join(out)
+
+
+def render_timeline_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
+    """Render timeline block."""
+    rows = block.get("rows", [])
+    out = ['<h2 class="block-heading">Shipment & Survey Timeline</h2>']
+    if rows:
+        out.append('<table class="preview-table">')
+        out.append('<thead><tr><th>Event</th><th>Date</th><th>Location</th><th>Basis</th></tr></thead><tbody>')
+        for r in rows:
+            ev = html.escape(str(r.get("event", "")))
+            dt = html.escape(str(r.get("date", "")))
+            loc = html.escape(str(r.get("location", "") or "-"))
+            basis = html.escape(str(r.get("basis", "as reported") or "-"))
+            out.append(f'<tr><td style="font-weight: 600;">{ev}</td><td>{dt}</td><td>{loc}</td><td>{basis}</td></tr>')
+        out.append('</tbody></table>')
+    transit_days = computed.get("transit_days")
+    if transit_days is not None:
+        out.append(f'<p style="font-style: italic; font-size: 8.5pt; color: #475569; margin-top: 4px;">Total Transit Duration: {transit_days} day(s)</p>')
+    return "\n".join(out)
+
+
+def render_reconciliation_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
+    """Render weight reconciliation table."""
+    title = html.escape(block.get("title", "Weight Reconciliation"))
+    rows = computed.get("rows", block.get("rows", []))
+    if not rows:
+        return ""
+    out = [
+        f'<h2 class="block-heading">{title}</h2>',
+        '<table class="preview-table">',
+        '<thead><tr><th>Container / Item</th><th>Gross Wt (kg)</th><th>Tare (kg)</th><th>Found Net (kg)</th><th>Declared (kg)</th><th>Difference (kg)</th></tr></thead>',
+        '<tbody>'
+    ]
+    for r in rows:
+        subj = html.escape(str(r.get("subject", "")))
+        gross = html.escape(str(r.get("gross", "-")))
+        tare = html.escape(str(r.get("container_tare") or r.get("trailer_tare") or "-"))
+        found_net = html.escape(str(r.get("found_net", "-")))
+        ref = html.escape(str(r.get("reference", "-")))
+        diff = html.escape(str(r.get("difference", "0")))
+        dir_str = r.get("direction", "")
+        if dir_str and dir_str != "NIL":
+            diff += f" ({dir_str})"
+        out.append(f'<tr><td>{subj}</td><td style="text-align: right;">{gross}</td><td style="text-align: right;">{tare}</td><td style="text-align: right;">{found_net}</td><td style="text-align: right;">{ref}</td><td style="text-align: right; font-weight: 600;">{diff}</td></tr>')
+    
+    tot_gross = html.escape(str(computed.get("total_gross", "-")))
+    tot_found_net = html.escape(str(computed.get("total_found_net", "-")))
+    tot_ref = html.escape(str(computed.get("total_reference", "-")))
+    tot_diff = html.escape(str(computed.get("total_difference", "0")))
+    tot_dir = computed.get("direction", "")
+    if tot_dir and tot_dir != "NIL":
+        tot_diff += f" ({tot_dir})"
+    
+    out.append(f'<tr class="total-row"><td>TOTAL / SUMMARY</td><td style="text-align: right;">{tot_gross}</td><td style="text-align: right;">-</td><td style="text-align: right;">{tot_found_net}</td><td style="text-align: right;">{tot_ref}</td><td style="text-align: right;">{tot_diff}</td></tr>')
+    out.append('</tbody></table>')
+    return "\n".join(out)
+
+
+def render_inventory_html(block: Dict[str, Any]) -> str:
+    """Render machinery/package inventory block."""
+    packages = block.get("packages", [])
+    if not packages:
+        return '<h2 class="block-heading">Machinery Damage Inventory</h2><p style="font-style: italic;">[No damaged items recorded]</p>'
+    out = ['<h2 class="block-heading">Machinery Damage Inventory</h2>']
+    for pkg in packages:
+        pkg_no = html.escape(str(pkg.get("package_no", "")))
+        contents = html.escape(str(pkg.get("contents", "")))
+        pkg_type = html.escape(str(pkg.get("package_type", "")))
+        out.append(f'<div style="margin-top: 10px; font-weight: 700; color: #1e293b;">Package {pkg_no}: {contents} ({pkg_type})</div>')
+        parts = pkg.get("parts", [])
+        if parts:
+            out.append('<table class="preview-table" style="margin-top: 4px;">')
+            out.append('<thead><tr><th>Part No.</th><th>Description</th><th>Qty</th><th>Damage Findings</th></tr></thead><tbody>')
+            for part in parts:
+                pno = html.escape(str(part.get("part_no", "-")))
+                desc = html.escape(str(part.get("description", "")))
+                qty = html.escape(str(part.get("quantity", 1)))
+                damages = part.get("damages", [])
+                dmg_text = html.escape("; ".join(f"{d.get('description', '')} ({d.get('severity', '')})" for d in damages)) if damages else "None"
+                out.append(f'<tr><td>{pno}</td><td>{desc}</td><td>{qty}</td><td>{dmg_text}</td></tr>')
+            out.append('</tbody></table>')
+    return "\n".join(out)
+
+
+def render_annexures_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
+    """Render documentation list of annexures."""
+    doc_list = computed.get("documentation_list", [])
+    if not doc_list:
+        rows = block.get("rows", [])
+        doc_list = [f"Annexure {r.get('prefix', 'A')}: {r.get('title', '')}" for r in rows]
+    out = ['<h2 class="block-heading">List of Annexures</h2>', '<ul style="padding-left: 20px; font-size: 9pt;">']
+    for item in doc_list:
+        out.append(f'<li style="margin-bottom: 3px;">{html.escape(item)}</li>')
+    out.append('</ul>')
+    return "\n".join(out)
+
+
+def render_unit_group_html(
+    block: Dict[str, Any],
+    computed: Dict[str, Any],
+    assets: Dict[str, Any],
+) -> str:
+    """Render unit group repeating scoped child blocks."""
+    units = computed.get("units", [])
+    out = []
+    for unit in units:
+        heading = html.escape(unit.get("heading") or f"CONTAINER {unit.get('identifier')}")
+        out.append(f'<h2 class="block-heading" style="color: #00387A; font-size: 11pt; margin-top: 20px; border-bottom: 2px solid #00387A;">{heading}</h2>')
+        for ub in unit.get("blocks", []):
+            ubtype = ub.get("type")
+            ub_comp = ub.get("_computed", {})
+            if ubtype == "particulars":
+                out.append(render_particulars_html(ub))
+            elif ubtype == "table":
+                out.append(render_table_html(ub, ub_comp))
+            elif ubtype == "reconciliation":
+                out.append(render_reconciliation_html(ub, ub_comp))
+            elif ubtype == "measurements":
+                out.append(render_measurements_html(ub))
+            elif ubtype == "photo_plate":
+                out.append(render_photo_plate_html(ub, ub_comp, assets))
+            elif ubtype == "narrative":
+                out.append(render_narrative_html(ub))
+    return "\n".join(out)
+
+
 def render_html(block_state: Dict[str, Any]) -> str:
     """
     Renders Block State into A4-dimensioned HTML preview.
@@ -506,14 +667,8 @@ def render_html(block_state: Dict[str, Any]) -> str:
     metadata = state.get("metadata", state.get("report", {}))
     report_num = metadata.get("number", "DRAFT REPORT")
 
-    # Partition blocks into realistic pages:
-    # Page 1: Overview & Data (particulars, narrative, measurements, table)
-    # Page 2+: Evidence (photo_plate) and Legal (fixed_text)
     page1_blocks: List[str] = []
     page2_blocks: List[str] = []
-
-    has_photo_or_fixed = any(b.get("type") in ("photo_plate", "fixed_text") for b in blocks)
-    has_prior_blocks = any(b.get("type") in ("particulars", "narrative", "measurements", "table") for b in blocks)
 
     for b in blocks:
         btype = b.get("type")
@@ -532,11 +687,25 @@ def render_html(block_state: Dict[str, Any]) -> str:
             rendered = render_photo_plate_html(b, bcomp, assets)
         elif btype == "fixed_text":
             rendered = render_fixed_text_html(b)
+        elif btype == "parties":
+            rendered = render_parties_html(b)
+        elif btype == "attendance":
+            rendered = render_attendance_html(b)
+        elif btype == "timeline":
+            rendered = render_timeline_html(b, bcomp)
+        elif btype == "reconciliation":
+            rendered = render_reconciliation_html(b, bcomp)
+        elif btype == "inventory":
+            rendered = render_inventory_html(b)
+        elif btype == "annexures":
+            rendered = render_annexures_html(b, bcomp)
+        elif btype == "unit_group":
+            rendered = render_unit_group_html(b, bcomp, assets)
 
         if not rendered:
             continue
 
-        if has_prior_blocks and btype in ("photo_plate", "fixed_text"):
+        if btype in ("photo_plate", "fixed_text", "annexures"):
             page2_blocks.append(rendered)
         else:
             page1_blocks.append(rendered)
