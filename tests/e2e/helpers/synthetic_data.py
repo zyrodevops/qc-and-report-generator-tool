@@ -93,6 +93,18 @@ GRAPES_TOTALS = {
     "expected_pcts": [Decimal("93.81"), Decimal("4.46"), Decimal("1.73")]
 }
 
+ORANGE_ROW_72 = {
+    "counts": [Decimal("88"), Decimal("16"), Decimal("30"), Decimal("9"), Decimal("1")],
+    "expected_total": Decimal("144"),
+    "expected_pcts": [Decimal("61.11"), Decimal("11.11"), Decimal("20.83"), Decimal("6.25"), Decimal("0.70")]
+}
+
+ORANGE_COL_TOTALS = {
+    "totals": [Decimal("378"), Decimal("76"), Decimal("190"), Decimal("32"), Decimal("4")],
+    "expected_grand_total": Decimal("680"),
+    "expected_pcts": [Decimal("55.59"), Decimal("11.18"), Decimal("27.94"), Decimal("4.70"), Decimal("0.59")]
+}
+
 
 def make_synthetic_block_state(mode: str = "SEA", multi_unit: bool = False) -> Dict[str, Any]:
     """Generates a complete valid Block State document conforming to Master-Spec §9."""

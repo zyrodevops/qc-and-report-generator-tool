@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, Plus, Trash2, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { Camera, Plus, Trash2, ExternalLink, Image as ImageIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { getAuthHeaders } from '../../api/client';
 
 interface PhotoGroup {
@@ -17,10 +17,18 @@ interface PhotoPlateBlockProps {
     groups: PhotoGroup[];
   };
   reportId?: string;
+  assets?: Record<string, any>;
   onChange: (updatedBlock: any) => void;
+  onUpdateBlockAndAssets?: (updatedBlock: any, updatedAssets: Record<string, any>) => void;
 }
 
-export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({ block, reportId, onChange }) => {
+export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
+  block,
+  reportId,
+  assets = {},
+  onChange,
+  onUpdateBlockAndAssets,
+}) => {
   const { groups = [], label = 'Survey Photographs' } = block;
   const [uploading, setUploading] = useState(false);
   const [newObs, setNewObs] = useState('');
@@ -70,6 +78,16 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({ block, reportId, onC
     onChange({ ...block, groups: updated });
   };
 
+  const handleMoveGroup = (idx: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= groups.length) return;
+    const updated = [...groups];
+    const temp = updated[idx];
+    updated[idx] = updated[targetIdx];
+    updated[targetIdx] = temp;
+    onChange({ ...block, groups: updated });
+  };
+
   const handleUpdateObservation = (idx: number, text: string) => {
     const updated = [...groups];
     updated[idx] = { ...updated[idx], observation: text };
@@ -77,11 +95,16 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({ block, reportId, onC
   };
 
   const handlePhotoUpload = async (groupIdx: number, files: FileList | null) => {
-    if (!files || files.length === 0 || !reportId) return;
+    if (!files || files.length === 0) return;
+    if (!reportId) {
+      alert('Report ID is missing. Please save draft first.');
+      return;
+    }
     setUploading(true);
 
     try {
       const uploadedIds: string[] = [];
+      const uploadedAssets: any[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const formData = new FormData();
@@ -89,15 +112,27 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({ block, reportId, onC
         formData.append('series_id', block.series_id || 'survey');
         formData.append('provenance', block.provenance || 'own_survey');
 
+        const headers = getAuthHeaders();
         const res = await fetch(`/api/reports/${reportId}/assets/photos`, {
           method: 'POST',
-          headers: getAuthHeaders(),
+          headers,
           body: formData,
         });
 
         if (res.ok) {
           const data = await res.json();
           uploadedIds.push(data.id);
+          uploadedAssets.push(data);
+        } else {
+          const errText = await res.text();
+          let msg = `Upload failed (HTTP ${res.status})`;
+          try {
+            const errJson = JSON.parse(errText);
+            msg = errJson.detail || errJson.message || msg;
+          } catch {
+            if (errText) msg += `: ${errText}`;
+          }
+          alert(msg);
         }
       }
 
@@ -107,10 +142,21 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({ block, reportId, onC
           ...updated[groupIdx],
           asset_ids: [...updated[groupIdx].asset_ids, ...uploadedIds],
         };
-        onChange({ ...block, groups: updated });
+
+        const nextAssets = { ...(assets || {}) };
+        uploadedAssets.forEach((a) => {
+          nextAssets[a.id] = a;
+        });
+
+        if (onUpdateBlockAndAssets) {
+          onUpdateBlockAndAssets({ ...block, groups: updated }, nextAssets);
+        } else {
+          onChange({ ...block, groups: updated });
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to upload photos:', err);
+      alert(`Upload error: ${err?.message || err}`);
     } finally {
       setUploading(false);
     }
@@ -174,14 +220,34 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({ block, reportId, onC
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleDeleteGroup(idx)}
-                className="text-gray-400 hover:text-red-500 p-1.5 transition"
-                title="Remove group"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleMoveGroup(idx, 'up')}
+                  disabled={idx === 0}
+                  className="text-gray-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-gray-400 p-1 transition"
+                  title="Move group up (renumbers automatically)"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMoveGroup(idx, 'down')}
+                  disabled={idx === groups.length - 1}
+                  className="text-gray-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-gray-400 p-1 transition"
+                  title="Move group down (renumbers automatically)"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteGroup(idx)}
+                  className="text-gray-400 hover:text-red-500 p-1 transition ml-1"
+                  title="Remove group"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Photos in this group */}
@@ -189,14 +255,22 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({ block, reportId, onC
               {g.asset_ids.map((aid, pIdx) => (
                 <div
                   key={aid}
-                  className="relative group bg-white border border-gray-300 rounded p-1 flex items-center gap-1.5 shadow-xs"
+                  className="relative group bg-white border border-gray-300 rounded p-1.5 flex items-center gap-2 shadow-xs hover:border-indigo-300 transition"
                 >
-                  <ImageIcon className="w-4 h-4 text-gray-500 ml-1" />
-                  <span className="text-xs font-mono text-gray-700">Photo {g.start + pIdx}</span>
+                  <img
+                    src={`/api/reports/${reportId}/assets/${aid}/image`}
+                    alt={`Photo ${g.start + pIdx}`}
+                    className="w-10 h-10 object-cover rounded border border-gray-200"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                  <ImageIcon className="w-4 h-4 text-gray-400" />
+                  <span className="text-xs font-mono font-medium text-gray-700">Photo {g.start + pIdx}</span>
                   <button
                     type="button"
                     onClick={() => handleRemovePhoto(idx, aid)}
-                    className="text-gray-400 hover:text-red-500 p-0.5 transition"
+                    className="text-gray-400 hover:text-red-500 p-0.5 transition ml-1"
                     title="Delete photo"
                   >
                     ×
@@ -206,13 +280,16 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({ block, reportId, onC
 
               <label className="cursor-pointer inline-flex items-center gap-1 text-xs bg-white hover:bg-gray-100 text-gray-700 font-medium px-2.5 py-1.5 rounded border border-gray-300 border-dashed transition">
                 <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                Upload Photo(s)
+                {uploading ? 'Uploading...' : 'Upload Photo(s)'}
                 <input
                   type="file"
                   multiple
                   accept="image/*"
                   disabled={uploading || !reportId}
-                  onChange={(e) => handlePhotoUpload(idx, e.target.files)}
+                  onChange={(e) => {
+                    handlePhotoUpload(idx, e.target.files);
+                    e.target.value = '';
+                  }}
                   className="hidden"
                 />
               </label>

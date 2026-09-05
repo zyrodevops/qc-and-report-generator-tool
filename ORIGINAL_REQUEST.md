@@ -140,3 +140,82 @@ The form must include the transport module: a `transport` object set at report c
 - Test fixtures must use synthetic data. Real arithmetic (133+54+14+24+9=234) may be kept — it is public math. All names, licence numbers, insurer names, and party names must be fake.
 - Do not use: PyMuPDF/fitz, docx2pdf, float for any report numbers, paid APIs, generative AI for report content.
 - The repo structure to follow is in §13 of the spec: `backend/app/{models,blocks,compute,render,ingest,api}/`, `frontend/src/`, `templates/`, `tools/`.
+
+## 2026-09-05T03:30:14Z
+
+Build Week 2 of the Marine Cargo Survey & QC Report Generation Platform: A4-styled in-browser HTML preview sharing the identical pure compute() engine with DOCX, interactive in-place editing (TipTap rich text editor, locked computed table cells, dynamic photo tray reordering), LibreOffice headless Proof View (pixel-exact PDF preview), and the mandatory Numeric Traceability Gate that blocks downloads if unverified numbers are detected.
+
+Working directory: /home/agrim/CODES/qc-and-report-generator-tool
+Integrity mode: development
+
+---
+
+## CRITICAL RULES (Strictly Enforced)
+1. **Never store a computed value.** Totals, percentages, photo ranges, and annexure IDs are computed fresh at render time via pure function compute(block_state).
+2. **`Decimal`, never `float`** for any report numbers, weights, or percentages. Rounding: ROUND_HALF_UP to 2 decimal places (pcs/pct) or 3 decimal places (kg).
+3. **Never auto-correct a data mismatch.** Flag discrepancies and show both sources to the surveyor.
+4. **Never recompress or overwrite an original photo.** Store bit-exact with SHA-256; derived copies only.
+5. **Numeric Traceability Gate is mandatory.** Every number, date, and ID in output must trace to a confirmed source.
+6. **No paid APIs, no PyMuPDF (AGPL), no docx2pdf (Windows-only).** Use LibreOffice headless for PDF conversion.
+7. **Client data protection.** Do not commit real client reports or unredacted PII. Keep sample-data/ gitignored.
+
+---
+
+## Requirements
+
+### R1. A4 HTML In-Browser Preview
+Build server/client HTML preview rendering Block State into A4-dimensioned page containers using the report's typography, margins, and table border styling:
+- **Zero-drift guarantee:** The HTML preview renderer and the DOCX renderer must call the exact same pure compute(block_state) function. All totals, percentages, and photo ranges in HTML must match DOCX bit-for-bit.
+- Modular HTML component per block type: Particulars, Narrative, Measurements, Table, Photo Plate, Fixed Text.
+- Realistic pagination preview with visual page breaks.
+
+### R2. In-Place Editing & Optimistic Concurrency
+Implement seamless data editing directly in the interface:
+- **Narrative blocks:** TipTap rich-text editor per paragraph block (bold, italic, bullet lists only); flag edited blocks as surveyor_edited and record before/after states in the immutable audit log.
+- **Table blocks:** Category input cells editable inline; **computed total and percentage cells remain strictly read-only and recompute live on every keystroke**. Rows can be added, removed, or reordered.
+- **Photo Tray:** Drag-to-reorder photos across observation groups. Every photo number and bracketed range string (Photo Nos. X to Y) updates immediately without page reloads.
+- **Optimistic Concurrency:** PATCH /api/reports/{id}/block-state checks an incrementing version number, rejecting stale overwrites with HTTP 409 Conflict.
+
+### R3. Proof View & Dual Download (DOCX + PDF)
+- **Proof View:** Convert generated .docx on the server using headless LibreOffice (libreoffice --headless --convert-to pdf) into an exact PDF representation and display in-browser via a PDF viewer (dual toggle: "Edit View" / "Proof View").
+- **Download Endpoints:** Support both GET /api/reports/{id}/download/docx and GET /api/reports/{id}/download/pdf.
+
+### R4. Numeric Traceability Gate (Safety Enforcement)
+Before any .docx or .pdf file is downloaded or finalized:
+- Extract every number, currency amount, container ID, and date from the rendered output document.
+- Verify that every extracted value traces back to a user-entered field in block_state, a declared spreadsheet cell, or a verified document scan.
+- If any number cannot be traced to an authorized source, **block the download immediately**, return HTTP 422 with a structured diff of the untraced values, and display an alert in the UI.
+- Implement an automated adversary test that deliberately injects an untraced value and asserts the download is blocked.
+
+### R5. Document Ingestion, Loggers & Benchmark Report Verification
+- **Temperature Logger Parser:** Parse plain-text / PDF records from cold storage temperature loggers; extract reading ranges without hardcoded arbitrary "spike" heuristics.
+- **Handwritten Tally Fallback:** Support image preview with side-by-side transcription grid for manual tally entry.
+- **Historical Benchmark Verification:** Verify calculations against the 3 benchmark QC reports (Mandarin FBIU5499689, Orange MMAU1200498, Grapes OOLU6232443).
+
+---
+
+## Acceptance Criteria
+
+### HTML Preview & Consistency
+- [ ] HTML preview renders all block types in A4-dimensioned layout matching client styles.
+- [ ] Automated test asserts that all numbers and percentages displayed in HTML preview match the values generated in the Word .docx report.
+
+### In-Place Editing & Concurrency
+- [ ] TipTap editor allows bold, italic, and bullet list formatting in narrative blocks.
+- [ ] Editing a table cell updates row totals, column totals, and percentages instantly without server roundtrips.
+- [ ] Reordering or deleting a photo immediately updates all photo plate captions and all narrative references (Photo Nos. ...).
+- [ ] Concurrent edits with an outdated version number are rejected with HTTP 409 Conflict.
+
+### Proof View & PDF Conversion
+- [ ] Proof View generates and displays a PDF converted from the real .docx via headless LibreOffice (/usr/local/bin/libreoffice).
+- [ ] Both .docx and .pdf downloads function correctly and deliver valid documents.
+
+### Traceability Gate
+- [ ] An automated test proves that injecting an untraceable numeric literal (e.g. 99999) into rendered output causes the download endpoint to abort and return HTTP 422.
+- [ ] Normal reports with fully traceable numbers pass the gate with zero false positives.
+
+### Verification Resources
+- Existing test suite: backend/tests/ (53 passing tests) and tests/e2e/.
+- LibreOffice binary available at /usr/local/bin/libreoffice.
+- Real benchmark source files in sample-data/tally_sheets/Marine cargo/More reports and csv/.
+

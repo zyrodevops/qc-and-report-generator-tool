@@ -68,10 +68,15 @@ def test_full_week1_workflow_end_to_end():
     rep_num = res.json()["report_number"]
     assert rep_num.startswith("M-") and rep_num.endswith("-2026")
 
-    # 2. Update block state
+    # 2. Update block state (with optimistic concurrency — must include version)
+    current_version = res.json().get("version", 1)
     current_state = res.json()["block_state"]
     current_state["blocks"][0]["rows"].append({"label": "Vessel", "value": ["CMA CGM MEDEA"]})
-    res_update = client.patch(f"/api/reports/{rep_id}/block-state", json=current_state, headers=headers)
+    res_update = client.patch(
+        f"/api/reports/{rep_id}/block-state",
+        json={"block_state": current_state, "version": current_version},
+        headers=headers,
+    )
     assert res_update.status_code == 200
 
     # 3. Import spreadsheet
@@ -97,6 +102,13 @@ def test_full_week1_workflow_end_to_end():
     asset_id = res_photo.json()["id"]
     sha256 = res_photo.json()["sha256"]
     assert len(sha256) == 64
+    assert "url" in res_photo.json()
+
+    # 4a. Verify asset image serving endpoint
+    res_img = client.get(f"/api/reports/{rep_id}/assets/{asset_id}/image")
+    assert res_img.status_code == 200
+    assert res_img.headers["content-type"] == "image/jpeg"
+    assert len(res_img.content) > 0
 
     # 4b. Add photo to photo plate in block state
     current_state["blocks"].append({
@@ -105,7 +117,12 @@ def test_full_week1_workflow_end_to_end():
         "series_id": "survey",
         "groups": [{"id": "pg1", "observation": "Customs seal intact", "asset_ids": [asset_id]}]
     })
-    res_update2 = client.patch(f"/api/reports/{rep_id}/block-state", json=current_state, headers=headers)
+    v2 = res_update.json().get("new_version", 2)
+    res_update2 = client.patch(
+        f"/api/reports/{rep_id}/block-state",
+        json={"block_state": current_state, "version": v2},
+        headers=headers,
+    )
     assert res_update2.status_code == 200
 
     # 5. Download docx

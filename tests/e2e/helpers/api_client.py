@@ -55,3 +55,33 @@ class E2EApiClient:
             with TestClient(self.app) as c:
                 return c.post(endpoint, json=json, headers=headers, files=files, data=data)
         raise RuntimeError("Neither live API nor FastAPI app is available.")
+
+    def patch(self, endpoint: str, json: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> httpx.Response:
+        """Synchronous PATCH request."""
+        if self.is_live:
+            return httpx.patch(f"{self.base_url}{endpoint}", json=json, headers=headers, timeout=5.0)
+        elif self.app:
+            from starlette.testclient import TestClient
+            with TestClient(self.app) as c:
+                return c.patch(endpoint, json=json, headers=headers)
+        raise RuntimeError("Neither live API nor FastAPI app is available.")
+
+    def put(self, endpoint: str, json: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> httpx.Response:
+        """Synchronous PUT request."""
+        if self.is_live:
+            return httpx.put(f"{self.base_url}{endpoint}", json=json, headers=headers, timeout=5.0)
+        elif self.app:
+            from starlette.testclient import TestClient
+            with TestClient(self.app) as c:
+                return c.put(endpoint, json=json, headers=headers)
+        raise RuntimeError("Neither live API nor FastAPI app is available.")
+
+    def delete(self, endpoint: str, headers: Optional[Dict[str, str]] = None) -> httpx.Response:
+        """Synchronous DELETE request."""
+        if self.is_live:
+            return httpx.delete(f"{self.base_url}{endpoint}", headers=headers, timeout=5.0)
+        elif self.app:
+            from starlette.testclient import TestClient
+            with TestClient(self.app) as c:
+                return c.delete(endpoint, headers=headers)
+        raise RuntimeError("Neither live API nor FastAPI app is available.")

@@ -9,6 +9,7 @@ Covers:
 """
 
 import os
+import sys
 import subprocess
 import pytest
 from tests.e2e.helpers.contract_stubs import try_import
@@ -30,8 +31,9 @@ def test_mine_corpus_empty_input_directory(tmp_path):
     out_dir = tmp_path / "output"
     out_dir.mkdir()
 
+    import sys
     res = subprocess.run(
-        ["python3", script_path, "--input-dir", str(empty_input), "--output-dir", str(out_dir)],
+        [sys.executable, script_path, str(empty_input), "--output-dir", str(out_dir)],
         capture_output=True,
         text=True
     )
@@ -59,7 +61,7 @@ def test_corrupted_file_resilience(tmp_path):
     out_dir.mkdir()
 
     res = subprocess.run(
-        ["python3", script_path, "--input-dir", str(input_dir), "--output-dir", str(out_dir)],
+        [sys.executable, script_path, str(input_dir), "--output-dir", str(out_dir)],
         capture_output=True,
         text=True
     )

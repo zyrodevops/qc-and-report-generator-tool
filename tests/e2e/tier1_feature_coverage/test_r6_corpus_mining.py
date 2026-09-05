@@ -38,7 +38,11 @@ def test_synthetic_test_fixtures_present():
     if not os.path.isdir(fixtures_dir):
         pytest.skip(f"{fixtures_dir} not yet created (M4 pending)")
 
-    expected = ["synthetic_qc_clean.docx", "synthetic_qc_math_error.docx", "synthetic_survey.docx"]
+    expected = [
+        "synthetic_qc_grapes_with_error.docx",
+        "synthetic_qc_mandarin.docx",
+        "synthetic_survey_general.docx",
+    ]
     for f in expected:
         assert os.path.exists(os.path.join(fixtures_dir, f)), f"Missing fixture {f}"
 
@@ -56,7 +60,8 @@ def test_mine_corpus_execution_produces_all_five_csvs(tmp_path):
         pytest.skip("Corpus miner or fixtures not yet available (M4 pending)")
 
     out_dir = str(tmp_path)
-    cmd = ["python3", script_path, "--input-dir", fixtures_dir, "--output-dir", out_dir]
+    import sys
+    cmd = [sys.executable, script_path, fixtures_dir, "--output-dir", out_dir]
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0, f"mine_corpus.py failed: {res.stderr}"
 
@@ -77,21 +82,22 @@ def test_mine_corpus_execution_produces_all_five_csvs(tmp_path):
 def test_arithmetic_errors_csv_accuracy(tmp_path):
     """
     Verifies that arithmetic_errors.csv isolates exactly the mathematical discrepancy
-    in synthetic_qc_math_error.docx without false positives on clean documents.
+    in synthetic_qc_grapes_with_error.docx without false positives on clean documents.
     """
     script_path = os.path.join("tools", "mine_corpus.py")
     fixtures_dir = os.path.join("tools", "test_fixtures")
     if not os.path.exists(script_path) or not os.path.exists(fixtures_dir):
         pytest.skip("Corpus miner or fixtures not yet available (M4 pending)")
 
+    import sys
     out_dir = str(tmp_path)
-    subprocess.run(["python3", script_path, "--input-dir", fixtures_dir, "--output-dir", out_dir], check=True)
+    subprocess.run([sys.executable, script_path, fixtures_dir, "--output-dir", out_dir], check=True)
 
     err_csv = os.path.join(out_dir, "arithmetic_errors.csv")
     with open(err_csv, "r", encoding="utf-8") as f:
         content = f.read()
-        assert "synthetic_qc_math_error.docx" in content
-        assert "synthetic_qc_clean.docx" not in content
+        assert "synthetic_qc_grapes_with_error.docx" in content
+        assert "synthetic_qc_mandarin.docx" not in content
 
 
 @pytest.mark.m4

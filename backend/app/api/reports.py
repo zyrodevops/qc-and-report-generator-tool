@@ -13,6 +13,7 @@ from app.core.auth import get_current_actor, get_current_user, UserSession
 from app.database import get_db
 from app.models.report import Report, allocate_report_number_async
 from app.models.template import Template
+from app.models.asset import Asset
 from app.services.audit import AuditService
 
 router = APIRouter()
@@ -32,6 +33,7 @@ class ReportResponse(BaseModel):
     state: str
     status: str
     template_id: str
+    version: int = 1
     block_state: Dict[str, Any]
     created_at: str
     updated_at: str
@@ -92,6 +94,8 @@ async def create_report(
     await db.commit()
     await db.refresh(report)
 
+    version_val = getattr(report, "version", 1) or 1
+
     return ReportResponse(
         id=str(report.id),
         report_number=report.report_number,
@@ -99,6 +103,7 @@ async def create_report(
         state=report.state,
         status=report.status,
         template_id=report.template_id,
+        version=version_val,
         block_state=report.block_state,
         created_at=report.created_at.isoformat(),
         updated_at=report.updated_at.isoformat(),
@@ -122,9 +127,79 @@ async def list_reports(
             state=r.state,
             status=r.status,
             template_id=r.template_id,
+            version=getattr(r, "version", 1) or 1,
             block_state=r.block_state,
             created_at=r.created_at.isoformat(),
             updated_at=r.updated_at.isoformat(),
         )
         for r in reports
     ]
+
+
+@router.get("/{report_id}", response_model=ReportResponse)
+async def get_report(
+    report_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserSession = Depends(get_current_user),
+) -> ReportResponse:
+    """
+    Fetch a single report by ID.
+    Returns full metadata, optimistic concurrency version, and raw block_state.
+    """
+    try:
+        rid = uuid.UUID(report_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid report_id format, expected UUID",
+        )
+
+    stmt = select(Report).where(Report.id == rid)
+    res = await db.execute(stmt)
+    report = res.scalars().first()
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found",
+        )
+
+    version_val = getattr(
+        report, "version", report.block_state.get("metadata", {}).get("version", 1)
+    )
+    if version_val is None:
+        version_val = 1
+
+    # Enrich block_state with assets from DB so photos are always available
+    stmt_assets = select(Asset).where(Asset.report_id == report.id)
+    res_assets = await db.execute(stmt_assets)
+    asset_rows = res_assets.scalars().all()
+    if asset_rows:
+        state_copy = dict(report.block_state) if report.block_state else {"blocks": []}
+        assets_dict = dict(state_copy.get("assets", {}))
+        for a in asset_rows:
+            aid = str(a.id)
+            if aid not in assets_dict:
+                assets_dict[aid] = {
+                    "id": aid,
+                    "sha256": a.sha256,
+                    "original_path": a.original_path,
+                    "derived_paths": a.derived_paths,
+                    "url": f"/api/reports/{report_id}/assets/{aid}/image",
+                }
+        state_copy["assets"] = assets_dict
+        report_block_state = state_copy
+    else:
+        report_block_state = report.block_state
+
+    return ReportResponse(
+        id=str(report.id),
+        report_number=report.report_number,
+        family=report.family,
+        state=report.state,
+        status=report.status,
+        template_id=report.template_id,
+        version=version_val,
+        block_state=report_block_state,
+        created_at=report.created_at.isoformat(),
+        updated_at=report.updated_at.isoformat(),
+    )

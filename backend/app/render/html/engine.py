@@ -1,0 +1,602 @@
+"""
+A4 HTML Preview Engine — Master Spec §10.7, ORIGINAL_REQUEST §R1.
+
+Zero-drift guarantee:
+Invokes pure compute(block_state) ensuring identical calculations with DOCX.
+Generates A4-dimensioned containers with realistic typography, client margins,
+and table styling matching templates/mca-qc-v1.docx.
+"""
+
+from __future__ import annotations
+
+import base64
+import html
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from app.compute.arithmetic import compute
+from app.render.docx.engine import _generate_defect_chart
+
+
+A4_CSS = """
+@page {
+    size: A4 portrait;
+    margin: 0.446in 1.0in 1.0in 1.083in;
+}
+
+body {
+    margin: 0;
+    padding: 24px 0;
+    background-color: #f1f5f9;
+    font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+    color: #1f2937;
+    line-height: 1.45;
+}
+
+.a4-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+}
+
+.a4-page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 0.446in 1.0in 1.0in 1.083in;
+    margin: 0 auto;
+    background: #ffffff;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-sizing: border-box;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.running-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-size: 8.5pt;
+    color: #4b5563;
+    border-bottom: 1.5px solid #00387A;
+    padding-bottom: 4px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+}
+
+.running-header-left {
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: 0.5px;
+}
+
+.running-header-right {
+    font-family: monospace;
+    font-weight: 700;
+    color: #00387A;
+}
+
+.doc-title {
+    font-size: 15pt;
+    font-weight: 700;
+    color: #00387A;
+    text-align: center;
+    margin: 0 0 16px 0;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+h2.block-heading {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #00387A;
+    margin-top: 16px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 3px;
+    letter-spacing: 0.5px;
+}
+
+table.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0 16px 0;
+    font-size: 9pt;
+}
+
+table.report-table th, table.report-table td {
+    border: 1px solid #9ca3af;
+    padding: 5px 8px;
+    vertical-align: middle;
+}
+
+table.report-table th {
+    background-color: #f1f5f9;
+    font-weight: 700;
+    color: #1e293b;
+    text-align: left;
+}
+
+table.report-table tr.totals-row td {
+    font-weight: 700;
+    background-color: #f8fafc;
+    border-top: 2px solid #64748b;
+}
+
+table.report-table tr.percentages-row td {
+    font-weight: 600;
+    background-color: #f8fafc;
+}
+
+.narrative-block {
+    margin: 10px 0 14px 0;
+    font-size: 9.5pt;
+    text-align: justify;
+    line-height: 1.5;
+}
+
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin: 14px 0;
+}
+
+.photo-card {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: center;
+    background: #ffffff;
+    border-radius: 2px;
+}
+
+.photo-img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 2px;
+}
+
+.photo-placeholder {
+    width: 100%;
+    height: 180px;
+    background-color: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 9pt;
+    border: 1px dashed #cbd5e1;
+    border-radius: 2px;
+}
+
+.photo-caption {
+    font-size: 8.5pt;
+    font-style: italic;
+    color: #374151;
+    margin-top: 6px;
+    margin-bottom: 0;
+    font-weight: 500;
+}
+
+.chart-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 12px 0 16px 0;
+}
+
+.chart-container img {
+    max-width: 480px;
+    width: 100%;
+    height: auto;
+}
+
+.chart-caption {
+    font-size: 8.5pt;
+    font-style: italic;
+    color: #4b5563;
+    margin-top: 4px;
+    text-align: center;
+}
+
+.fixed-text-block {
+    font-size: 8.5pt;
+    color: #4b5563;
+    font-style: italic;
+    margin-top: 20px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.running-footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8pt;
+    color: #6b7280;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 6px;
+}
+
+@media print {
+    body {
+        background: none;
+        padding: 0;
+    }
+    .a4-container {
+        gap: 0;
+    }
+    .a4-page {
+        box-shadow: none;
+        margin: 0;
+        width: 100%;
+        page-break-after: always;
+        break-after: page;
+    }
+}
+"""
+
+
+def render_particulars_html(block: Dict[str, Any]) -> str:
+    """Render particulars block as a 2-column key-value table matching Word 'Table Grid'."""
+    rows = block.get("rows", [])
+    if not rows:
+        return ""
+
+    section = html.escape(block.get("section", "PARTICULARS"))
+    out = [f'<h2 class="block-heading">{section}</h2>']
+    out.append('<table class="report-table particulars-table"><tbody>')
+
+    for r in rows:
+        label = html.escape(str(r.get("label", "")))
+        value_items = r.get("value", [])
+        if isinstance(value_items, list):
+            parts = []
+            for item in value_items:
+                if isinstance(item, dict) and "amount" in item:
+                    curr = item.get("currency", "")
+                    amt = item["amount"]
+                    parts.append(f"{curr} {amt}".strip())
+                elif isinstance(item, list):
+                    parts.extend(str(v) for v in item)
+                else:
+                    parts.append(str(item))
+            val_str = ", ".join(parts)
+        else:
+            val_str = str(value_items)
+
+        note = r.get("note")
+        if note:
+            val_str += f" ({note})"
+
+        val_escaped = html.escape(val_str)
+        out.append(
+            f'<tr><td style="width: 35%; font-weight: 600;">{label}</td>'
+            f'<td>{val_escaped}</td></tr>'
+        )
+
+    out.append("</tbody></table>")
+    return "\n".join(out)
+
+
+def render_narrative_html(block: Dict[str, Any]) -> str:
+    """Render narrative block as heading and paragraph text."""
+    section = block.get("section", "")
+    clause_text = block.get("additional_text") or block.get("content") or ""
+    out = []
+    if section:
+        out.append(f'<h2 class="block-heading">{html.escape(section)}</h2>')
+    if clause_text:
+        out.append(
+            f'<div class="narrative-block"><p>{html.escape(clause_text)}</p></div>'
+        )
+    return "\n".join(out)
+
+
+def render_measurements_html(block: Dict[str, Any]) -> str:
+    """Render measurements block as a 5-column table matching DOCX."""
+    rows = block.get("rows", [])
+    if not rows:
+        return ""
+
+    out = ['<h2 class="block-heading">MEASUREMENTS</h2>']
+    out.append('<table class="report-table measurements-table">')
+    out.append(
+        '<thead><tr><th>Subject</th><th>Qualifier</th><th>Method</th>'
+        '<th>Min / Value</th><th>Max / Unit</th></tr></thead>'
+    )
+    out.append('<tbody>')
+
+    for r in rows:
+        subj = html.escape(str(r.get("subject", "")))
+        qual = html.escape(str(r.get("qualifier", "") or ""))
+        meth = html.escape(str(r.get("method", "") or ""))
+        min_v = r.get("min") or r.get("value") or ""
+        max_v = r.get("max", "") or ""
+        unit = r.get("unit", "")
+        max_unit = f"{max_v} {unit}".strip() if max_v else unit
+
+        out.append(
+            f'<tr><td>{subj}</td><td>{qual}</td><td>{meth}</td>'
+            f'<td>{html.escape(str(min_v))}</td><td>{html.escape(max_unit)}</td></tr>'
+        )
+
+    out.append('</tbody></table>')
+    return "\n".join(out)
+
+
+def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
+    """
+    Render defect analysis table with locked computed totals/percentages.
+    Matches Word cell-for-cell bit-exact.
+    """
+    title = block.get("title", "")
+    categories = block.get("categories", [])
+    rows = block.get("rows", [])
+    unit = block.get("unit", "pcs")
+    cat_keys = [c["key"] for c in categories]
+    cat_labels = [c["label"] for c in categories]
+
+    out = []
+    if title:
+        out.append(f'<h2 class="block-heading">{html.escape(title)}</h2>')
+
+    out.append('<table class="report-table defect-table">')
+
+    # 1. Header Row
+    group_col = html.escape(block.get("grouping_label", "Group"))
+    headers = [f'<th>{group_col}</th>']
+    for lab in cat_labels:
+        headers.append(f'<th>{html.escape(lab)}</th>')
+    headers.append(f'<th>Total ({html.escape(unit)})</th>')
+    headers.append('<th>%</th>')
+    out.append(f"<thead><tr>{''.join(headers)}</tr></thead>")
+
+    # 2. Data Rows
+    out.append('<tbody>')
+    row_totals = computed.get("row_totals", [])
+    row_pcts = computed.get("row_percentages", [])
+
+    for i, r in enumerate(rows):
+        cells = [f"<td>{html.escape(str(r.get('group', '')))}</td>"]
+        values = r.get("values", {})
+        for key in cat_keys:
+            cells.append(f"<td>{html.escape(str(values.get(key, '')))}</td>")
+
+        if i < len(row_totals):
+            cells.append(f"<td>{html.escape(str(row_totals[i]))}</td>")
+            pct_row = row_pcts[i] if i < len(row_pcts) else []
+            pct_str = " / ".join(str(p) for p in pct_row)
+            cells.append(f"<td>{html.escape(pct_str)}</td>")
+        else:
+            cells.append("<td></td><td></td>")
+
+        out.append(f"<tr>{''.join(cells)}</tr>")
+
+    # 3. Column Totals Row
+    col_totals = computed.get("column_totals", {})
+    grand_total = computed.get("grand_total", "")
+    col_pcts = computed.get("column_percentages", {})
+
+    tot_cells = ["<td>Total</td>"]
+    for key in cat_keys:
+        tot_cells.append(f"<td>{html.escape(str(col_totals.get(key, '')))}</td>")
+    tot_cells.append(f"<td>{html.escape(str(grand_total))}</td>")
+    tot_cells.append("<td></td>")
+    out.append(f'<tr class="totals-row">{"".join(tot_cells)}</tr>')
+
+    # 4. Percentage Row
+    pct_cells = ["<td>%</td>"]
+    for key in cat_keys:
+        pct_cells.append(f"<td>{html.escape(str(col_pcts.get(key, '')))}</td>")
+    pct_cells.append("<td></td>")
+    pct_cells.append("<td></td>")
+    out.append(f'<tr class="percentages-row">{"".join(pct_cells)}</tr>')
+
+    out.append('</tbody></table>')
+
+    # 5. Embedded Defect Donut Chart (identical to DOCX engine)
+    try:
+        chart_stream = _generate_defect_chart(
+            categories, col_pcts, title or "Defect Analysis Breakdown"
+        )
+        if chart_stream:
+            b64_img = base64.b64encode(chart_stream.getvalue()).decode("utf-8")
+            cap_title = html.escape(title or "Quality Analysis Breakdown")
+            out.append(
+                f'<div class="chart-container">'
+                f'<img src="data:image/png;base64,{b64_img}" alt="Chart: {cap_title}" />'
+                f'<p class="chart-caption">Chart: {cap_title}</p>'
+                f'</div>'
+            )
+    except Exception:
+        pass
+
+    return "\n".join(out)
+
+
+def render_photo_plate_html(
+    block: Dict[str, Any],
+    computed: Dict[str, Any],
+    assets: Dict[str, Any],
+    derived_key: str = "report",
+) -> str:
+    """Render photo_plate block with captions matching DOCX engine."""
+    label = block.get("label", "Survey Photos")
+    groups = block.get("groups", [])
+    computed_groups = computed.get("groups", {})
+
+    out = [f'<h2 class="block-heading">{html.escape(label)}</h2>']
+    all_photos: List[Dict[str, Any]] = []
+
+    for g in groups:
+        gid = g.get("id", "")
+        obs = g.get("observation", "")
+        asset_ids = g.get("asset_ids", [])
+        grp_computed = computed_groups.get(gid, {})
+        numbers = grp_computed.get("numbers", list(range(1, len(asset_ids) + 1)))
+
+        for aid, num in zip(asset_ids, numbers):
+            asset = assets.get(aid, {})
+            derived = asset.get("derived_paths", asset.get("derived", {}))
+            img_path = (
+                derived.get(derived_key)
+                or derived.get("report")
+                or asset.get("original_path")
+            )
+            caption = f"Photo No. {num} — {obs}"
+            all_photos.append({
+                "number": num,
+                "caption": caption,
+                "image_path": img_path,
+            })
+
+    if not all_photos:
+        out.append(
+            '<p style="font-style: italic; color: #6b7280;">[No photos in this series]</p>'
+        )
+        return "\n".join(out)
+
+    out.append('<div class="photo-grid">')
+    for p in all_photos:
+        cap_esc = html.escape(p["caption"])
+        img_p = p.get("image_path")
+        img_html = ""
+        if img_p and Path(img_p).exists():
+            try:
+                with open(img_p, "rb") as f:
+                    b64_data = base64.b64encode(f.read()).decode("utf-8")
+                img_html = f'<img src="data:image/jpeg;base64,{b64_data}" class="photo-img" alt="{cap_esc}" />'
+            except Exception:
+                img_html = '<div class="photo-placeholder">[Image Placeholder]</div>'
+        else:
+            img_html = '<div class="photo-placeholder">[Image Placeholder]</div>'
+
+        out.append(
+            f'<div class="photo-card">'
+            f'{img_html}'
+            f'<p class="photo-caption">{cap_esc}</p>'
+            f'</div>'
+        )
+    out.append('</div>')
+    return "\n".join(out)
+
+
+def render_fixed_text_html(block: Dict[str, Any]) -> str:
+    """Render fixed_text block (legal notice, disclaimer)."""
+    content = block.get("content", "")
+    if not content:
+        return ""
+    return f'<div class="fixed-text-block"><p>{html.escape(content)}</p></div>'
+
+
+def render_html(block_state: Dict[str, Any]) -> str:
+    """
+    Renders Block State into A4-dimensioned HTML preview.
+    Calls pure compute(block_state) to guarantee zero drift with DOCX.
+    Organizes blocks into realistic paginated A4 page containers with client margins.
+    """
+    state = compute(block_state)
+    blocks = state.get("blocks", [])
+    assets = state.get("assets", {})
+    metadata = state.get("metadata", state.get("report", {}))
+    report_num = metadata.get("number", "DRAFT REPORT")
+
+    # Partition blocks into realistic pages:
+    # Page 1: Overview & Data (particulars, narrative, measurements, table)
+    # Page 2+: Evidence (photo_plate) and Legal (fixed_text)
+    page1_blocks: List[str] = []
+    page2_blocks: List[str] = []
+
+    has_photo_or_fixed = any(b.get("type") in ("photo_plate", "fixed_text") for b in blocks)
+    has_prior_blocks = any(b.get("type") in ("particulars", "narrative", "measurements", "table") for b in blocks)
+
+    for b in blocks:
+        btype = b.get("type")
+        bcomp = b.get("_computed", {})
+
+        rendered = ""
+        if btype == "particulars":
+            rendered = render_particulars_html(b)
+        elif btype == "narrative":
+            rendered = render_narrative_html(b)
+        elif btype == "measurements":
+            rendered = render_measurements_html(b)
+        elif btype == "table":
+            rendered = render_table_html(b, bcomp)
+        elif btype == "photo_plate":
+            rendered = render_photo_plate_html(b, bcomp, assets)
+        elif btype == "fixed_text":
+            rendered = render_fixed_text_html(b)
+
+        if not rendered:
+            continue
+
+        if has_prior_blocks and btype in ("photo_plate", "fixed_text"):
+            page2_blocks.append(rendered)
+        else:
+            page1_blocks.append(rendered)
+
+    pages: List[List[str]] = []
+    if page1_blocks:
+        pages.append(page1_blocks)
+    if page2_blocks:
+        pages.append(page2_blocks)
+    if not pages:
+        pages.append([])
+
+    total_pages = len(pages)
+    page_containers = []
+
+    for page_idx, page_content_list in enumerate(pages, start=1):
+        content_html = "\n".join(page_content_list)
+        title_html = (
+            f'<h1 class="doc-title">Marine Cargo Survey & QC Inspection Report</h1>'
+            if page_idx == 1
+            else ""
+        )
+
+        page_containers.append(
+            f"""
+        <div class="a4-page">
+            <div class="running-header">
+                <span class="running-header-left">MARINE CARGO AGENCIES</span>
+                <span class="running-header-right">IN-HOUSE QC INSPECTION REPORT # {html.escape(report_num)}</span>
+            </div>
+            {title_html}
+            <div class="page-body">
+                {content_html}
+            </div>
+            <div class="running-footer">
+                <span>Marine Cargo Agencies &bull; Issued Without Prejudice</span>
+                <span>Page {page_idx} of {total_pages}</span>
+                <span>Confidential QC Inspection</span>
+            </div>
+        </div>
+            """
+        )
+
+    pages_html = "\n".join(page_containers)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QC Inspection Report Preview — {html.escape(report_num)}</title>
+    <style>{A4_CSS}</style>
+</head>
+<body>
+    <div class="a4-container">
+        {pages_html}
+    </div>
+</body>
+</html>"""
+
+
+# Alias for backwards compatibility with test suites
+render_html_preview = render_html
