@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI):
                         role="surveyor",
                         is_active=True,
                     )
+                    db.add(user)
             # Seed the six canonical report templates
             from app.seeds.templates import SIX_CANONICAL_TEMPLATES
             from app.models.template import Template
