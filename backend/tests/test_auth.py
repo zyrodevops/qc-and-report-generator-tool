@@ -206,3 +206,23 @@ async def test_audit_table_immutability_triggers(db_session):
         await db_session.commit()
     await db_session.rollback()
     assert "append-only / strictly immutable" in str(exc_info.value) or "55000" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_password_only_login_for_client(async_client):
+    """
+    Verifies client can log in with only the access password (no email or user record needed).
+    """
+    payload = {"password": "surveyor123"}
+    response = await async_client.post("/api/auth/login", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "token" in data
+    assert data["user"]["role"] == "surveyor"
+
+    # Verify protected access with token
+    headers = {"Authorization": f"Bearer {data['token']}"}
+    me_res = await async_client.get("/api/auth/me", headers=headers)
+    assert me_res.status_code == 200
+    assert me_res.json()["user_id"] == "client"
+

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY", "insecure-dev-secret-change-in-production-32-chars"
     )
+    APP_ACCESS_PASSWORD: str = os.getenv("APP_ACCESS_PASSWORD", "surveyor123")
 
     # Surveyor Licensing (CRITICAL RULE 8: Must come from environment)
     IRDAI_LICENCE_NUMBER: str = os.getenv("IRDAI_LICENCE_NUMBER", "")

@@ -66,16 +66,29 @@ export function getAuthHeaders(): Record<string, string> {
 // Auth API
 // ---------------------------------------------------------------------------
 
-export async function login(email: string, password: string): Promise<UserSession> {
+export async function login(arg1: string, arg2?: string): Promise<UserSession> {
+  let password = arg1;
+  let email: string | undefined = undefined;
+
+  if (arg2 !== undefined) {
+    if (arg1.includes('@')) {
+      email = arg1;
+      password = arg2;
+    } else {
+      password = arg1;
+      email = arg2;
+    }
+  }
+
   const res = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(email ? { email, password } : { password }),
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: 'Login failed' }));
-    throw new Error(errorData.detail || 'Invalid email or password');
+    const errorData = await res.json().catch(() => ({ detail: 'Access denied' }));
+    throw new Error(errorData.detail || 'Invalid access password');
   }
 
   const data = await res.json();

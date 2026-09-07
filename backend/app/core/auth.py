@@ -6,7 +6,7 @@ Supports dual transport: Authorization Bearer header and HTTP-only session cooki
 from datetime import datetime, timezone
 import json
 import secrets
-from typing import Optional
+from typing import Optional, Any
 from fastapi import Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 import redis.asyncio as aioredis
@@ -26,19 +26,25 @@ class UserSession(BaseModel):
 
 class SessionManager:
     @staticmethod
-    async def create_session(
-        redis: aioredis.Redis, user: User, response: Optional[Response] = None
+    async def create_direct_session(
+        redis: aioredis.Redis,
+        user_id: str,
+        email: str,
+        full_name: str,
+        role: str,
+        response: Optional[Response] = None,
     ) -> str:
         """
-        Creates a new 24h Redis session and optionally sets HTTP-only cookie.
+        Creates a new 24h Redis session without requiring a database user record,
+        and optionally sets HTTP-only cookie.
         """
         token = secrets.token_urlsafe(32)
         session_data = {
             "token": token,
-            "user_id": str(user.id),
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
+            "user_id": user_id,
+            "email": email,
+            "full_name": full_name,
+            "role": role,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         key = f"session:{token}"
@@ -55,6 +61,26 @@ class SessionManager:
                 path="/",
             )
         return token
+
+    @staticmethod
+    async def create_session(
+        redis: aioredis.Redis, user: Any, response: Optional[Response] = None
+    ) -> str:
+        """
+        Creates a new 24h Redis session from a User model or direct object.
+        """
+        user_id = str(getattr(user, "id", "client"))
+        email = getattr(user, "email", "client@marinecargo.test")
+        full_name = getattr(user, "full_name", "Client")
+        role = getattr(user, "role", "surveyor")
+        return await SessionManager.create_direct_session(
+            redis=redis,
+            user_id=user_id,
+            email=email,
+            full_name=full_name,
+            role=role,
+            response=response,
+        )
 
     @staticmethod
     async def destroy_session(
