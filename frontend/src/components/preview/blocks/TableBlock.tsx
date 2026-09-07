@@ -71,6 +71,8 @@ export const TableBlock: React.FC<TableBlockProps> = ({ block, computed }) => {
     };
   });
 
+  const isTwoTier = block?.layout === 'two_tier' && rowPcts.length > 0;
+
   return (
     <div className="table-block my-3">
       <div className="flex justify-between items-center border-b border-slate-300 pb-1 mb-2">
@@ -82,84 +84,180 @@ export const TableBlock: React.FC<TableBlockProps> = ({ block, computed }) => {
         </span>
       </div>
 
-      <table className="w-full border-collapse border border-slate-400 text-xs">
-        <thead>
-          <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-400">
-            <th className="border border-slate-400 px-2.5 py-1.5 text-left">{groupLabel}</th>
-            {categories.map((c) => (
-              <th key={c.key} className="border border-slate-400 px-2 py-1.5 text-right">
-                {c.label}
+      {isTwoTier ? (
+        <table className="w-full border-collapse border border-slate-400 text-xs">
+          <thead>
+            <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-400">
+              <th className="border border-slate-400 px-2.5 py-1.5 text-left">{groupLabel}</th>
+              {categories.map((c) => (
+                <th key={c.key} className="border border-slate-400 px-2 py-1.5 text-right">
+                  {c.label}
+                </th>
+              ))}
+              <th className="border border-slate-400 px-2.5 py-1.5 text-right font-bold">
+                Total ({unit})
               </th>
-            ))}
-            <th className="border border-slate-400 px-2.5 py-1.5 text-right font-bold">
-              Total ({unit})
-            </th>
-            <th className="border border-slate-400 px-2 py-1.5 text-center">%</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rIdx) => {
-            const rowSum = rowTotals[rIdx] ?? '';
-            const rowPct = rowPcts[rIdx] ? rowPcts[rIdx].join(' / ') : '';
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rIdx) => {
+              const rowSum = rowTotals[rIdx] ?? '';
+              const rowPct = rowPcts[rIdx] || [];
 
-            return (
-              <tr key={rIdx} className="border-b border-slate-300 hover:bg-slate-50/50">
-                <td className="border border-slate-400 px-2.5 py-1.5 font-medium text-slate-800">
-                  {row.group}
+              return (
+                <React.Fragment key={rIdx}>
+                  {/* Pieces Count Row */}
+                  <tr className="border-b border-slate-200 hover:bg-slate-50/50">
+                    <td className="border border-slate-400 px-2.5 py-1.5 font-bold text-slate-900 bg-slate-50/40">
+                      {row.group}
+                    </td>
+                    {categories.map((c) => (
+                      <td
+                        key={c.key}
+                        className="border border-slate-400 px-2 py-1.5 text-right font-mono text-slate-800"
+                      >
+                        {row.values?.[c.key] ?? ''}
+                      </td>
+                    ))}
+                    <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-[#00387A] bg-blue-50/30">
+                      {rowSum}
+                    </td>
+                  </tr>
+
+                  {/* Percentage Row */}
+                  <tr className="border-b border-slate-300 bg-slate-50/60 text-slate-600">
+                    <td className="border border-slate-400 px-2.5 py-1 text-slate-500 italic text-[11px]">
+                      Percentage
+                    </td>
+                    {categories.map((c, cIdx) => (
+                      <td
+                        key={c.key}
+                        className="border border-slate-400 px-2 py-1 text-right font-mono text-[11px] text-slate-700"
+                      >
+                        {rowPct[cIdx] ? `${rowPct[cIdx]}%` : ''}
+                      </td>
+                    ))}
+                    <td className="border border-slate-400 px-2.5 py-1 text-right font-mono font-bold text-[11px] text-slate-800">
+                      100.00%
+                    </td>
+                  </tr>
+                </React.Fragment>
+              );
+            })}
+
+            {/* Total Pieces Row */}
+            <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
+              <td className="border border-slate-400 px-2.5 py-1.5 font-bold">Total ({unit})</td>
+              {categories.map((c) => (
+                <td
+                  key={c.key}
+                  className="border border-slate-400 px-2 py-1.5 text-right font-mono font-bold text-slate-900"
+                >
+                  {colTotals[c.key] ?? ''}
                 </td>
-                {categories.map((c) => (
-                  <td
-                    key={c.key}
-                    className="border border-slate-400 px-2 py-1.5 text-right font-mono text-slate-700"
-                  >
-                    {row.values?.[c.key] ?? ''}
+              ))}
+              <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-black text-[#00387A] bg-blue-100/50">
+                {grandTotal}
+              </td>
+            </tr>
+
+            {/* Total Percentage Row */}
+            <tr className="bg-slate-50 font-bold text-slate-800 border-b border-slate-400">
+              <td className="border border-slate-400 px-2.5 py-1.5 font-bold">Percentage</td>
+              {categories.map((c) => (
+                <td
+                  key={c.key}
+                  className="border border-slate-400 px-2 py-1.5 text-right font-mono text-[11px] text-slate-800"
+                >
+                  {colPcts[c.key] ? `${colPcts[c.key]}%` : ''}
+                </td>
+              ))}
+              <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">
+                100.00%
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        <table className="w-full border-collapse border border-slate-400 text-xs">
+          <thead>
+            <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-400">
+              <th className="border border-slate-400 px-2.5 py-1.5 text-left">{groupLabel}</th>
+              {categories.map((c) => (
+                <th key={c.key} className="border border-slate-400 px-2 py-1.5 text-right">
+                  {c.label}
+                </th>
+              ))}
+              <th className="border border-slate-400 px-2.5 py-1.5 text-right font-bold">
+                Total ({unit})
+              </th>
+              <th className="border border-slate-400 px-2 py-1.5 text-center">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rIdx) => {
+              const rowSum = rowTotals[rIdx] ?? '';
+              const rowPct = rowPcts[rIdx] ? rowPcts[rIdx].join(' / ') : '';
+
+              return (
+                <tr key={rIdx} className="border-b border-slate-300 hover:bg-slate-50/50">
+                  <td className="border border-slate-400 px-2.5 py-1.5 font-medium text-slate-800">
+                    {row.group}
                   </td>
-                ))}
-                <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-[#00387A] bg-blue-50/30">
-                  {rowSum}
-                </td>
-                <td className="border border-slate-400 px-2 py-1.5 text-center font-mono text-[11px] text-slate-600 bg-slate-50/50">
-                  {rowPct}
-                </td>
-              </tr>
-            );
-          })}
+                  {categories.map((c) => (
+                    <td
+                      key={c.key}
+                      className="border border-slate-400 px-2 py-1.5 text-right font-mono text-slate-700"
+                    >
+                      {row.values?.[c.key] ?? ''}
+                    </td>
+                  ))}
+                  <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-[#00387A] bg-blue-50/30">
+                    {rowSum}
+                  </td>
+                  <td className="border border-slate-400 px-2.5 py-1.5 text-center font-mono text-[11px] text-slate-600 bg-slate-50/50">
+                    {rowPct}
+                  </td>
+                </tr>
+              );
+            })}
 
-          {/* Column Totals Row */}
-          <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
-            <td className="border border-slate-400 px-2.5 py-1.5 font-bold">Total</td>
-            {categories.map((c) => (
-              <td
-                key={c.key}
-                className="border border-slate-400 px-2 py-1.5 text-right font-mono font-bold text-slate-900"
-              >
-                {colTotals[c.key] ?? ''}
+            {/* Column Totals Row */}
+            <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
+              <td className="border border-slate-400 px-2.5 py-1.5 font-bold">Total</td>
+              {categories.map((c) => (
+                <td
+                  key={c.key}
+                  className="border border-slate-400 px-2 py-1.5 text-right font-mono font-bold text-slate-900"
+                >
+                  {colTotals[c.key] ?? ''}
+                </td>
+              ))}
+              <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-black text-[#00387A] bg-blue-100/50">
+                {grandTotal}
               </td>
-            ))}
-            <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-black text-[#00387A] bg-blue-100/50">
-              {grandTotal}
-            </td>
-            <td className="border border-slate-400 px-2 py-1.5"></td>
-          </tr>
+              <td className="border border-slate-400 px-2.5 py-1.5"></td>
+            </tr>
 
-          {/* Column Percentages Row */}
-          <tr className="bg-slate-50 font-semibold text-slate-800">
-            <td className="border border-slate-400 px-2.5 py-1.5 font-bold">%</td>
-            {categories.map((c) => (
-              <td
-                key={c.key}
-                className="border border-slate-400 px-2 py-1.5 text-right font-mono text-[11px] text-slate-700"
-              >
-                {colPcts[c.key] ? `${colPcts[c.key]}%` : ''}
+            {/* Column Percentages Row */}
+            <tr className="bg-slate-50 font-semibold text-slate-800">
+              <td className="border border-slate-400 px-2.5 py-1.5 font-bold">%</td>
+              {categories.map((c) => (
+                <td
+                  key={c.key}
+                  className="border border-slate-400 px-2 py-1.5 text-right font-mono text-[11px] text-slate-700"
+                >
+                  {colPcts[c.key] ? `${colPcts[c.key]}%` : ''}
+                </td>
+              ))}
+              <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">
+                100.00%
               </td>
-            ))}
-            <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">
-              100.00%
-            </td>
-            <td className="border border-slate-400 px-2 py-1.5"></td>
-          </tr>
-        </tbody>
-      </table>
+              <td className="border border-slate-400 px-2.5 py-1.5"></td>
+            </tr>
+          </tbody>
+        </table>
+      )}
 
       {/* Embedded Donut Chart */}
       {chartItems.length > 0 && (

@@ -167,6 +167,10 @@ def _build_whitelist(block_state: Any) -> Set[str]:
     for n in range(11, 21):
         whitelist.add(str(n))
 
+    # 100 / 100.00 — mathematical constant for percentage table totals
+    whitelist.add("100")
+    whitelist.add("100.00")
+
     # Year tokens 1900-2099 — dates in running headers are structural
     for year in range(1900, 2100):
         whitelist.add(str(year))
