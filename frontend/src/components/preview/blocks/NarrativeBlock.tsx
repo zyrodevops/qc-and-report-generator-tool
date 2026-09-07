@@ -1,14 +1,37 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 
 export interface NarrativeBlockProps {
   block: any;
+  onChange?: (updatedBlock: any) => void;
+  editable?: boolean;
 }
 
-export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({ block }) => {
+export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
+  block,
+  onChange,
+  editable = true,
+}) => {
   const sectionTitle = block?.section || 'ATTENDANCE & CIRCUMSTANCES';
   const text = block?.additional_text || '';
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  if (!text && !sectionTitle) return null;
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.max(60, textareaRef.current.scrollHeight)}px`;
+    }
+  }, [text, editable]);
+
+  if (!text && !sectionTitle && !editable) return null;
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!onChange) return;
+    onChange({
+      ...block,
+      additional_text: e.target.value,
+      surveyor_edited: true,
+    });
+  };
 
   // Split and highlight bracketed photo references (Photo Nos?...)
   const renderFormattedText = (content: string) => {
@@ -34,15 +57,25 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({ block }) => {
           {sectionTitle}
         </h2>
       )}
-      <div className="space-y-2 text-xs leading-relaxed text-slate-800 text-justify">
-        {paragraphs.length > 0 ? (
-          paragraphs.map((p: string, idx: number) => (
-            <p key={idx}>{renderFormattedText(p)}</p>
-          ))
-        ) : (
-          <p>{renderFormattedText(text)}</p>
-        )}
-      </div>
+      {editable && onChange ? (
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={handleTextChange}
+          placeholder="Click to enter findings and circumstances..."
+          className="w-full bg-transparent border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white focus:outline-none rounded p-1 text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text"
+        />
+      ) : (
+        <div className="space-y-2 text-xs leading-relaxed text-slate-800 text-justify">
+          {paragraphs.length > 0 ? (
+            paragraphs.map((p: string, idx: number) => (
+              <p key={idx}>{renderFormattedText(p)}</p>
+            ))
+          ) : (
+            <p>{renderFormattedText(text)}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

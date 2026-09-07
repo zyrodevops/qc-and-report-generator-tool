@@ -34,6 +34,9 @@ export interface ReportPreviewProps {
   blockState: any;
   reportNumber?: string;
   onBackToEdit?: () => void;
+  onBlockChange?: (updatedBlock: any) => void;
+  onBlockStateChange?: (updatedState: any) => void;
+  editable?: boolean;
 }
 
 export const ReportPreview: React.FC<ReportPreviewProps> = ({
@@ -41,6 +44,9 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
   blockState,
   reportNumber,
   onBackToEdit,
+  onBlockChange,
+  onBlockStateChange,
+  editable = true,
 }) => {
   const [zoom, setZoom] = useState<number>(100);
   const [viewMode, setViewMode] = useState<'paginated' | 'all'>('all');
@@ -160,6 +166,13 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
           )}
 
           <div className="h-4 w-px bg-slate-300" />
+
+          {editable && onBlockChange && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold rounded-lg shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+              <span>Direct In-Place Editing Active</span>
+            </div>
+          )}
 
           {/* View Mode Toggle */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
@@ -305,31 +318,92 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
             totalPages={totalPages}
             reportNumber={repNum}
           >
-            <h1 className="text-[16px] font-bold text-[#00387A] text-center uppercase tracking-wide my-1">
-              Marine Cargo Survey & QC Inspection Report
-            </h1>
+            <div className="text-center my-1.5">
+              {editable && onBlockStateChange ? (
+                <input
+                  type="text"
+                  value={blockState?.report_title || 'Marine Cargo Survey & QC Inspection Report'}
+                  onChange={(e) => onBlockStateChange({ ...blockState, report_title: e.target.value })}
+                  className="w-full text-[15px] font-bold text-[#00387A] text-center uppercase tracking-wide bg-transparent border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-2 py-0.5 transition-colors"
+                />
+              ) : (
+                <h1 className="text-[16px] font-bold text-[#00387A] uppercase tracking-wide">
+                  {blockState?.report_title || 'Marine Cargo Survey & QC Inspection Report'}
+                </h1>
+              )}
+            </div>
 
             {page1Blocks.map((b) => {
               if (b.type === 'parties') {
-                return <PartiesBlock key={b.id} block={b} />;
+                return (
+                  <PartiesBlock
+                    key={b.id}
+                    block={b}
+                    onChange={onBlockChange}
+                    editable={editable}
+                  />
+                );
               }
               if (b.type === 'attendance') {
-                return <AttendanceBlock key={b.id} block={b} />;
+                return (
+                  <AttendanceBlock
+                    key={b.id}
+                    block={b}
+                    onChange={onBlockChange}
+                    editable={editable}
+                  />
+                );
               }
               if (b.type === 'particulars') {
-                return <ParticularsBlock key={b.id} block={b} />;
+                return (
+                  <ParticularsBlock
+                    key={b.id}
+                    block={b}
+                    onChange={onBlockChange}
+                    editable={editable}
+                  />
+                );
               }
               if (b.type === 'timeline') {
-                return <TimelineBlock key={b.id} block={b} />;
+                return (
+                  <TimelineBlock
+                    key={b.id}
+                    block={b}
+                    onChange={onBlockChange}
+                    editable={editable}
+                  />
+                );
               }
               if (b.type === 'narrative') {
-                return <NarrativeBlock key={b.id} block={b} />;
+                return (
+                  <NarrativeBlock
+                    key={b.id}
+                    block={b}
+                    onChange={onBlockChange}
+                    editable={editable}
+                  />
+                );
               }
               if (b.type === 'measurements') {
-                return <MeasurementsBlock key={b.id} block={b} />;
+                return (
+                  <MeasurementsBlock
+                    key={b.id}
+                    block={b}
+                    onChange={onBlockChange}
+                    editable={editable}
+                  />
+                );
               }
               if (b.type === 'table') {
-                return <TableBlock key={b.id} block={b} computed={b._computed} />;
+                return (
+                  <TableBlock
+                    key={b.id}
+                    block={b}
+                    computed={b._computed}
+                    onChange={onBlockChange}
+                    editable={editable}
+                  />
+                );
               }
               if (b.type === 'reconciliation') {
                 return <ReconciliationBlock key={b.id} block={b} />;
