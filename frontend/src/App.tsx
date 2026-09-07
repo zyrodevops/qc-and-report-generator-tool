@@ -3,7 +3,7 @@ import { ReportList } from './pages/ReportList';
 import { ReportForm } from './pages/ReportForm';
 import { LoginPage } from './pages/LoginPage';
 import { ReportSummary, UserSession, getStoredUser, fetchCurrentUser, logout } from './api/client';
-import { Anchor, LogOut, User, Loader2 } from 'lucide-react';
+import { Anchor, LogOut, Loader2 } from 'lucide-react';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserSession | null>(getStoredUser());
@@ -64,9 +64,8 @@ export function App() {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg text-xs">
-              <User className="w-3.5 h-3.5 text-blue-400" />
-              <span className="font-semibold text-white">{currentUser.full_name}</span>
-              <span className="text-slate-400">({currentUser.email})</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span className="font-semibold text-white">Client Access Active</span>
             </div>
 
             <button
