@@ -4,14 +4,37 @@ import { computeTable } from '../compute';
 export interface TableBlockProps {
   block: any;
   computed?: any;
+  onChange?: (updatedBlock: any) => void;
+  editable?: boolean;
 }
 
-export const TableBlock: React.FC<TableBlockProps> = ({ block, computed }) => {
+export const TableBlock: React.FC<TableBlockProps> = ({
+  block,
+  computed,
+  onChange,
+  editable = true,
+}) => {
   const categories: any[] = block?.categories || [];
   const rows: any[] = block?.rows || [];
   const unit = block?.unit || 'pcs';
   const title = block?.title || 'DEFECT ANALYSIS BREAKDOWN';
   const groupLabel = block?.grouping_label || 'Group';
+
+  const handleGroupChange = (rIdx: number, val: string) => {
+    if (!onChange) return;
+    const newRows = [...rows];
+    newRows[rIdx] = { ...newRows[rIdx], group: val };
+    onChange({ ...block, rows: newRows });
+  };
+
+  const handleCellChange = (rIdx: number, catKey: string, val: string) => {
+    if (!onChange) return;
+    const newRows = [...rows];
+    const newValues = { ...(newRows[rIdx]?.values || {}) };
+    newValues[catKey] = val;
+    newRows[rIdx] = { ...newRows[rIdx], values: newValues };
+    onChange({ ...block, rows: newRows });
+  };
 
   // Fallback to client compute if computed is not passed
   const calc = computed || computeTable(block);
@@ -108,15 +131,33 @@ export const TableBlock: React.FC<TableBlockProps> = ({ block, computed }) => {
                 <React.Fragment key={rIdx}>
                   {/* Pieces Count Row */}
                   <tr className="border-b border-slate-200 hover:bg-slate-50/50">
-                    <td className="border border-slate-400 px-2.5 py-1.5 font-bold text-slate-900 bg-slate-50/40">
-                      {row.group}
+                    <td className="border border-slate-400 p-0 font-bold text-slate-900 bg-slate-50/40">
+                      {editable && onChange ? (
+                        <input
+                          type="text"
+                          value={row.group}
+                          onChange={(e) => handleGroupChange(rIdx, e.target.value)}
+                          className="w-full bg-transparent px-2.5 py-1.5 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 font-bold text-xs text-slate-900 transition-colors"
+                        />
+                      ) : (
+                        <div className="px-2.5 py-1.5">{row.group}</div>
+                      )}
                     </td>
                     {categories.map((c) => (
                       <td
                         key={c.key}
-                        className="border border-slate-400 px-2 py-1.5 text-right font-mono text-slate-800"
+                        className="border border-slate-400 p-0 text-right font-mono text-slate-800"
                       >
-                        {row.values?.[c.key] ?? ''}
+                        {editable && onChange ? (
+                          <input
+                            type="text"
+                            value={row.values?.[c.key] ?? ''}
+                            onChange={(e) => handleCellChange(rIdx, c.key, e.target.value)}
+                            className="w-full bg-transparent px-2 py-1.5 text-right font-mono border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-xs text-slate-800 transition-colors"
+                          />
+                        ) : (
+                          <div className="px-2 py-1.5">{row.values?.[c.key] ?? ''}</div>
+                        )}
                       </td>
                     ))}
                     <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-[#00387A] bg-blue-50/30">
@@ -201,15 +242,33 @@ export const TableBlock: React.FC<TableBlockProps> = ({ block, computed }) => {
 
               return (
                 <tr key={rIdx} className="border-b border-slate-300 hover:bg-slate-50/50">
-                  <td className="border border-slate-400 px-2.5 py-1.5 font-medium text-slate-800">
-                    {row.group}
+                  <td className="border border-slate-400 p-0 font-medium text-slate-800">
+                    {editable && onChange ? (
+                      <input
+                        type="text"
+                        value={row.group}
+                        onChange={(e) => handleGroupChange(rIdx, e.target.value)}
+                        className="w-full bg-transparent px-2.5 py-1.5 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium text-xs text-slate-800 transition-colors"
+                      />
+                    ) : (
+                      <div className="px-2.5 py-1.5">{row.group}</div>
+                    )}
                   </td>
                   {categories.map((c) => (
                     <td
                       key={c.key}
-                      className="border border-slate-400 px-2 py-1.5 text-right font-mono text-slate-700"
+                      className="border border-slate-400 p-0 text-right font-mono text-slate-700"
                     >
-                      {row.values?.[c.key] ?? ''}
+                      {editable && onChange ? (
+                        <input
+                          type="text"
+                          value={row.values?.[c.key] ?? ''}
+                          onChange={(e) => handleCellChange(rIdx, c.key, e.target.value)}
+                          className="w-full bg-transparent px-2 py-1.5 text-right font-mono border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-xs text-slate-700 transition-colors"
+                        />
+                      ) : (
+                        <div className="px-2 py-1.5">{row.values?.[c.key] ?? ''}</div>
+                      )}
                     </td>
                   ))}
                   <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-[#00387A] bg-blue-50/30">

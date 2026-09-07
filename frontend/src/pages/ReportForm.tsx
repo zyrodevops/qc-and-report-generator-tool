@@ -240,6 +240,9 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           blockState={blockState}
           reportNumber={report.report_number}
           onBackToEdit={() => setActiveTab('edit')}
+          onBlockChange={handleBlockChange}
+          onBlockStateChange={setBlockState}
+          editable={true}
         />
       ) : (
         <>

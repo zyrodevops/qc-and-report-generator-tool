@@ -16,11 +16,24 @@ interface TimelineBlockProps {
       transit_days?: number;
     };
   };
+  onChange?: (updatedBlock: any) => void;
+  editable?: boolean;
 }
 
-export const TimelineBlock: React.FC<TimelineBlockProps> = ({ block }) => {
+export const TimelineBlock: React.FC<TimelineBlockProps> = ({
+  block,
+  onChange,
+  editable = true,
+}) => {
   const rows = block.rows || [];
   const transitDays = block._computed?.transit_days;
+
+  const updateRow = (idx: number, field: keyof TimelineRow, val: string) => {
+    if (!onChange) return;
+    const newRows = [...rows];
+    newRows[idx] = { ...newRows[idx], [field]: val };
+    onChange({ ...block, rows: newRows });
+  };
 
   return (
     <div className="my-4 text-xs font-sans text-gray-800">
@@ -40,10 +53,57 @@ export const TimelineBlock: React.FC<TimelineBlockProps> = ({ block }) => {
           <tbody>
             {rows.map((r, i) => (
               <tr key={i} className="border-b border-gray-300 hover:bg-slate-50">
-                <td className="p-1.5 border-r border-gray-300 font-semibold text-gray-900">{r.event}</td>
-                <td className="p-1.5 border-r border-gray-300 text-gray-700">{r.date}</td>
-                <td className="p-1.5 border-r border-gray-300 text-gray-700">{r.location || '-'}</td>
-                <td className="p-1.5 border-gray-300 text-gray-700">{r.basis || 'as reported'}</td>
+                <td className="p-0 border-r border-gray-300 font-semibold text-gray-900">
+                  {editable && onChange ? (
+                    <input
+                      type="text"
+                      value={r.event}
+                      onChange={(e) => updateRow(i, 'event', e.target.value)}
+                      className="w-full bg-transparent p-1.5 font-semibold border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-gray-900 transition-colors"
+                    />
+                  ) : (
+                    <div className="p-1.5">{r.event}</div>
+                  )}
+                </td>
+                <td className="p-0 border-r border-gray-300 text-gray-700">
+                  {editable && onChange ? (
+                    <input
+                      type="text"
+                      value={r.date}
+                      placeholder="YYYY-MM-DD"
+                      onChange={(e) => updateRow(i, 'date', e.target.value)}
+                      className="w-full bg-transparent p-1.5 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-gray-700 transition-colors"
+                    />
+                  ) : (
+                    <div className="p-1.5">{r.date}</div>
+                  )}
+                </td>
+                <td className="p-0 border-r border-gray-300 text-gray-700">
+                  {editable && onChange ? (
+                    <input
+                      type="text"
+                      value={r.location || ''}
+                      placeholder="Location"
+                      onChange={(e) => updateRow(i, 'location', e.target.value)}
+                      className="w-full bg-transparent p-1.5 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-gray-700 transition-colors"
+                    />
+                  ) : (
+                    <div className="p-1.5">{r.location || '-'}</div>
+                  )}
+                </td>
+                <td className="p-0 border-gray-300 text-gray-700">
+                  {editable && onChange ? (
+                    <input
+                      type="text"
+                      value={r.basis || ''}
+                      placeholder="Basis"
+                      onChange={(e) => updateRow(i, 'basis', e.target.value)}
+                      className="w-full bg-transparent p-1.5 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-gray-700 transition-colors"
+                    />
+                  ) : (
+                    <div className="p-1.5">{r.basis || 'as reported'}</div>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

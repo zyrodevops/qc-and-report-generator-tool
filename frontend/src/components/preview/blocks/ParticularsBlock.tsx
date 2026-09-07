@@ -5,15 +5,30 @@ export interface ParticularsBlockProps {
   transport?: any;
   carriageUnits?: any[];
   weights?: any;
+  onChange?: (updatedBlock: any) => void;
+  editable?: boolean;
 }
 
 export const ParticularsBlock: React.FC<ParticularsBlockProps> = ({
   block,
+  onChange,
+  editable = true,
 }) => {
   const rows: any[] = block?.rows || [];
   if (rows.length === 0) return null;
 
   const sectionTitle = block.section || 'PARTICULARS OF SURVEY';
+
+  const handleValueChange = (rIdx: number, newVal: string) => {
+    if (!onChange) return;
+    const newRows = [...rows];
+    if (Array.isArray(newRows[rIdx]?.value)) {
+      newRows[rIdx] = { ...newRows[rIdx], value: [newVal] };
+    } else {
+      newRows[rIdx] = { ...newRows[rIdx], value: newVal };
+    }
+    onChange({ ...block, rows: newRows });
+  };
 
   return (
     <div className="particulars-block my-2">
@@ -44,7 +59,7 @@ export const ParticularsBlock: React.FC<ParticularsBlockProps> = ({
               valStr = String(rawVal);
             }
 
-            if (row.note) {
+            if (row.note && !editable) {
               valStr += ` (${row.note})`;
             }
 
@@ -53,8 +68,17 @@ export const ParticularsBlock: React.FC<ParticularsBlockProps> = ({
                 <td className="w-[35%] bg-slate-50 font-semibold text-slate-700 px-3 py-1.5 border-r border-slate-400">
                   {label}
                 </td>
-                <td className="w-[65%] text-slate-900 px-3 py-1.5 font-sans">
-                  {valStr}
+                <td className="w-[65%] text-slate-900 p-0 font-sans">
+                  {editable && onChange ? (
+                    <input
+                      type="text"
+                      value={valStr}
+                      onChange={(e) => handleValueChange(idx, e.target.value)}
+                      className="w-full h-full bg-transparent px-3 py-1.5 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-xs text-slate-900 font-sans transition-colors cursor-text"
+                    />
+                  ) : (
+                    <div className="px-3 py-1.5">{valStr}</div>
+                  )}
                 </td>
               </tr>
             );
