@@ -138,107 +138,6 @@ export async function fetchReports(): Promise<ReportSummary[]> {
 }
 
 export async function createReport(params: CreateReportParams): Promise<ReportSummary> {
-  const initialBlocks = [
-    {
-      id: 'b_particulars',
-      type: 'particulars',
-      rows: [
-        { label: 'Applicant / Insurer', value: ['Marine Cargo Insurers Ltd.'] },
-        { label: 'Declared Commodity', value: ['Fresh Citrus / Mandarins'] },
-        { label: 'Transport Document', value: [params.mode === 'AIR' ? '098-12345675' : 'BL-CMAU-990123'] },
-        { label: 'Place of Survey', value: ['CFS Cold Storage, Nhava Sheva'] },
-      ],
-    },
-    {
-      id: 'b_narrative',
-      type: 'narrative',
-      section: 'ATTENDANCE & CIRCUMSTANCES',
-      additional_text: 'Survey conducted under normal ambient conditions at the cold store facility.',
-      source: 'surveyor_entered',
-    },
-    {
-      id: 'b_measurements',
-      type: 'measurements',
-      unit_system: 'metric',
-      rows: [
-        { subject: 'Pulp Temperature', method: 'Digital probe thermometer', min: '1.0', max: '1.4', unit: '°C' },
-        { subject: 'Brix Level', method: 'Optical refractometer', min: '11.2', max: '12.0', unit: '%' },
-      ],
-    },
-    {
-      id: 'b_table',
-      type: 'table',
-      title: 'Defect Analysis Breakdown',
-      unit: 'pcs',
-      grouping_label: 'Count / Sample Size',
-      categories: [
-        { key: 'sound', label: 'Sound (Pcs)' },
-        { key: 'soft', label: 'Soft (Pcs)' },
-        { key: 'decay', label: 'Decay (Pcs)' },
-        { key: 'bruised', label: 'Bruised (Pcs)' },
-        { key: 'stem_rot', label: 'Stem Rot (Pcs)' },
-      ],
-      rows: [
-        { group: 'Box Count 55', values: { sound: 133, soft: 54, decay: 14, bruised: 24, stem_rot: 9 } },
-        { group: 'Box Count 65', values: { sound: 140, soft: 68, decay: 18, bruised: 13, stem_rot: 15 } },
-      ],
-    },
-    {
-      id: 'b_photo_plate',
-      type: 'photo_plate',
-      series_id: 'survey',
-      label: 'Survey Photographs',
-      provenance: 'own_survey',
-      columns: 2,
-      groups: [],
-    },
-    {
-      id: 'b_fixed_text',
-      type: 'fixed_text',
-      key: 'disclaimer@v1',
-      content: 'This report is issued without prejudice, subject to the conditions and limitations of carriage.',
-    },
-  ];
-
-  const defaultState = {
-    metadata: {
-      number: 'ALLOCATED_BY_SERVER',
-      family: params.family || 'QC_REPORT',
-      state: 'DRAFT',
-      template_id: params.template_id,
-      template_version: 1,
-      docx_template: 'mca-qc-v1.docx',
-      status: 'DRAFT',
-      issued_date: new Date().toISOString().split('T')[0],
-      place: 'Mumbai, India',
-    },
-    transport: {
-      mode: params.mode || 'SEA',
-      document: {
-        kind: params.mode === 'AIR' ? 'AIR_WAYBILL' : 'BILL_OF_LADING',
-        number: params.mode === 'AIR' ? '098-12345675' : 'BL-990123',
-        level: 'MASTER',
-        check_digit_valid: true,
-      },
-      conveyances: [],
-    },
-    carriage_units: [
-      {
-        id: 'u1',
-        unit_type: params.mode === 'AIR' ? 'ULD' : 'CONTAINER',
-        identifier: params.mode === 'AIR' ? 'AKE12345AA' : 'CMAU2016593',
-        identifier_valid: true,
-      },
-    ],
-    weights: {
-      gross_kg: '24500.00',
-      net_kg: '22310.00',
-    },
-    blocks: initialBlocks,
-    assets: {},
-    provenance: {},
-  };
-
   const res = await fetch('/api/reports', {
     method: 'POST',
     headers: {
@@ -247,9 +146,10 @@ export async function createReport(params: CreateReportParams): Promise<ReportSu
     },
     body: JSON.stringify({
       template_id: params.template_id,
-      family: params.family || 'QC_REPORT',
+      family: params.family || (params.template_id.includes('qc') ? 'QC_REPORT' : 'SURVEY_REPORT'),
       year: params.year || 2026,
-      block_state: params.block_state || defaultState,
+      commodity: params.commodity || 'mandarin',
+      block_state: params.block_state || {},
     }),
   });
 

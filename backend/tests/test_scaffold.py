@@ -21,6 +21,7 @@ def test_health_check_reports_503_when_redis_unreachable_in_production(client, m
     from app.config import settings
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
     monkeypatch.setattr(settings, "ALLOW_FAKE_REDIS", False)
+    monkeypatch.setattr(settings, "REDIS_URL", "redis://127.0.0.1:59999/0")
     response = client.get("/api/health")
     assert response.status_code == 503
     data = response.json()

@@ -23,6 +23,7 @@ class CreateReportRequest(BaseModel):
     template_id: str
     family: str = "marine_cargo"
     year: int = Field(default=2026, ge=2000, le=2100)
+    commodity: Optional[str] = None
     block_state: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -65,7 +66,13 @@ async def create_report(
     # 1. Atomically allocate gapless sequential report number
     report_number = await allocate_report_number_async(db, year=payload.year)
 
-    # 2. Instantiate Report
+    # 2. Populate default block_state if none provided
+    initial_block_state = payload.block_state
+    if not initial_block_state or not initial_block_state.get("blocks"):
+        from app.seeds.defaults import get_default_block_state
+        initial_block_state = get_default_block_state(template.id, payload.commodity)
+
+    # 3. Instantiate Report
     report = Report(
         id=uuid.uuid4(),
         report_number=report_number,
@@ -73,14 +80,14 @@ async def create_report(
         state="DRAFT",
         status="DRAFT",
         template_id=template.id,
-        block_state=payload.block_state,
+        block_state=initial_block_state,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
     db.add(report)
     await db.flush()
 
-    # 3. Record audit event in the same transaction
+    # 4. Record audit event in the same transaction
     await AuditService.record_async(
         session=db,
         actor=actor,

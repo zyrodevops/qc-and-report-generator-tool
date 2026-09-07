@@ -347,57 +347,100 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
 
     out.append('<table class="report-table defect-table">')
 
-    # 1. Header Row
-    group_col = html.escape(block.get("grouping_label", "Group"))
-    headers = [f'<th>{group_col}</th>']
-    for lab in cat_labels:
-        headers.append(f'<th>{html.escape(lab)}</th>')
-    headers.append(f'<th>Total ({html.escape(unit)})</th>')
-    headers.append('<th>%</th>')
-    out.append(f"<thead><tr>{''.join(headers)}</tr></thead>")
-
-    # 2. Data Rows
-    out.append('<tbody>')
     row_totals = computed.get("row_totals", [])
     row_pcts = computed.get("row_percentages", [])
-
-    for i, r in enumerate(rows):
-        cells = [f"<td>{html.escape(str(r.get('group', '')))}</td>"]
-        values = r.get("values", {})
-        for key in cat_keys:
-            cells.append(f"<td>{html.escape(str(values.get(key, '')))}</td>")
-
-        if i < len(row_totals):
-            cells.append(f"<td>{html.escape(str(row_totals[i]))}</td>")
-            pct_row = row_pcts[i] if i < len(row_pcts) else []
-            pct_str = " / ".join(str(p) for p in pct_row)
-            cells.append(f"<td>{html.escape(pct_str)}</td>")
-        else:
-            cells.append("<td></td><td></td>")
-
-        out.append(f"<tr>{''.join(cells)}</tr>")
-
-    # 3. Column Totals Row
     col_totals = computed.get("column_totals", {})
     grand_total = computed.get("grand_total", "")
     col_pcts = computed.get("column_percentages", {})
+    is_two_tier = block.get("layout") == "two_tier" and bool(row_pcts)
 
-    tot_cells = ["<td>Total</td>"]
-    for key in cat_keys:
-        tot_cells.append(f"<td>{html.escape(str(col_totals.get(key, '')))}</td>")
-    tot_cells.append(f"<td>{html.escape(str(grand_total))}</td>")
-    tot_cells.append("<td></td>")
-    out.append(f'<tr class="totals-row">{"".join(tot_cells)}</tr>')
+    if is_two_tier:
+        # Authentic Client Two-Tier Table Layout (Saanvi Fresh Fruit / RGS Exim Pro)
+        group_col = html.escape(block.get("grouping_label", "Count / Box Sample"))
+        headers = [f'<th>{group_col}</th>']
+        for lab in cat_labels:
+            headers.append(f'<th>{html.escape(lab)}</th>')
+        headers.append(f'<th>Total ({html.escape(unit)})</th>')
+        out.append(f"<thead><tr>{''.join(headers)}</tr></thead>")
 
-    # 4. Percentage Row
-    pct_cells = ["<td>%</td>"]
-    for key in cat_keys:
-        pct_cells.append(f"<td>{html.escape(str(col_pcts.get(key, '')))}</td>")
-    pct_cells.append("<td></td>")
-    pct_cells.append("<td></td>")
-    out.append(f'<tr class="percentages-row">{"".join(pct_cells)}</tr>')
+        out.append('<tbody>')
+        for i, r in enumerate(rows):
+            # Row 1: Pieces count
+            cells = [f"<td><strong>{html.escape(str(r.get('group', '')))}</strong></td>"]
+            values = r.get("values", {})
+            for key in cat_keys:
+                cells.append(f"<td>{html.escape(str(values.get(key, '')))}</td>")
+            tot_val = str(row_totals[i]) if i < len(row_totals) else ""
+            cells.append(f"<td><strong>{html.escape(tot_val)}</strong></td>")
+            out.append(f"<tr>{''.join(cells)}</tr>")
 
-    out.append('</tbody></table>')
+            # Row 2: Percentage row
+            p_cells = ["<td><em>Percentage</em></td>"]
+            pct_row = row_pcts[i] if i < len(row_pcts) else []
+            for j, p in enumerate(pct_row):
+                p_val = f"{p}%" if str(p) else ""
+                p_cells.append(f"<td>{html.escape(p_val)}</td>")
+            p_cells.append("<td>100.00%</td>")
+            out.append(f"<tr class='percentages-row'>{''.join(p_cells)}</tr>")
+
+        # Summary Row 1: Total Pieces
+        tot_cells = [f"<td><strong>Total ({html.escape(unit)})</strong></td>"]
+        for key in cat_keys:
+            tot_cells.append(f"<td><strong>{html.escape(str(col_totals.get(key, '')))}</strong></td>")
+        tot_cells.append(f"<td><strong>{html.escape(str(grand_total))}</strong></td>")
+        out.append(f'<tr class="totals-row">{"".join(tot_cells)}</tr>')
+
+        # Summary Row 2: Total Percentage
+        pct_cells = ["<td><strong>Percentage</strong></td>"]
+        for key in cat_keys:
+            p_str = f"{col_pcts.get(key, '')}%" if col_pcts.get(key) else ""
+            pct_cells.append(f"<td><strong>{html.escape(p_str)}</strong></td>")
+        pct_cells.append("<td><strong>100.00%</strong></td>")
+        out.append(f'<tr class="percentages-row">{"".join(pct_cells)}</tr>')
+
+        out.append('</tbody></table>')
+    else:
+        # Standard table layout (existing single-row format)
+        group_col = html.escape(block.get("grouping_label", "Group"))
+        headers = [f'<th>{group_col}</th>']
+        for lab in cat_labels:
+            headers.append(f'<th>{html.escape(lab)}</th>')
+        headers.append(f'<th>Total ({html.escape(unit)})</th>')
+        headers.append('<th>%</th>')
+        out.append(f"<thead><tr>{''.join(headers)}</tr></thead>")
+
+        out.append('<tbody>')
+        for i, r in enumerate(rows):
+            cells = [f"<td>{html.escape(str(r.get('group', '')))}</td>"]
+            values = r.get("values", {})
+            for key in cat_keys:
+                cells.append(f"<td>{html.escape(str(values.get(key, '')))}</td>")
+
+            if i < len(row_totals):
+                cells.append(f"<td>{html.escape(str(row_totals[i]))}</td>")
+                pct_row = row_pcts[i] if i < len(row_pcts) else []
+                pct_str = " / ".join(str(p) for p in pct_row)
+                cells.append(f"<td>{html.escape(pct_str)}</td>")
+            else:
+                cells.append("<td></td><td></td>")
+
+            out.append(f"<tr>{''.join(cells)}</tr>")
+
+        tot_cells = ["<td>Total</td>"]
+        for key in cat_keys:
+            tot_cells.append(f"<td>{html.escape(str(col_totals.get(key, '')))}</td>")
+        tot_cells.append(f"<td>{html.escape(str(grand_total))}</td>")
+        tot_cells.append("<td></td>")
+        out.append(f'<tr class="totals-row">{"".join(tot_cells)}</tr>')
+
+        pct_cells = ["<td>%</td>"]
+        for key in cat_keys:
+            pct_cells.append(f"<td>{html.escape(str(col_pcts.get(key, '')))}</td>")
+        pct_cells.append("<td></td>")
+        pct_cells.append("<td></td>")
+        out.append(f'<tr class="percentages-row">{"".join(pct_cells)}</tr>')
+
+        out.append('</tbody></table>')
 
     # 5. Embedded Defect Donut Chart (identical to DOCX engine)
     try:

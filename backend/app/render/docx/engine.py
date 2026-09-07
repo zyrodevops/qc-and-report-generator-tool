@@ -44,6 +44,11 @@ def _load_template(template_name: str) -> Document:
     if real_path.exists():
         return Document(str(real_path))
 
+    if "qc" in template_name.lower():
+        qc_canonical = TEMPLATE_DIR / "mca-qc-canonical-v1.docx"
+        if qc_canonical.exists():
+            return Document(str(qc_canonical))
+
     synthetic_path = TEMPLATE_DIR / SYNTHETIC_TEMPLATE_NAME
     if synthetic_path.exists():
         return Document(str(synthetic_path))
@@ -205,54 +210,121 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     cat_keys = [c["key"] for c in categories]
     cat_labels = [c["label"] for c in categories]
 
-    # Column count: grouping + category columns + Total + %
-    col_count = 1 + len(categories) + 2
-    table = doc.add_table(rows=1 + len(rows) + 2, cols=col_count)
-    table.style = "Table Grid"
-
-    # Header row
-    hrow = table.rows[0].cells
-    hrow[0].text = block.get("grouping_label", "Group")
-    for i, label in enumerate(cat_labels):
-        hrow[1 + i].text = label
-    hrow[-2].text = f"Total ({unit})"
-    hrow[-1].text = "%"
-    for cell in hrow:
-        if cell.paragraphs[0].runs:
-            cell.paragraphs[0].runs[0].bold = True
-
-    # Data rows
     row_totals = computed.get("row_totals", [])
     row_pcts = computed.get("row_percentages", [])
-    for i, row in enumerate(rows):
-        trow = table.rows[1 + i].cells
-        trow[0].text = str(row.get("group", ""))
-        values = row.get("values", {})
-        for j, key in enumerate(cat_keys):
-            trow[1 + j].text = str(values.get(key, ""))
-        # Computed total — read-only in output
-        if i < len(row_totals):
-            trow[-2].text = str(row_totals[i])
-            pct_row = row_pcts[i] if i < len(row_pcts) else []
-            pct_str = " / ".join(str(p) for p in pct_row)
-            trow[-1].text = pct_str
-
-    # Column totals row
     col_totals = computed.get("column_totals", {})
     grand_total = computed.get("grand_total", "")
     col_pcts = computed.get("column_percentages", {})
-    tot_row = table.rows[-2].cells
-    tot_row[0].text = "Total"
-    for j, key in enumerate(cat_keys):
-        tot_row[1 + j].text = str(col_totals.get(key, ""))
-    tot_row[-2].text = str(grand_total)
-    tot_row[-1].text = ""
+    is_two_tier = block.get("layout") == "two_tier" and bool(row_pcts)
 
-    # Percentage row
-    pct_row_cells = table.rows[-1].cells
-    pct_row_cells[0].text = "%"
-    for j, key in enumerate(cat_keys):
-        pct_row_cells[1 + j].text = str(col_pcts.get(key, ""))
+    if is_two_tier:
+        # Authentic Client Two-Tier Table Layout (Saanvi Fresh Fruit / RGS Exim Pro)
+        # Each count has 2 rows: (1) Pieces, (2) Percentage row directly under
+        col_count = 1 + len(categories) + 1  # Group + Categories + Total
+        table = doc.add_table(rows=1 + (len(rows) * 2) + 2, cols=col_count)
+        table.style = "Table Grid"
+
+        # Header
+        hrow = table.rows[0].cells
+        hrow[0].text = block.get("grouping_label", "Count / Box Sample")
+        for i, label in enumerate(cat_labels):
+            hrow[1 + i].text = label
+        hrow[-1].text = f"Total ({unit})"
+        for cell in hrow:
+            if cell.paragraphs[0].runs:
+                cell.paragraphs[0].runs[0].bold = True
+
+        # Data Rows (2 rows per sample count)
+        curr_row = 1
+        for i, row in enumerate(rows):
+            # Row 1: Pieces count
+            trow = table.rows[curr_row].cells
+            trow[0].text = str(row.get("group", ""))
+            if trow[0].paragraphs[0].runs:
+                trow[0].paragraphs[0].runs[0].bold = True
+            values = row.get("values", {})
+            for j, key in enumerate(cat_keys):
+                trow[1 + j].text = str(values.get(key, ""))
+            if i < len(row_totals):
+                trow[-1].text = str(row_totals[i])
+                if trow[-1].paragraphs[0].runs:
+                    trow[-1].paragraphs[0].runs[0].bold = True
+            curr_row += 1
+
+            # Row 2: Percentage row
+            prow = table.rows[curr_row].cells
+            prow[0].text = "Percentage"
+            pct_row = row_pcts[i] if i < len(row_pcts) else []
+            for j, p in enumerate(pct_row):
+                if j < len(cat_keys):
+                    prow[1 + j].text = f"{p}%" if str(p) else ""
+            prow[-1].text = "100.00%"
+            curr_row += 1
+
+        # Summary Row 1: Total Pieces
+        tot_row = table.rows[curr_row].cells
+        tot_row[0].text = f"Total ({unit})"
+        for j, key in enumerate(cat_keys):
+            tot_row[1 + j].text = str(col_totals.get(key, ""))
+        tot_row[-1].text = str(grand_total)
+        for c in tot_row:
+            if c.paragraphs[0].runs:
+                c.paragraphs[0].runs[0].bold = True
+        curr_row += 1
+
+        # Summary Row 2: Total Percentage
+        pct_tot_row = table.rows[curr_row].cells
+        pct_tot_row[0].text = "Percentage"
+        for j, key in enumerate(cat_keys):
+            pct_tot_row[1 + j].text = f"{col_pcts.get(key, '')}%" if col_pcts.get(key) else ""
+        pct_tot_row[-1].text = "100.00%"
+        for c in pct_tot_row:
+            if c.paragraphs[0].runs:
+                c.paragraphs[0].runs[0].bold = True
+
+    else:
+        # Standard table layout (existing single-row format)
+        col_count = 1 + len(categories) + 2
+        table = doc.add_table(rows=1 + len(rows) + 2, cols=col_count)
+        table.style = "Table Grid"
+
+        # Header row
+        hrow = table.rows[0].cells
+        hrow[0].text = block.get("grouping_label", "Group")
+        for i, label in enumerate(cat_labels):
+            hrow[1 + i].text = label
+        hrow[-2].text = f"Total ({unit})"
+        hrow[-1].text = "%"
+        for cell in hrow:
+            if cell.paragraphs[0].runs:
+                cell.paragraphs[0].runs[0].bold = True
+
+        # Data rows
+        for i, row in enumerate(rows):
+            trow = table.rows[1 + i].cells
+            trow[0].text = str(row.get("group", ""))
+            values = row.get("values", {})
+            for j, key in enumerate(cat_keys):
+                trow[1 + j].text = str(values.get(key, ""))
+            if i < len(row_totals):
+                trow[-2].text = str(row_totals[i])
+                pct_row = row_pcts[i] if i < len(row_pcts) else []
+                pct_str = " / ".join(str(p) for p in pct_row)
+                trow[-1].text = pct_str
+
+        # Column totals row
+        tot_row = table.rows[-2].cells
+        tot_row[0].text = "Total"
+        for j, key in enumerate(cat_keys):
+            tot_row[1 + j].text = str(col_totals.get(key, ""))
+        tot_row[-2].text = str(grand_total)
+        tot_row[-1].text = ""
+
+        # Percentage row
+        pct_row_cells = table.rows[-1].cells
+        pct_row_cells[0].text = "%"
+        for j, key in enumerate(cat_keys):
+            pct_row_cells[1 + j].text = str(col_pcts.get(key, ""))
 
     doc.add_paragraph()
 
@@ -622,12 +694,37 @@ def render_docx(
     state = compute(block_state)
 
     metadata = state.get("metadata", state.get("report", {}))
-    tmpl_name = template_name or metadata.get("docx_template", SYNTHETIC_TEMPLATE_NAME)
+    is_qc = (
+        "qc" in str(state.get("report_title", "")).lower()
+        or "qc" in str(metadata.get("family", "")).lower()
+        or "qc" in str(state.get("template_id", "")).lower()
+        or any(b.get("type") == "table" for b in state.get("blocks", []))
+    )
+    default_tmpl = "mca-qc-canonical-v1.docx" if is_qc else SYNTHETIC_TEMPLATE_NAME
+    tmpl_name = template_name or metadata.get("docx_template", default_tmpl)
     if not tmpl_name.endswith(".docx"):
         tmpl_name += ".docx"
 
     # Step 2: load template
     doc = _load_template(tmpl_name)
+
+    # Inject container/report number into running header if applicable
+    container_no = state.get("transport", {}).get("container_no") or metadata.get("number", "")
+    if container_no:
+        for s in doc.sections:
+            for p in s.header.paragraphs:
+                if "IN-HOUSE QC INSPECTION REPORT #" in p.text and container_no not in p.text:
+                    p.text = p.text.replace("IN-HOUSE QC INSPECTION REPORT #", f"IN-HOUSE QC INSPECTION REPORT # {container_no}")
+
+    # Add centered document title if provided in block_state
+    report_title = state.get("report_title")
+    if report_title:
+        title_p = doc.add_paragraph()
+        title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        t_run = title_p.add_run(report_title)
+        t_run.bold = True
+        t_run.font.size = Pt(16)
+        t_run.font.name = "Arial"
 
     assets = state.get("assets", {})
     blocks = state.get("blocks", [])

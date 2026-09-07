@@ -16,6 +16,7 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
   const [selectedTemplate, setSelectedTemplate] = useState('perishable-qc-sea');
   const [selectedMode, setSelectedMode] = useState<'SEA' | 'AIR'>('SEA');
   const [selectedFamily, setSelectedFamily] = useState('QC_REPORT');
+  const [selectedCommodity, setSelectedCommodity] = useState('mandarin');
   const [year, setYear] = useState(2026);
 
   const loadReports = async () => {
@@ -42,6 +43,7 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
         template_id: selectedTemplate,
         family: selectedFamily,
         mode: selectedMode,
+        commodity: selectedCommodity,
         year: Number(year),
       });
       setShowModal(false);
@@ -179,6 +181,25 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                   <option value="perishable-survey-sea">Perishable Cargo Survey – Sea Shipment</option>
                   <option value="perishable-survey-air">Perishable Cargo Survey – Air Shipment</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Commodity & Defect Preset
+                </label>
+                <select
+                  value={selectedCommodity}
+                  onChange={(e) => setSelectedCommodity(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="mandarin">Fresh Mandarin (Sound, Soft, Russet, Mech. Injury, Rotten)</option>
+                  <option value="orange">Fresh Orange (Sound, Soft, Green Patch, Mech. Injury, Rotten)</option>
+                  <option value="grapes">Fresh Table Grapes (Sound, Decay, Softness, Stem Dehydration, Split, Shatter)</option>
+                  <option value="apples">Fresh Apples (Sound, Bruised, Mech. Injury, Rotten, Bitter Pit)</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Auto-populates authentic mined narrative, probe temperatures, and defect breakdown columns.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
