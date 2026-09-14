@@ -15,6 +15,7 @@ router = APIRouter()
 # Resolve the archetypes file relative to the repo root
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]  # backend/app/api -> repo root
 _ARCHETYPES_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "template_archetypes.json"
+_FALLBACK_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "template_archetypes.json"
 
 # Emoji and display-name mapping for the UI
 _COMMODITY_META: dict[str, dict] = {
@@ -36,10 +37,11 @@ _COMMODITY_META: dict[str, dict] = {
 @lru_cache(maxsize=1)
 def _load_archetypes() -> dict:
     """Load and cache the archetypes JSON from disk."""
-    if not _ARCHETYPES_FILE.exists():
-        return {}
-    with open(_ARCHETYPES_FILE, encoding="utf-8") as f:
-        return json.load(f)
+    for path in (_ARCHETYPES_FILE, _FALLBACK_FILE):
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+    return {}
 
 
 @router.get("/commodities")
