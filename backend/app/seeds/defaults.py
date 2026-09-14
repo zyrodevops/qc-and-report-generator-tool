@@ -20,13 +20,15 @@ from typing import Any, Dict, List, Optional
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]  # backend/app/seeds -> repo root
 _ARCHETYPES_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "template_archetypes.json"
+_FALLBACK_FILE = pathlib.Path(__file__).resolve().parent / "template_archetypes.json"
 
 
 @lru_cache(maxsize=1)
 def _load_archetypes() -> Dict[str, Any]:
-    if _ARCHETYPES_FILE.exists():
-        with open(_ARCHETYPES_FILE, encoding="utf-8") as f:
-            return json.load(f)
+    for path in (_ARCHETYPES_FILE, _FALLBACK_FILE):
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
     return {}
 
 
