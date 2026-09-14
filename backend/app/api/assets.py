@@ -8,7 +8,7 @@ from __future__ import annotations
 import io
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse, Response
@@ -21,6 +21,8 @@ from app.core.auth import get_current_actor
 from app.database import get_db
 from app.ingest.photos import process_photo_upload, verify_original_integrity
 from app.ingest.spreadsheet import parse_spreadsheet, build_column_mapping_preview
+from app.ingest.tally_ocr import parse_tally_image
+from app.ingest.tally_knowledge_base import list_available_sample_tallies, KNOWN_TALLY_CATALOG
 from app.models.asset import Asset
 from app.models.report import Report
 from app.services.audit import AuditService
@@ -110,6 +112,93 @@ async def upload_photo(
         "derived_paths": asset_record["derived_paths"],
         "url": asset_url,
         "exif_integrity": "INTACT",
+    }
+
+
+@router.post("/{report_id}/assets/photos/batch", status_code=status.HTTP_201_CREATED)
+async def upload_photos_batch(
+    report_id: str,
+    files: List[UploadFile] = File(...),
+    series_id: str = Form(default="survey"),
+    provenance: str = Form(default="own_survey"),
+    db: AsyncSession = Depends(get_db),
+    actor: str = Depends(get_current_actor),
+) -> Dict[str, Any]:
+    """
+    Batch upload multiple photos, storing each bit-exact.
+    CRITICAL: Originals are never recompressed. SHA-256 recorded at upload.
+    Derived display (800px) and report (1600px) copies generated separately.
+    """
+    report = await _get_report_or_404(report_id, db)
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided in batch upload")
+
+    current_state = dict(report.block_state) if report.block_state else {}
+    if "assets" not in current_state or not isinstance(current_state["assets"], dict):
+        current_state["assets"] = {}
+
+    results: List[Dict[str, Any]] = []
+    for f in files:
+        file_bytes = await f.read()
+        if not file_bytes:
+            continue
+
+        asset_record = process_photo_upload(
+            file_bytes=file_bytes,
+            original_filename=f.filename or "upload.jpg",
+            upload_dir=settings.UPLOAD_DIR,
+            derived_dir=settings.DERIVED_DIR,
+            report_id=report_id,
+        )
+
+        db_asset = Asset(
+            id=str(asset_record["id"]),
+            report_id=uuid.UUID(report_id),
+            kind="photo",
+            sha256=asset_record["sha256"],
+            original_path=asset_record["original_path"],
+            derived_paths=asset_record["derived_paths"],
+            exif=asset_record["exif"],
+        )
+        db.add(db_asset)
+
+        asset_url = f"/api/reports/{report_id}/assets/{asset_record['id']}/image"
+        current_state["assets"][asset_record["id"]] = {
+            "id": asset_record["id"],
+            "sha256": asset_record["sha256"],
+            "original_path": asset_record["original_path"],
+            "derived_paths": asset_record["derived_paths"],
+            "url": asset_url,
+        }
+
+        await AuditService.record_async(
+            session=db,
+            actor=actor,
+            action="ASSET_UPLOAD",
+            report_id=report.id,
+            path=f"assets.{asset_record['id']}",
+            before=None,
+            after={"sha256": asset_record["sha256"], "series_id": series_id, "batch": True},
+        )
+
+        results.append({
+            "id": asset_record["id"],
+            "sha256": asset_record["sha256"],
+            "series_id": series_id,
+            "provenance": provenance,
+            "original_path": asset_record["original_path"],
+            "derived_paths": asset_record["derived_paths"],
+            "url": asset_url,
+            "exif_integrity": "INTACT",
+        })
+
+    report.block_state = current_state
+    flag_modified(report, "block_state")
+    await db.commit()
+
+    return {
+        "count": len(results),
+        "assets": results,
     }
 
 
@@ -247,6 +336,181 @@ async def apply_spreadsheet_mapping(
     return {
         "mapped_rows": result.get("mapped_rows", []),
         "column_map_applied": column_map,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Tally Sheet OCR Ingestion (PaddleOCR + Knowledge Base Corroboration)
+# ---------------------------------------------------------------------------
+
+@router.get("/{report_id}/import/tally-samples")
+async def get_sample_tallies(
+    report_id: str,
+    db: AsyncSession = Depends(get_db),
+    actor: str = Depends(get_current_actor),
+) -> List[Dict[str, Any]]:
+    """Return available sample tally sheets from client archive for 1-click test & prefill."""
+    await _get_report_or_404(report_id, db)
+    return list_available_sample_tallies()
+
+
+@router.post("/{report_id}/import/tally-ocr")
+async def import_tally_ocr(
+    report_id: str,
+    file: Optional[UploadFile] = File(default=None),
+    sample_id: Optional[str] = Form(default=None),
+    db: AsyncSession = Depends(get_db),
+    actor: str = Depends(get_current_actor),
+) -> Dict[str, Any]:
+    """
+    Upload a cold-storage handwritten tally sheet photo, or select a sample tally ID.
+    Runs local OCR (EasyOCR primary, with RapidOCR, PaddleOCR, Tesseract fallbacks)
+    preprocessing and extraction for headers, QC readings, and defect tables,
+    corroborating with known client tally datasets.
+    """
+    await _get_report_or_404(report_id, db)
+    
+    if sample_id:
+        from pathlib import Path
+        sample_item = next((s for s in KNOWN_TALLY_CATALOG if s["id"].upper() == sample_id.upper()), None)
+        if not sample_item:
+            raise HTTPException(status_code=404, detail=f"Sample tally ID {sample_id} not found")
+        candidates = [
+            Path("sample-data/tally_sheets/Marine cargo/Tally sheets") / sample_item["source_photo"],
+            Path(__file__).resolve().parents[2] / "sample-data/tally_sheets/Marine cargo/Tally sheets" / sample_item["source_photo"],
+            Path(__file__).resolve().parents[3] / "sample-data/tally_sheets/Marine cargo/Tally sheets" / sample_item["source_photo"],
+        ]
+        photo_path = next((p for p in candidates if p.exists()), None)
+        if not photo_path:
+            raise HTTPException(status_code=404, detail=f"Sample photo file {sample_item['source_photo']} not found")
+        file_bytes = photo_path.read_bytes()
+        filename = sample_item["source_photo"]
+    elif file:
+        file_bytes = await file.read()
+        filename = file.filename or "tally_sheet.jpg"
+    else:
+        raise HTTPException(status_code=400, detail="Either 'file' or 'sample_id' must be provided")
+
+    extracted = parse_tally_image(
+        image_bytes=file_bytes,
+        filename=filename,
+    )
+    return extracted
+
+
+@router.post("/{report_id}/import/tally-ocr/apply")
+async def apply_tally_ocr(
+    report_id: str,
+    payload: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    actor: str = Depends(get_current_actor),
+) -> Dict[str, Any]:
+    """
+    Apply verified tally OCR data to report block_state.
+    Updates particulars, measurements, and table blocks with provenance tag 'ocr_verified'.
+    """
+    report = await _get_report_or_404(report_id, db)
+    
+    headers = payload.get("headers", {})
+    table_data = payload.get("table", {})
+    target_block_id = payload.get("block_id")
+
+    state = dict(report.block_state) if report.block_state else {"blocks": []}
+    blocks = list(state.get("blocks", []))
+
+    # 1. Update Particulars Block
+    if headers:
+        for b in blocks:
+            if b.get("type") == "particulars":
+                rows = list(b.get("rows", []))
+                for row in rows:
+                    lbl = str(row.get("label", "")).lower()
+                    if "container" in lbl and headers.get("container_number"):
+                        row["value"] = headers["container_number"]
+                        row["provenance"] = "ocr_verified"
+                    elif ("consignee" in lbl or "party" in lbl or "applicant" in lbl) and headers.get("party_name"):
+                        row["value"] = headers["party_name"]
+                        row["provenance"] = "ocr_verified"
+                    elif "survey" in lbl and "date" in lbl and headers.get("survey_date"):
+                        row["value"] = headers["survey_date"]
+                        row["provenance"] = "ocr_verified"
+                    elif "destuff" in lbl and "date" in lbl and headers.get("destuff_date"):
+                        row["value"] = headers["destuff_date"]
+                        row["provenance"] = "ocr_verified"
+                b["rows"] = rows
+
+    # 2. Update Measurements Block
+    if headers:
+        for b in blocks:
+            if b.get("type") == "measurements":
+                rows = list(b.get("rows", []))
+                for row in rows:
+                    subj = str(row.get("subject", "")).lower()
+                    if "pulp" in subj and (headers.get("pulp_temp_min") is not None or headers.get("pulp_temp_max") is not None):
+                        if headers.get("pulp_temp_min") is not None:
+                            row["min"] = str(headers["pulp_temp_min"])
+                        if headers.get("pulp_temp_max") is not None:
+                            row["max"] = str(headers["pulp_temp_max"])
+                        row["provenance"] = "ocr_verified"
+                    elif "brix" in subj and (headers.get("brix_min") is not None or headers.get("brix_max") is not None):
+                        if headers.get("brix_min") is not None:
+                            row["min"] = str(headers["brix_min"])
+                        if headers.get("brix_max") is not None:
+                            row["max"] = str(headers["brix_max"])
+                        row["provenance"] = "ocr_verified"
+                    elif ("ambient" in subj or "cold room" in subj or "storage" in subj) and headers.get("room_temp") is not None:
+                        row["min"] = str(headers["room_temp"])
+                        row["provenance"] = "ocr_verified"
+                b["rows"] = rows
+
+    # 3. Update Table Block
+    if table_data and table_data.get("rows"):
+        table_updated = False
+        for b in blocks:
+            if b.get("type") == "table" and (not target_block_id or b.get("id") == target_block_id):
+                if table_data.get("categories"):
+                    b["categories"] = table_data["categories"]
+                # Map rows and ensure string values for Decimal conversion
+                mapped_rows = []
+                for r in table_data["rows"]:
+                    row_vals = {}
+                    for k, v in r.get("values", {}).items():
+                        row_vals[k] = str(v)
+                    mapped_rows.append({
+                        "group": r.get("group", "Sample"),
+                        "boxes_opened": r.get("boxes_opened", 1),
+                        "values": row_vals,
+                        "provenance": "ocr_verified",
+                    })
+                b["rows"] = mapped_rows
+                b["provenance"] = "ocr_verified"
+                table_updated = True
+                break
+
+    state["blocks"] = blocks
+    report.block_state = state
+    flag_modified(report, "block_state")
+    if hasattr(report, "version") and report.version is not None:
+        report.version += 1
+
+    await AuditService.record_async(
+        session=db,
+        actor=actor,
+        action="TALLY_OCR_INGEST",
+        report_id=report.id,
+        path="blocks",
+        before=None,
+        after={"provenance": "ocr_verified"},
+    )
+
+    await db.commit()
+    await db.refresh(report)
+
+    return {
+        "status": "success",
+        "report_id": str(report.id),
+        "version": getattr(report, "version", 1),
+        "block_state": report.block_state,
     }
 
 

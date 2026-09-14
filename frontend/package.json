@@ -13,9 +13,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/blueimp-load-image": "^5.16.6",
+    "blueimp-load-image": "^5.16.0",
+    "docx": "^9.7.1",
     "lucide-react": "^1.41.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-dropzone": "^20.1.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

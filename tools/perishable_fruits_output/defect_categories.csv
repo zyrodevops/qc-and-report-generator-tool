@@ -1,0 +1,228 @@
+commodity,defect_category,frequency,sample_header
+APPLE,Rotten,232,Rotten
+APPLE,Sound,226,Sound
+APPLE,Russet,167,Russet
+ORANGE,Sound,78,SOUND
+ORANGE,Rotten,72,ROTTEN
+DRAGON,Sound,63,Sound
+DRAGON,Soft,58,Soft
+GRAPE,Soft Grapes,57,Soft Grapes (Kg)
+GRAPE,Sound Grapes,55,Sound Grapes (Kg)
+PEAR,Sound,54,SOUND
+PEAR,Rotten,52,ROTTEN
+GRAPE,Rotten Grapes,51,Rotten Grapes (Kg)
+PEAR,Russet,50,RUSSET
+APPLE,Bruised,49,Bruised (Pcs)
+ORANGE,Russet,46,RUSSET
+KIWI,Sound,38,Sound
+KIWI,Soft,35,Soft
+KIWI,Rotten,34,Rotten
+BLUEBERRY,Found Net Weight Of Soft Berries,32,Found net weight of soft berries (Kg)
+BLUEBERRY,Found Net Weight Of Sound Berries,31,Found net weight of sound berries (Kg)
+PLUM,Sound,30,Sound
+PLUM,Rotten,29,Rotten
+MANDARIN,Rotten,28,Rotten (Pcs)
+MANDARIN,Sound,27,Sound (Pcs)
+ORANGE,Rotten Spot,26,Rotten Spot (Pcs)
+PLUM,Soft,24,Soft
+APPLE,Damage,23,Damage
+ORANGE,Soft,23,SOFT
+ORANGE,Chilling Injury,22,CHILLING INJURY
+BLUEBERRY,Found Net Weight Of Rotten Berries,21,Found net weight of Rotten Berries (Kg)
+MANDARIN,Russet,21,Russet (Pcs)
+PLUM,Russet,21,Russet
+APPLE,Shriveled,18,Shriveled (Pcs)
+APPLE,Shrivelled,17,Shrivelled (Pcs)
+APPLE,Rotten Spot,17,Rotten Spot (Pcs)
+APPLE,Damaged,16,Damaged
+ORANGE,Scab,16,Scab (Pcs)
+GRAPE,Rotten,15,Rotten
+APPLE,Stem,14,Stem
+APPLE,Stem-,12,Stem-
+CHERRY,Sound,11,Sound
+MANDARIN,Rotten Spot,11,Rotten Spot (Pcs)
+ORANGE,Shrivelled,11,Shrivelled (Pcs)
+CHERRY,Rotten,10,Rotten
+CHERRY,Soft Cargo,10,soft cargo
+ORANGE,Pitting,10,PITTING
+AVOCADO,Sound,9,SOUND (PCS)
+AVOCADO,Rotten,9,ROTTEN (PCS)
+DRAGON,Shrivelled,9,Shrivelled (Pcs)
+PEAR,Damaged,9,Damaged
+APPLE,Stem Crack,8,Stem Crack (Pcs)
+GRAPE,Sound,8,Sound
+APPLE,Scab,7,Scab (Pcs)
+APPLE,Bitter-Pit,7,Bitter-Pit
+GRAPE,Soft,7,Soft
+MANDARIN,Soft,7,Soft
+CHERRY,Pitting,6,Pitting
+CHERRY,Rotten Cargo,6,Rotten cargo
+ORANGE,Pitting Marks,6,Pitting Marks (Pcs)
+APPLE,Pressure Damage,5,Pressure Damage (Pcs)
+CHERRY,Found Net Weight Of Soft Cargo,5,Found net weight of soft cargo (Kg)
+CHERRY,Sound Cherries,5,Sound Cherries (Kg)
+CHERRY,Soft Cherries,5,Soft Cherries (Kg)
+CHERRY,Pitting Marks Cherries,5,Pitting Marks Cherries (Kg)
+CHERRY,Soft,5,Soft
+CHERRY,Sound Cargo,5,sound cargo
+DRAGON,Rotten,5,Rotten
+PLUM,Shrivelled,5,Shrivelled (Pcs)
+APPLE,Cracked,4,Cracked
+APPLE,Sunburn,4,Sunburn (Pcs)
+AVOCADO,Soft,4,SOFT
+BLUEBERRY,Found Net Weight Of Soft Cargo,4,Found net weight of soft cargo (Kg)
+BLUEBERRY,Sound,4,sound
+CHERRY,Found Net Weight Of Pitting Marks Cargo,4,Found net weight of Pitting Marks cargo (Kg)
+CHERRY,Found Net Weight Of Sound Cargo,4,Found net weight of sound cargo (Kg)
+CHERRY,Found Net Weight Of Rotten Cargo,4,Found net weight of Rotten cargo (Kg)
+CHERRY,Rotten Cherries,4,Rotten Cherries (Kg)
+ORANGE,Skin Defects,4,Skin Defects
+PEAR,Shrivelled,4,Shrivelled (Pcs)
+PEAR,Rotten Spot,4,Rotten Spot (Pcs)
+APPLE,Scald,3,Scald (Pcs)
+APPLE,Pressure Damaged,3,Pressure Damaged (Pcs)
+APPLE,100 (Sound Apples) / 20 Pcs,3,100 (Sound Apples) / 20 Pcs
+APPLE,110 (Sound Apples) / 20 Pcs,3,110 (sound Apples) / 20 Pcs
+DRAGON,Skin Russet,3,Skin Russet (Pcs)
+MANDARIN,Pitting Marks,3,Pitting Marks (Pcs)
+PEAR,Shriveled,3,Shriveled (Pcs)
+PEAR,Pressure Damaged,3,Pressure Damaged (Pcs)
+APPLE,Stem- Crack,2,Stem- Crack (Pcs)
+APPLE,Russet / Skin- Defects,2,Russet / Skin- Defects (Pcs)
+APPLE,(Sound + Internal,2,(sound + internal
+APPLE,(Russet),2,(Russet)
+APPLE,Bitter-Pit Marks Pcs),2,Bitter-Pit Marks Pcs)
+APPLE,Damage -,2,Damage -
+APPLE,Stem-Less,2,Stem-Less
+APPLE,Russet Pcs),2,Russet Pcs)
+APRICOT,Sound Apricot,2,Sound Apricot (Pcs)
+APRICOT,Soft Apricot,2,Soft Apricot (Pcs)
+APRICOT,Rotten Apricot,2,Rotten Apricot (Pcs)
+BLUEBERRY,Found Net Weight Of Sound Cargo,2,Found net weight of sound cargo (Kg)
+BLUEBERRY,Soft Cargo,2,soft cargo
+BLUEBERRY,Weight Of Sound,2,weight of sound
+BLUEBERRY,Soft Berries,2,soft berries
+BLUEBERRY,Rotten,2,Rotten
+BLUEBERRY,Found Net Weight Of Shrivelled Berries,2,Found net weight of Shrivelled Berries (Kg)
+BLUEBERRY,Found Sound Berries,2,Found sound berries (Pcs)
+BLUEBERRY,Found Soft Berries,2,Found soft berries (Pcs)
+BLUEBERRY,Weight Of Soft,2,weight of soft
+BLUEBERRY,Found Net Weight Of Rotten / Fungus Berries,2,Found net weight of Rotten / Fungus Berries (Kg)
+CHERRY,Cracked Cherries,2,Cracked Cherries (Kg)
+CHERRY,Pitting Marks,2,Pitting Marks
+CHERRY,Cracked,2,Cracked
+KIWI,"• Upon Cutting The Soft/Ripen Kiwi’S, The Pulp Was Found In Soft And Juicy In Varying Degrees With",2,"• Upon cutting the soft/ripen kiwi’s, the pulp was found in soft and juicy in varying degrees with"
+MANDARIN,Soft / Pressed,2,Soft / Pressed (Pcs)
+ORANGE,Chilling,2,CHILLING
+ORANGE,Soft/Pressed,2,Soft/Pressed (Pcs)
+PEAR,Bruised,2,BRUISED
+PLUM,Russet /,2,Russet /
+APPLE,Mejor Bruised,1,Mejor Bruised (Pcs)
+APPLE,Bitter Pit / Rotten Spot,1,Bitter Pit / Rotten Spot (Pcs)
+APPLE,Sound (916 Pcs),1,Sound (916 Pcs)
+APPLE,Russet (27 Pcs),1,Russet (27 Pcs)
+APPLE,Bruised (428 Pcs),1,Bruised (428 Pcs)
+APPLE,Shriveled (179 Pcs),1,Shriveled (179 Pcs)
+APPLE,Rotten (16 Pcs),1,Rotten (16 Pcs)
+APPLE,Stem- Less,1,Stem- Less (Pcs)
+APPLE,Stem Cracked,1,Stem Cracked (Pcs)
+APPLE,(Sound +,1,(sound +
+APPLE,Others Category (Sound + Internal,1,Others Category (sound + internal
+APPLE,Shrivelld,1,Shrivelld (Pcs)
+APPLE,Minor Bruised,1,Minor bruised (Pcs)
+APPLE,Major Bruised,1,Major bruised (Pcs)
+APPLE,Skin- Defects / Russet,1,Skin- Defects / Russet (Pcs)
+APPLE,Internal Browning,1,Internal Browning (Pcs)
+APPLE,Bitter-Pit /,1,Bitter-Pit /
+APPLE,Rotten Spots,1,Rotten Spots (Pcs)
+APPLE,Damage /,1,Damage /
+APPLE,To Rotten,1,to Rotten
+APPLE,Russet/ Un-Clean,1,Russet/ Un-Clean (Pcs)
+APPLE,Russet/,1,Russet/
+APPLE,Skin-Defects / Russet,1,Skin-Defects / Russet (Pcs)
+APPLE,Apples With Internal Browning,1,Apples with Internal Browning
+APPLE,% Browning,1,% Browning
+APPLE,Sound Apples,1,Sound Apples
+APPLE,% Sound,1,% Sound
+APPLE,"Marine Cargo Agencies Private Limited Final Survey Report No. M-84-2026 The Pressure Of The Randomly Selected 10 Apple Fruits Under 6 Counts @ 2 Readings Per Fruit Under Sound Category) Was Measured Using A Digital Penetrometer, And The Following Average Values Were Recorded For The Sound And The Low-Pressure Apples As Follows: • 150 Xf Aa Count: Range Of 15.49 Lbs To 19.95 Lbs. (Photo Nos.31 & 32) • 150 Xf Aaa Count: Range Of 18.17 Lbs To 19.06 Lbs. (Photo Nos. 33 & 34) • 175 Xf Aa Count: Range Of 13.85 Lbs To 23.10 Lbs. (Photo Nos. 35 & 36) • 175 Xf Aaa Count: Range Of 20.05 Lbs To 20.59 Lbs. (Photo Nos.37 & 38) • 198 Xf Aa Count: Range Of 19.76 Lbs To 21.62 Lbs. (Photo Nos.39 & 40) • 198 Xf Aaa Count: Range Of 18.48 Lbs To 19.86 Lbs. (Photo Nos.41 & 42) The Apple Fruits Were Cut, And The Following Pulp Conditions Were Observed: • Sound Apples: The Pulp Was Consistently Hard And White. (Photo No.43) • Low Pressure Apples: The Apples Exhibiting Low Pressure Readings Were Examined. The Overall Pulp Was Found To Be Extremely Soft And Brown In Colour. The Fruit Was Easily Breakable Upon Pressing By Hand, Indicating Advanced Deterioration. (Photo No.44) • Sugar Brix Was Checked And Was Found In The Range Of 9.7% To 17.8%. (Photo Nos. 45 & 46) During Our Inspection, 10 Boxes Out Of The 1,029 Boxes (Under 6 Counts) Were Separated Into The Following Categories. The Details For Each Category Are Provided Below: (Photo Nos. 47 To 230)",1,"MARINE CARGO AGENCIES PRIVATE LIMITED FINAL SURVEY REPORT NO. M-84-2026 The pressure of the randomly selected 10 Apple fruits under 6 counts @ 2 readings per fruit under sound category) was measured using a digital penetrometer, and the following average values were recorded for the sound and the low-pressure apples as follows: • 150 XF AA Count: Range of 15.49 LBS to 19.95 LBS. (Photo Nos.31 & 32) • 150 XF AAA Count: Range of 18.17 LBS to 19.06 LBS. (Photo Nos. 33 & 34) • 175 XF AA Count: Range of 13.85 LBS to 23.10 LBS. (Photo Nos. 35 & 36) • 175 XF AAA Count: Range of 20.05 LBS to 20.59 LBS. (Photo Nos.37 & 38) • 198 XF AA Count: Range of 19.76 LBS to 21.62 LBS. (Photo Nos.39 & 40) • 198 XF AAA Count: Range of 18.48 LBS to 19.86 LBS. (Photo Nos.41 & 42) The Apple fruits were cut, and the following pulp conditions were observed: • Sound apples: The pulp was consistently hard and white. (Photo No.43) • Low pressure apples: The apples exhibiting low pressure readings were examined. The overall pulp was found to be extremely soft and brown in colour. The fruit was easily breakable upon pressing by hand, indicating advanced deterioration. (Photo No.44) • Sugar brix was checked and was found in the range of 9.7% to 17.8%. (Photo Nos. 45 & 46) During our inspection, 10 boxes out of the 1,029 boxes (under 6 Counts) were separated into the following categories. The details for each category are provided below: (Photo Nos. 47 to 230)"
+APPLE,Sound / No Internal,1,Sound / No Internal
+APPLE,Minor Internal Browning,1,Minor Internal Browning (Pcs)
+APPLE,Major Internal Browning,1,Major Internal Browning (Pcs)
+APPLE,Softy With,1,softy with
+APRICOT,Sound Nectarines Fruits,1,Sound Nectarines Fruits (Pcs)
+APRICOT,Soft Nectarines Fruits,1,Soft Nectarines Fruits (Pcs)
+APRICOT,Rotten Nectarines Fruits,1,Rotten Nectarines Fruits (Pcs)
+APRICOT,Sound Peaches,1,Sound Peaches (Pcs)
+APRICOT,Soft Peaches,1,Soft Peaches (Pcs)
+APRICOT,Rotten Peaches,1,Rotten Peaches (Pcs)
+AVOCADO,Soft/Over-Ripped,1,Soft/over-ripped
+AVOCADO,Black & Rotten,1,Black & Rotten
+AVOCADO,Soft-Ripped /,1,Soft-Ripped /
+BLUEBERRY,Sound Cargo In Punnet,1,Sound cargo in Punnet (Pcs)
+BLUEBERRY,Soft Cargo In Punnet,1,Soft cargo in Punnet (Pcs)
+BLUEBERRY,Rotten / Fungus Cargo In Punnet,1,Rotten / Fungus cargo in Punnet (Pcs)
+BLUEBERRY,Found Net Weight Of Rotten/Fungus Berries,1,Found net weight of Rotten/Fungus Berries (Kg)
+BLUEBERRY,Found Net Weight Of Rotten Cargo,1,Found net weight of Rotten cargo (Kg)
+BLUEBERRY,Found Net Weight Of Fungus/Rotten Cargo,1,Found net weight of Fungus/Rotten cargo (Kg)
+BLUEBERRY,Sound Cargo,1,sound cargo
+BLUEBERRY,Fungus/Rotten Cargo,1,Fungus/Rotten cargo
+BLUEBERRY,Fungus / Rotten,1,Fungus / Rotten
+BLUEBERRY,Shrivelled,1,Shrivelled
+BLUEBERRY,Of Sound Berries,1,of sound berries
+BLUEBERRY,Of Soft Berries,1,of soft berries
+BLUEBERRY,Of Rotten Berries,1,of Rotten Berries
+BLUEBERRY,Sound Berries,1,sound berries
+BLUEBERRY,Rotten Berries,1,Rotten Berries
+BLUEBERRY,Sound Blueberry,1,Sound Blueberry (Kg)
+BLUEBERRY,Soft Blueberry,1,Soft Blueberry (Kg)
+BLUEBERRY,Rotten Blueberry,1,Rotten Blueberry (Kg)
+CHERRY,Fungus / Rotten Cherries,1,Fungus / Rotten Cherries (Pcs)
+DRAGON,Soft With Yellow,1,Soft with Yellow (Pcs)
+DRAGON,Sound (31 Pcs),1,Sound (31 Pcs)
+DRAGON,Shriveled (154 Pcs),1,Shriveled (154 Pcs)
+DRAGON,Soft (4 Pcs),1,Soft (4 Pcs)
+DRAGON,Russet,1,Russet
+DRAGON,Rotten / Fungus,1,Rotten / Fungus (Pcs)
+GRAPE,Sound Pcs,1,Sound Pcs
+KIWI,Sound Pulp,1,Sound Pulp
+KIWI,Pitting,1,Pitting
+KIWI,"Pale Yellow In Colour. A Strong Foul Odor, Unpleasant Smell Was Noticed In All The Soft Kiwi",1,"pale yellow in colour. A strong foul odor, unpleasant smell was noticed in all the soft kiwi"
+KIWI,Fruits. It Is A Clear Indicator That The Soft Kiwi Is No Longer Good And Not Fit For The Human,1,fruits. It is a clear indicator that the soft kiwi is no longer good and not fit for the human
+KIWI,Soft / Foul Odor,1,Soft / Foul odor
+KIWI,"Foul Odor: A Strong, Unpleasant Smell Of The Soft Kiwi Fruits Is A Clear Indicator That The Kiwi Is",1,"Foul odor: A strong, unpleasant smell of the soft kiwi fruits is a clear indicator that the kiwi is"
+KIWI,Minor Skin Defects,1,Minor Skin Defects (Pcs)
+KIWI,"Rotten, Mold",1,"Rotten, Mold (Pcs)"
+KIWI,"Russet, Sun-",1,"Russet, Sun-"
+KIWI,"Rotten,",1,"Rotten,"
+MANDARIN,Pressure Damaged,1,Pressure Damaged (Pcs)
+MANDARIN,Skin Defects / Russet,1,Skin Defects / Russet (Pcs)
+MANDARIN,Russet / Skin Defects,1,Russet / Skin Defects (Pcs)
+ORANGE,Pressure Damaged,1,Pressure Damaged (Pcs)
+ORANGE,"Marine Cargo Agencies Private Limited Final Survey Report No. M-257-2025 Sound Condition. Hence, We Were Contacted And Formally Requested To Undertake An Independent Survey. Paragraph 2.1: Our Survey: The Consignees’ Representative Mr. Rohan Mane, Produced Before Us The 1,944 Boxes Under 3 Counts Containing (Orange 864 Boxes) & (Mandarin Fruits 1,080 Boxes) On Various Pallets For Our Survey, Stored Inside The Cold Room No. 2. The Cold Room Display Temperature Was Found Maintained At 5.7°C. (See Photos 1 To 10) The Pulp Temperature Of The Fresh Orange & Mandarin Fruits Fruits Was Checked By Means Of A Digital Thermometer Inside The Cold Room And Was Found In The Range Of 3.6°C To 4.0°C. (See Photos 11 & 12) Thereafter, A Total Of 18 Boxes Under 3 Counts Were Randomly Selected From Various Pallets / Different Locations Inside The Cold Room And Were Opened For Our Detailed Survey, When We Found The Orange & Mandarin Fruits Inside The Boxes With Mixture Of Sound, Less Colour, Silver Scurf, Oil Spot, Rough Skin, Puffed Soft, Mechanical Injury (Pitting), Green Patch, Rotten Spot, Soft-Pressed, And In A Rotten Condition In Varying Degrees. (See Photos 13 To 18) • Upon Cutting The Puff / Soft /Pressed Fruits, The Pulp Was Found Detached From The Albedo. (See Photos 19 To 21) • Sugar Brix Was Checked And Was Found In The Range Of 10.20% To 13.30%. (See Photos 22 & 23) Based On Our Survey Findings, Upon Segregation Of Orange & Mandarin Fruits From The 18 Cardboard Boxes, We Can Conclude That The Fruits Were Found With The Following Defects: (See Photos 24 To )",1,"MARINE CARGO AGENCIES PRIVATE LIMITED FINAL SURVEY REPORT NO. M-257-2025 sound condition. Hence, we were contacted and formally requested to undertake an independent survey. PARAGRAPH 2.1: OUR SURVEY: The consignees’ representative Mr. Rohan Mane, produced before us the 1,944 boxes under 3 counts containing (orange 864 Boxes) & (mandarin fruits 1,080 boxes) on various pallets for our survey, stored inside the cold room no. 2. The cold room display temperature was found maintained at 5.7°C. (See Photos 1 to 10) The pulp temperature of the fresh orange & mandarin fruits fruits was checked by means of a digital thermometer inside the cold room and was found in the range of 3.6°C to 4.0°C. (See Photos 11 & 12) Thereafter, a total of 18 Boxes under 3 counts were randomly selected from various pallets / different locations inside the cold room and were opened for our detailed survey, when we found the Orange & Mandarin fruits inside the boxes with mixture of sound, less colour, silver scurf, oil spot, rough skin, puffed soft, mechanical injury (Pitting), green patch, rotten spot, soft-pressed, and in a rotten condition in varying degrees. (See Photos 13 to 18) • Upon cutting the puff / soft /pressed fruits, the pulp was found detached from the albedo. (See Photos 19 to 21) • Sugar brix was checked and was found in the range of 10.20% to 13.30%. (See Photos 22 & 23) Based on our survey findings, upon segregation of Orange & Mandarin fruits from the 18 cardboard boxes, we can conclude that the fruits were found with the following defects: (See Photos 24 to )"
+ORANGE,Puffed / Soft Fruits,1,Puffed / Soft Fruits (Pcs)
+ORANGE,Mechanical Injury / Pitting,1,Mechanical Injury / Pitting (Pcs)
+ORANGE,Soft / Pressed,1,Soft / Pressed (Pcs)
+ORANGE,Soft Pcs),1,Soft Pcs)
+ORANGE,Major Soft,1,Major Soft (Pcs)
+ORANGE,Minor Soft,1,Minor Soft (Pcs)
+ORANGE,"Rotten, Fungus, Boiled And Dis-Coloured",1,"Rotten, fungus, boiled and dis-coloured (Pcs)"
+PEAR,Scab,1,Scab
+PEAR,Rotten /,1,Rotten /
+PEAR,Soft,1,Soft (Pcs)
+PEAR,Scald Bruised Marks,1,Scald Bruised Marks (Pcs)
+PEAR,Skin Defects,1,Skin Defects (Pcs)
+PEAR,Scald,1,Scald (Pcs)
+PEAR,Rotten Spots,1,Rotten Spots (Pcs)
+PEAR,Bruised Marks,1,Bruised Marks (Pcs)
+PEAR,Russet / Skin,1,Russet / Skin
+PEAR,Sunburn,1,SUNBURN
+PEAR,Damage,1,Damage
+PLUM,Found Net Weight Of Sound Cargo,1,Found net weight of sound cargo (Kg)
+PLUM,Found Net Weight Of Russet Cargo,1,Found net weight of Russet cargo (Kg)
+PLUM,Sound Fruits,1,Sound Fruits (Pcs)
+PLUM,Severely Soft Fruits,1,Severely Soft Fruits (Pcs)
+PLUM,Rotten/Fungus Fruits,1,Rotten/Fungus Fruits (Pcs)
+PLUM,Cracked,1,Cracked
+PLUM,Sound Qty.,1,Sound Qty. (Pcs)
+PLUM,Soft Qty.,1,soft Qty. (Pcs)
+PLUM,Rotten Qty.,1,Rotten Qty. (Pcs)

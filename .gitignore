@@ -12,6 +12,8 @@ samples/
 real_templates/
 private/
 backend/PART*/
+.text_cache/
+**/.text_cache/
 
 # 2. Environment & Secret Credentials
 .env

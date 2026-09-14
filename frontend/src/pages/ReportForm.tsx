@@ -418,7 +418,9 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
               <TableGrid
                 key={block.id}
                 block={block}
+                reportId={report.id}
                 onChange={handleBlockChange}
+                onBlockStateChange={setBlockState}
                 onImportCsv={() => setCsvModalBlockId(block.id)}
               />
             );
