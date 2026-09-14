@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { Table, Upload, Plus, Trash2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Table, Upload, Plus, Trash2, Scan } from 'lucide-react';
+import { TallyOcrModal } from './TallyOcrModal';
 
 interface Category {
   key: string;
@@ -23,9 +24,18 @@ interface TableBlockProps {
   };
   onChange: (updatedBlock: any) => void;
   onImportCsv?: () => void;
+  reportId?: string;
+  onBlockStateChange?: (updatedBlockState: any) => void;
 }
 
-export const TableGrid: React.FC<TableBlockProps> = ({ block, onChange, onImportCsv }) => {
+export const TableGrid: React.FC<TableBlockProps> = ({
+  block,
+  onChange,
+  onImportCsv,
+  reportId,
+  onBlockStateChange,
+}) => {
+  const [isOcrOpen, setIsOcrOpen] = useState(false);
   const { categories, rows, unit = 'pcs', grouping_label = 'Group' } = block;
 
   // Live in-browser computation: locked computed cells that cannot be typed over
@@ -107,6 +117,16 @@ export const TableGrid: React.FC<TableBlockProps> = ({ block, onChange, onImport
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {reportId && (
+            <button
+              type="button"
+              onClick={() => setIsOcrOpen(true)}
+              className="flex items-center gap-1.5 text-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-3 py-1.5 rounded transition border border-indigo-200"
+            >
+              <Scan className="w-4 h-4 text-indigo-600" />
+              Upload Tally (OCR)
+            </button>
+          )}
           {onImportCsv && (
             <button
               type="button"
@@ -219,6 +239,23 @@ export const TableGrid: React.FC<TableBlockProps> = ({ block, onChange, onImport
       <p className="text-xs text-gray-400 italic">
         * Computed totals and percentages are calculated dynamically and cannot be directly typed over.
       </p>
+
+      {reportId && (
+        <TallyOcrModal
+          reportId={reportId}
+          isOpen={isOcrOpen}
+          onClose={() => setIsOcrOpen(false)}
+          blockId={block.id}
+          onSuccess={(updatedBlockState) => {
+            if (onBlockStateChange) {
+              onBlockStateChange(updatedBlockState);
+            } else {
+              const tbl = updatedBlockState.blocks?.find((b: any) => b.type === 'table');
+              if (tbl) onChange(tbl);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

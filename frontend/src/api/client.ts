@@ -22,11 +22,24 @@ export interface ReportSummary {
   updated_at: string;
 }
 
+export interface CommodityArchetype {
+  key: string;
+  display: string;
+  emoji: string;
+  color: string;
+  report_count: number;
+  unit: 'pcs' | 'kg';
+  defect_columns: string[];
+  heading_sequence: string[];
+  top_narrative_clauses: string[];
+}
+
 export interface CreateReportParams {
   template_id: string;
   family?: string;
   year?: number;
   mode?: 'SEA' | 'AIR';
+  commodity?: string;
   block_state?: any;
 }
 
@@ -266,4 +279,15 @@ export async function fetchReport(reportId: string): Promise<ReportSummary> {
 export function getPreviewHtmlUrl(reportId: string): string {
   const token = getStoredToken();
   return `/api/reports/${reportId}/preview/html${token ? `?auth_token=${encodeURIComponent(token)}` : ''}`;
+}
+
+export async function fetchCommodities(): Promise<CommodityArchetype[]> {
+  const res = await fetch('/api/commodities', {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch commodities: ${res.statusText}`);
+  }
+  const data = await res.json();
+  return data.commodities as CommodityArchetype[];
 }
