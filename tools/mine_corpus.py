@@ -76,7 +76,7 @@ _RE_DATE = re.compile(
 _RE_TEMP = re.compile(r"\b[-+]?\d+(\.\d+)?\s*°\s*C\b", re.IGNORECASE)
 _RE_PERCENT = re.compile(r"\b\d+(\.\d+)?\s*%\b")
 _RE_CONTAINER = re.compile(r"\b[A-Z]{4}\d{7}\b")
-_RE_REPORT_NO = re.compile(r"\b(?:MCAPL|M)[-\s]?\d+[-\s]?(?:20\d{2}|\d{2}[A-Z]?)\b", re.IGNORECASE)
+_RE_REPORT_NO = re.compile(r"\b(?:MCAPL|M|G)[-/\s]?\d+[-/\s]?(?:20\d{2}|\d{2}[A-Z]?)\b", re.IGNORECASE)
 _RE_INVOICE_VAL = re.compile(r"\b(?:USD|US\$|INR|RS\.?|EUR|€|\$)\s*[\d,]+(\.\d{2})?\b", re.IGNORECASE)
 _RE_NUMBER = re.compile(r"\b\d[\d,./]*\d\b|\b\d+\b")
 

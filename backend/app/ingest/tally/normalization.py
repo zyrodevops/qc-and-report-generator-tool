@@ -101,3 +101,41 @@ class NumericNormalizer:
 
         return None, None
 
+    @staticmethod
+    def normalize_caliber_label(raw_text: str, fallback_idx: int = 0) -> str:
+        """
+        Decodes fruit counts (calibers: 20-200) and export quality grades (XF, PR, CAT 1, etc.)
+        from physical tally sheets (DEVELOPER_WORKFLOW_AND_INSTRUCTIONS.md §3).
+        E.g.:
+          '30 XF' -> 'Count 30 XF'
+          '33 PR' -> 'Count 33 PR'
+          '30XF'  -> 'Count 30 XF'
+          'Count 36' -> 'Count 36'
+          '72' -> 'Count 72'
+        """
+        cleaned = raw_text.strip()
+        if not cleaned:
+            return f"Sample Box #{fallback_idx + 1}"
+
+        # Match count number + optional grade (XF, PR, CAT 1, FANCY, PREMIUM, EXTRA FANCY)
+        m = re.search(
+            r"(?:(?:count|size|ct)\.?\s*)?(\d{2,3})\s*([A-Za-z]+(?:\s*\d)?)?",
+            cleaned,
+            re.IGNORECASE,
+        )
+        if m:
+            cnt = m.group(1)
+            grade_raw = (m.group(2) or "").strip().upper()
+            grade = ""
+            if "XF" in grade_raw or "EXTRA" in grade_raw:
+                grade = " XF"
+            elif "PR" in grade_raw or "PREM" in grade_raw:
+                grade = " PR"
+            elif "CAT" in grade_raw:
+                grade = f" {grade_raw}"
+            elif grade_raw:
+                grade = f" {grade_raw}"
+            return f"Count {cnt}{grade}"
+
+        return cleaned
+

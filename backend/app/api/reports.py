@@ -24,6 +24,7 @@ class CreateReportRequest(BaseModel):
     family: str = "marine_cargo"
     year: int = Field(default=2026, ge=2000, le=2100)
     commodity: Optional[str] = None
+    state: Optional[str] = "FINAL"
     block_state: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -68,16 +69,21 @@ async def create_report(
 
     # 2. Populate default block_state if none provided
     initial_block_state = payload.block_state
+    report_state = (payload.state or "FINAL").upper()
     if not initial_block_state or not initial_block_state.get("blocks"):
         from app.seeds.defaults import get_default_block_state
-        initial_block_state = get_default_block_state(template.id, payload.commodity)
+        initial_block_state = get_default_block_state(
+            template_id=template.id,
+            commodity_key=payload.commodity,
+            state=report_state,
+        )
 
     # 3. Instantiate Report
     report = Report(
         id=uuid.uuid4(),
         report_number=report_number,
         family=payload.family,
-        state="DRAFT",
+        state=report_state,
         status="DRAFT",
         template_id=template.id,
         block_state=initial_block_state,
