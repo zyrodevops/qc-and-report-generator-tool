@@ -18,6 +18,7 @@ import { ReportSummary, patchBlockState, getDownloadDocxUrl, getAuthHeaders } fr
 import { TableGrid } from '../components/tables/TableGrid';
 import { PhotoTray } from '../components/photos/PhotoTray';
 import { ReportPreview } from '../components/preview/ReportPreview';
+import { ClauseLibraryPicker } from '../components/preview/blocks/ClauseLibraryPicker';
 
 interface ReportFormProps {
   report: ReportSummary;
@@ -339,18 +340,38 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           }
 
           if (block.type === 'narrative') {
+            const commodity = blockState?.metadata?.commodity as string | undefined;
             return (
               <div key={block.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-3">
                 <div className="flex items-center gap-2 pb-2 border-b border-gray-100 font-bold text-gray-800">
                   <Clock className="w-5 h-5 text-blue-600" />
                   <span>{block.section || 'Narrative Circumstances'}</span>
                 </div>
+
+                {/* Clause Library Picker */}
+                <ClauseLibraryPicker
+                  commodity={commodity}
+                  sectionHeading={block.section || ''}
+                  onInsert={(clauseText) => {
+                    const current = (block.additional_text || '').trim();
+                    const newText = current ? `${current}\n\n${clauseText}` : clauseText;
+                    handleBlockChange({ ...block, additional_text: newText, surveyor_edited: true });
+                  }}
+                />
+
                 <textarea
-                  rows={3}
+                  rows={5}
                   value={block.additional_text || ''}
-                  onChange={(e) => handleBlockChange({ ...block, additional_text: e.target.value })}
-                  placeholder="Enter survey findings and circumstances..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                  onChange={(e) =>
+                    handleBlockChange({ ...block, additional_text: e.target.value, surveyor_edited: true })
+                  }
+                  onInput={(e) => {
+                    const el = e.currentTarget;
+                    el.style.height = 'auto';
+                    el.style.height = `${Math.max(100, el.scrollHeight)}px`;
+                  }}
+                  placeholder="Enter survey findings and circumstances, or use Clause Library above…"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
                 />
               </div>
             );
