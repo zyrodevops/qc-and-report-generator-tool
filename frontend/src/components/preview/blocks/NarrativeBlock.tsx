@@ -1,15 +1,19 @@
 import React, { useRef, useEffect } from 'react';
+import { ClauseLibraryPicker } from './ClauseLibraryPicker';
 
 export interface NarrativeBlockProps {
   block: any;
   onChange?: (updatedBlock: any) => void;
   editable?: boolean;
+  /** Commodity key (e.g. "APPLE") passed down from ReportPreview via blockState.metadata */
+  commodity?: string;
 }
 
 export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   block,
   onChange,
   editable = true,
+  commodity,
 }) => {
   const sectionTitle = block?.section || 'ATTENDANCE & CIRCUMSTANCES';
   const text = block?.additional_text || '';
@@ -31,6 +35,26 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       additional_text: e.target.value,
       surveyor_edited: true,
     });
+  };
+
+  /** Append clause text to the textarea (with double newline separator) */
+  const handleInsertClause = (clauseText: string) => {
+    if (!onChange) return;
+    const current = text.trim();
+    const newText = current ? `${current}\n\n${clauseText}` : clauseText;
+    onChange({
+      ...block,
+      additional_text: newText,
+      surveyor_edited: true,
+    });
+    // Also move focus to the textarea and push caret to end
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = textareaRef.current.value.length;
+        textareaRef.current.selectionEnd = textareaRef.current.value.length;
+      }
+    }, 50);
   };
 
   // Split and highlight bracketed photo references (Photo Nos?...)
@@ -58,13 +82,21 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
         </h2>
       )}
       {editable && onChange ? (
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleTextChange}
-          placeholder="Click to enter findings and circumstances..."
-          className="w-full bg-transparent border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white focus:outline-none rounded p-1 text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text"
-        />
+        <>
+          {/* Clause Library Picker — only shown when editing */}
+          <ClauseLibraryPicker
+            commodity={commodity}
+            sectionHeading={sectionTitle}
+            onInsert={handleInsertClause}
+          />
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleTextChange}
+            placeholder="Click to enter findings and circumstances, or use Clause Library above…"
+            className="w-full bg-transparent border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white focus:outline-none rounded p-1 text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text"
+          />
+        </>
       ) : (
         <div className="space-y-2 text-xs leading-relaxed text-slate-800 text-justify">
           {paragraphs.length > 0 ? (

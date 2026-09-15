@@ -292,3 +292,30 @@ export async function fetchCommodities(): Promise<CommodityArchetype[]> {
   const data = await res.json();
   return data.commodities as CommodityArchetype[];
 }
+
+export interface Clause {
+  text: string;
+  count: number;
+  section: string;
+  is_template: boolean;
+}
+
+export async function fetchClauses(
+  commodity?: string,
+  section?: string,
+  limit = 10,
+): Promise<Clause[]> {
+  const params = new URLSearchParams();
+  if (commodity) params.set('commodity', commodity);
+  if (section) params.set('section', section);
+  params.set('limit', String(limit));
+
+  const res = await fetch(`/api/clauses?${params.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch clauses: ${res.statusText}`);
+  }
+  const data = await res.json();
+  return data.clauses as Clause[];
+}
