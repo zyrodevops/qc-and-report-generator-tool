@@ -25,7 +25,7 @@
       "We reserve the right to modify or add to this report if additional information comes to light.",
       "Consignees are requested to pursue any claims-related matter directly with the responsible parties.",
       "These photos are in JPG format.",
-      "The details for each category are provided below: (Photo Nos.",
+      "The details for each category are provided below: (Photo Nos. [N]).",
       "Examination of the printouts revealed the following."
     ]
   },
@@ -50,11 +50,11 @@
     ],
     "unit": "pcs",
     "top_narrative_clauses": [
-      "\u2022 The original pallets were dismantled prior to our visit.",
-      "\u2022 Total qty: {N} crates found during the survey.",
+      "• The original pallets were dismantled prior to our visit.",
+      "• Total qty: {N} crates found during the survey.",
       "Consignees are requested to pursue any claims related matter directly with the responsible parties.",
       "We reserve the right to modify or add to this report if additional information comes to light.",
-      "Such {N} plastic creates were reportedly placed on pallets and corners protected with cardboard sheets, stretched, wrapped, and fastened with nylon straps at equal intervals."
+      "Such {N} plastic crates were reportedly placed on pallets and corners protected with cardboard sheets, stretched, wrapped, and fastened with nylon straps at equal intervals."
     ]
   },
   "AVOCADO": {
@@ -109,7 +109,7 @@
       "We reserve the right to modify or add to this report if additional information comes to light.",
       "Consignees are requested to pursue the claims related matter directly with the responsible parties.",
       "These photos are in JPG format.",
-      "{REPORT_NO} PARAGRAPH {N}: NEXT STEP: To mitigate losses from the damaged Blueberry fruits, we advised the Consignees to sell it immediately.",
+      "{REPORT_NO} PARAGRAPH {N}: NEXT STEP: To mitigate losses from the damaged Blueberry fruits, we advised the Consignees to sell the consignment immediately.",
       "However, we cannot determine the exact stage of deterioration due to a lack of documentary evidence, such as temperature records."
     ]
   },
@@ -166,10 +166,10 @@
     "unit": "pcs",
     "top_narrative_clauses": [
       "We reserve the right to modify or add to this report if additional information comes to light.",
-      "of Sound Soft White Spots Total Sr.",
-      "PARAGRAPH {N}: NEXT STEP: To mitigate losses from the damaged dragon fruits cargo, we advised the Consignees to sell it immediately.",
+      "Randomly selected Dragon fruit cartons were opened and examined for pulp firmness, decay, and external blemishes.",
+      "PARAGRAPH {N}: NEXT STEP: To mitigate losses from the damaged dragon fruits cargo, we advised the Consignees to sell the consignment immediately.",
       "Consignees are requested to pursue any claims related to this matter directly with the responsible parties.",
-      "Nos Count Boxes (Pcs) (Pcs) (Pcs) (Pcs) {N}."
+      "Randomly selected Dragon fruit cartons were opened and examined for pulp firmness, decay, and external blemishes."
     ]
   },
   "GRAPE": {
@@ -214,7 +214,7 @@
       "Sound",
       "Soft",
       "Rotten",
-      "\u2022 Upon Cutting The Soft/Ripen Kiwi\u2019S, The Pulp Was Found In Soft And Juicy In Varying Degrees With",
+      "• Upon Cutting The Soft/Ripen Kiwi’S, The Pulp Was Found In Soft And Juicy In Varying Degrees With",
       "Sound Pulp",
       "Pitting",
       "Pale Yellow In Colour. A Strong Foul Odor, Unpleasant Smell Was Noticed In All The Soft Kiwi",
@@ -256,7 +256,7 @@
       "The cold room display temperature was found maintained at {TEMP}.",
       "These photos are in JPG format.",
       "Hence, we were contacted and requested to conduct the survey.",
-      "{CONTAINER} carrying the subject cargo were shifted the nominated Container Freight Station (CFS), for customs formalites and delivery."
+      "{CONTAINER} carrying the subject cargo was shifted to the nominated Container Freight Station (CFS), for customs formalities and delivery."
     ]
   },
   "ORANGE": {
@@ -285,7 +285,7 @@
       "These photos are in JPG format.",
       "Hence, we were contacted and requested to conduct the survey.",
       "Examination of the printouts revealed the following.",
-      "{CONTAINER} carrying the subject cargo were shifted the nominated Container Freight Station (CFS), for customs formalites and delivery."
+      "{CONTAINER} carrying the subject cargo was shifted to the nominated Container Freight Station (CFS), for customs formalities and delivery."
     ]
   },
   "PEAR": {
@@ -313,8 +313,8 @@
     "top_narrative_clauses": [
       "We reserve the right to modify or add to this report if additional information comes to light.",
       "These photos are in JPG format.",
-      "Additional contributing factors observed include: \u2022 Mechanical injury likely from automated sorting.",
-      "PARAGRAPH {N}: OUR SURVEY: The consignee's representative, Mr.",
+      "Additional contributing factors observed include: • Mechanical injury likely from automated sorting.",
+      "The survey was conducted jointly on site in the presence of attending representatives.",
       "Consignees are requested to pursue any claims-related matter directly with the responsible parties."
     ]
   },
@@ -341,7 +341,7 @@
     "unit": "pcs",
     "top_narrative_clauses": [
       "We reserve the right to modify or add to this report if additional information comes to light.",
-      "The category wise details are given below: (Photo Nos.",
+      "The category wise details are given below: (Photo Nos. [N]).",
       "Hence, we were contacted and requested to conduct the survey.",
       "PARAGRAPH {N}: NEXT STEP: To reduce the losses from the damaged plum fruits, we advised the consignees to sell them immediately.",
       "Consignees are requested to address any claims-related matters directly with the responsible parties."
