@@ -381,6 +381,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
                     block={b}
                     onChange={onBlockChange}
                     editable={editable}
+                    commodity={metadata?.commodity}
                   />
                 );
               }
