@@ -25,6 +25,7 @@ class CreateReportRequest(BaseModel):
     year: int = Field(default=2026, ge=2000, le=2100)
     commodity: Optional[str] = None
     state: Optional[str] = "FINAL"
+    selected_sections: Optional[List[str]] = None
     block_state: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -76,6 +77,7 @@ async def create_report(
             template_id=template.id,
             commodity_key=payload.commodity,
             state=report_state,
+            selected_sections=payload.selected_sections,
         )
 
     # 3. Instantiate Report

@@ -1,0 +1,250 @@
+{
+  "STEEL_METALS": {
+    "report_count": 75,
+    "display": "Steel & Metals",
+    "emoji": "🔩",
+    "color": "slate",
+    "unit": "pcs",
+    "defect_columns": [
+      "Sound",
+      "Surface Rust",
+      "Heavy Rust",
+      "Dented / Bent",
+      "Telescoped / Oval",
+      "Shortage"
+    ],
+    "heading_sequence": [
+      "PARTICULARS",
+      "ATTENDANCE",
+      "CIRCUMSTANCES OF LOSS",
+      "CONDITION OF CONTAINER",
+      "OUR SURVEY & CARGO FINDINGS",
+      "DAMAGE INVENTORY & RECONCILIATION",
+      "CAUSE OF LOSS & LIABILITY",
+      "CLAIM RESERVE / QUANTIFICATION",
+      "SALVAGE & MITIGATION",
+      "DOCUMENTATION & ENCLOSURES",
+      "SURVEY PHOTOGRAPHS"
+    ],
+    "top_narrative_clauses": [
+      "The following persons attended the joint survey:",
+      "(Offices in Kolkata, Mumbai, Delhi, Chennai, Bangalore, & Nepal)",
+      "The following cargo operations were carried out at the following dates / time:",
+      "As far as it could be seen, entire [N] bags were found in externally sound and intact condition. No live / dead weevils were observed on the surface of the bags.",
+      "We collected comingled sample of [N] kg from randomly selected bags for detailed inspection.",
+      "The result of the sampling/segregation jointly done in the presence of the customs bonded warehouse in-charge, using a sieve/strainer are as follows:",
+      "Examination of the cargo at the time indicated:",
+      "The following persons attended the survey:",
+      "Please find below our preliminary survey findings for the subject case:",
+      "We are in close contact with the consignees and shall keep you updated of the developments. Meanwhile, in case you require any additional documents / information / clarification, please feel free to email us.",
+      "Upon checking the [N] bags pertaining to Container No. [CONTAINER NO.], the details noted are as follows:",
+      "After completion of above sampling & segregation, we again requested the warehouse in-charge to open at least few bags for our detailed survey. Thereafter [N] bags out of [N] bags were randomly selected and opened for our detailed survey. Upon checking, the materials (Green Mung Beans) inside the bags were found free from live / dead weevils."
+    ]
+  },
+  "MACHINERY_PARTS": {
+    "report_count": 24,
+    "display": "Machinery & Equipment",
+    "emoji": "⚙️",
+    "color": "amber",
+    "unit": "pcs",
+    "defect_columns": [
+      "Sound",
+      "Broken / Cracked",
+      "Dented / Deformed",
+      "Scratched",
+      "Missing Parts",
+      "Moisture Affected"
+    ],
+    "heading_sequence": [
+      "PARTICULARS",
+      "ATTENDANCE",
+      "CIRCUMSTANCES OF LOSS",
+      "CONDITION OF CONTAINER",
+      "OUR SURVEY & CARGO FINDINGS",
+      "DAMAGE INVENTORY & RECONCILIATION",
+      "CAUSE OF LOSS & LIABILITY",
+      "CLAIM RESERVE / QUANTIFICATION",
+      "SALVAGE & MITIGATION",
+      "DOCUMENTATION & ENCLOSURES",
+      "SURVEY PHOTOGRAPHS"
+    ],
+    "top_narrative_clauses": [
+      "Please find below our preliminary survey findings for the subject case:",
+      "The following persons attended the joint survey:",
+      "The following persons attended the survey:",
+      "Notice of Loss letter and email to third parties",
+      "Photographs taken during video survey:",
+      "We are in close contact with the consignees and shall keep you updated of the developments.",
+      "Meanwhile, in case you require any additional documents / information / clarification, please feel free to email us.",
+      "We shall keep you updated of further developments. Final Report to follow.",
+      "The following personnels attended the survey:",
+      "Marks & Nos noted from the label. (Photo No. [N])",
+      "Cargo description as per packing list:",
+      "The following persons attended the video conferencing survey:"
+    ]
+  },
+  "AUTOMOTIVE": {
+    "report_count": 0,
+    "display": "Automotive & Parts",
+    "emoji": "🚗",
+    "color": "indigo",
+    "unit": "pcs",
+    "defect_columns": [
+      "Sound",
+      "Dented / Impacted",
+      "Scratched / Scuffed",
+      "Torn Packaging",
+      "Rust / Corrosion",
+      "Shortage"
+    ],
+    "heading_sequence": [
+      "PARTICULARS",
+      "ATTENDANCE",
+      "CIRCUMSTANCES OF LOSS",
+      "CONDITION OF CONTAINER",
+      "OUR SURVEY & CARGO FINDINGS",
+      "DAMAGE INVENTORY & RECONCILIATION",
+      "CAUSE OF LOSS & LIABILITY",
+      "CLAIM RESERVE / QUANTIFICATION",
+      "SALVAGE & MITIGATION",
+      "DOCUMENTATION & ENCLOSURES",
+      "SURVEY PHOTOGRAPHS"
+    ],
+    "top_narrative_clauses": [
+      "As soon as we are provided with the we will comment further on the eventual losses in our final report.",
+      "The sound market value at the time of arrival of the cargo (landing date on [DATE]) is still awaited from the consignees.",
+      "Please find below our preliminary survey findings for the subject case:",
+      "The following persons attended the joint survey:",
+      "The following persons attended the survey:",
+      "The following information was gathered:",
+      "Based on our survey findings, we can conclude that the fresh Apple fruits were found with the following defects: (Photo No. [N] to [N]).",
+      "Notice of Loss letter and email to third parties"
+    ]
+  },
+  "CHEMICALS_LIQUIDS": {
+    "report_count": 14,
+    "display": "Chemicals & Liquids",
+    "emoji": "🧪",
+    "color": "teal",
+    "unit": "pcs",
+    "defect_columns": [
+      "Sound",
+      "Leaking",
+      "Dented Rims / Chimes",
+      "Bulged / Deformed",
+      "Contaminated",
+      "Shortage / Empty"
+    ],
+    "heading_sequence": [
+      "PARTICULARS",
+      "ATTENDANCE",
+      "CIRCUMSTANCES OF LOSS",
+      "CONDITION OF CONTAINER",
+      "OUR SURVEY & CARGO FINDINGS",
+      "DAMAGE INVENTORY & RECONCILIATION",
+      "CAUSE OF LOSS & LIABILITY",
+      "CLAIM RESERVE / QUANTIFICATION",
+      "SALVAGE & MITIGATION",
+      "DOCUMENTATION & ENCLOSURES",
+      "SURVEY PHOTOGRAPHS"
+    ],
+    "top_narrative_clauses": [
+      "Please find below our preliminary survey findings for the subject case:",
+      "Notice of Loss letter and email to third parties",
+      "We shall keep you updated of further developments. Final Report to follow.",
+      "The following persons attended the joint survey:",
+      "The following persons were present during survey:",
+      "NO.[N], Gongjian Road, Taiping Town, Jiyang County, Jinan City,",
+      "Notice of Loss letter and email to third parties.",
+      "We have requested the consignees to keep us updated of the developments.",
+      "We are in close contact with the consignees and shall keep you updated of the developments. Meanwhile, in case you require any additional documents / information / clarification, please feel free to email us.",
+      "The following persons attended the survey:",
+      "Meanwhile, in case you require any additional documents / information / clarification, please feel free to email us.",
+      "Please find below our second preliminary survey findings for the subject case:"
+    ]
+  },
+  "PAPER_PACKAGING": {
+    "report_count": 13,
+    "display": "Paper & Packaging",
+    "emoji": "📦",
+    "color": "yellow",
+    "unit": "pcs",
+    "defect_columns": [
+      "Sound",
+      "Clamp Damage",
+      "Torn Wrapper",
+      "Edge Gouged",
+      "Wet / Moisture",
+      "Crushed Core"
+    ],
+    "heading_sequence": [
+      "PARTICULARS",
+      "ATTENDANCE",
+      "CIRCUMSTANCES OF LOSS",
+      "CONDITION OF CONTAINER",
+      "OUR SURVEY & CARGO FINDINGS",
+      "DAMAGE INVENTORY & RECONCILIATION",
+      "CAUSE OF LOSS & LIABILITY",
+      "CLAIM RESERVE / QUANTIFICATION",
+      "SALVAGE & MITIGATION",
+      "DOCUMENTATION & ENCLOSURES",
+      "SURVEY PHOTOGRAPHS"
+    ],
+    "top_narrative_clauses": [
+      "Rainfall Period – [N]:[N] hours to [N]:[N] hours on [DATE].",
+      "Inspection of cargo carried out co-jointly with the surveyor’s representing others interests.",
+      "[N] bales’ outer kraft paper packing at top side was found with shoe marks.",
+      "Inspection of the cargo in the cargo holds",
+      "Inspection of lifting gear and arrangements",
+      "Shore equipment proposed to discharge the cargo",
+      "Discharging was planned using ship’s cranes.",
+      "Minimum [N] bundles to maximum [N] bundles lifted using spreader connected with poly belts.",
+      "Precautions taken during rain hours/time",
+      "Transportation of the cargo from jetty to the warehouse",
+      "The cargo was handled as per customary practice, using appropriate and customary equipment.",
+      "The warehouse floor was spread with black tarpaulin. A few bundles were noted with kraft paper cover found in torn, cut, and pressed condition. However, no damage to the contents was observed. The cargo was observed to be in bright white colour."
+    ]
+  },
+  "GENERAL_CARGO": {
+    "report_count": 166,
+    "display": "General Merchandise & Breakbulk",
+    "emoji": "🚢",
+    "color": "blue",
+    "unit": "pcs",
+    "defect_columns": [
+      "Sound",
+      "Dented / Crushed",
+      "Torn / Cut",
+      "Wet / Moisture",
+      "Rust Affected",
+      "Shortage"
+    ],
+    "heading_sequence": [
+      "PARTICULARS",
+      "ATTENDANCE",
+      "CIRCUMSTANCES OF LOSS",
+      "CONDITION OF CONTAINER",
+      "OUR SURVEY & CARGO FINDINGS",
+      "DAMAGE INVENTORY & RECONCILIATION",
+      "CAUSE OF LOSS & LIABILITY",
+      "CLAIM RESERVE / QUANTIFICATION",
+      "SALVAGE & MITIGATION",
+      "DOCUMENTATION & ENCLOSURES",
+      "SURVEY PHOTOGRAPHS"
+    ],
+    "top_narrative_clauses": [
+      "As soon as we are provided with the we will comment further on the eventual losses in our final report.",
+      "The sound market value at the time of arrival of the cargo (landing date on [DATE]) is still awaited from the consignees.",
+      "The following information was gathered:",
+      "Please find below our preliminary survey findings for the subject case:",
+      "Based on our survey findings, we can conclude that the fresh Apple fruits were found with the following defects: (Photo No. [N] to [N]).",
+      "Upon cutting the sound apples, the pulp was found in hard & white condition.",
+      "The following persons attended the joint survey:",
+      "Our survey was held on [DATE] at the consignees’ nominated cold storage Supreme Fresh (Fresh Fruit & Dry Fruit Hub), Plot No. C -[N], MIDC, Pawane, TTC Industrial Area, Navi Mumbai for Container No. [CONTAINER NO.].",
+      "The pressure of the randomly selected Apple fruits from the boxes / cartons were checked with the help of fruits pressure tester. The details noted are given below.",
+      "The following persons attended the survey:",
+      "The package was found in externally sound condition.",
+      "Upon cutting the bruised Apple fruits, the pulp was found partially bruised & brownish in the bruised area (Photo No. [N])."
+    ]
+  }
+}
