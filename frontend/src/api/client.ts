@@ -27,6 +27,8 @@ export interface CommodityArchetype {
   display: string;
   emoji: string;
   color: string;
+  category?: 'FRUITS' | 'GENERAL_CARGO';
+  description?: string;
   report_count: number;
   unit: 'pcs' | 'kg';
   defect_columns: string[];
@@ -41,6 +43,7 @@ export interface CreateReportParams {
   mode?: 'SEA' | 'AIR';
   commodity?: string;
   state?: 'PRELIMINARY' | 'FINAL';
+  selected_sections?: string[];
   block_state?: any;
 }
 
@@ -176,6 +179,8 @@ export async function createReport(params: CreateReportParams): Promise<ReportSu
       family: params.family || (params.template_id.includes('qc') ? 'QC_REPORT' : 'SURVEY_REPORT'),
       year: params.year || 2026,
       commodity: params.commodity || 'mandarin',
+      state: params.state || 'FINAL',
+      selected_sections: params.selected_sections,
       block_state: params.block_state || {},
     }),
   });
@@ -282,8 +287,9 @@ export function getPreviewHtmlUrl(reportId: string): string {
   return `/api/reports/${reportId}/preview/html${token ? `?auth_token=${encodeURIComponent(token)}` : ''}`;
 }
 
-export async function fetchCommodities(): Promise<CommodityArchetype[]> {
-  const res = await fetch('/api/commodities', {
+export async function fetchCommodities(category?: string): Promise<CommodityArchetype[]> {
+  const url = category ? `/api/commodities?category=${encodeURIComponent(category)}` : '/api/commodities';
+  const res = await fetch(url, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) {

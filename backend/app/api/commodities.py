@@ -1,5 +1,6 @@
 """
 Commodities API — serves the mined template archetypes from the corpus mining output.
+Supports both Perishable Fruits and General Cargo subcategories.
 This endpoint is unauthenticated so the frontend can populate the 'New Report' modal
 without requiring a prior login token (token is still needed to actually create reports).
 """
@@ -7,18 +8,22 @@ without requiring a prior login token (token is still needed to actually create 
 import json
 import pathlib
 from functools import lru_cache
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
-# Resolve the archetypes file relative to the repo root
+# Resolve archetypes files relative to the repo root
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]  # backend/app/api -> repo root
-_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "template_archetypes.json"
-_FALLBACK_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "template_archetypes.json"
+_FRUITS_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "template_archetypes.json"
+_FRUITS_FALLBACK_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "template_archetypes.json"
 
-# Emoji and display-name mapping for the UI
-_COMMODITY_META: dict[str, dict] = {
+_GC_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "general_cargo_output" / "template_archetypes.json"
+_GC_FALLBACK_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "general_cargo_archetypes.json"
+
+# Emoji and display-name mapping for Perishable Fruits
+_FRUITS_META: dict[str, dict] = {
     "APPLE": {"emoji": "🍎", "display": "Apple", "color": "red"},
     "APRICOT": {"emoji": "🍑", "display": "Apricot", "color": "orange"},
     "AVOCADO": {"emoji": "🥑", "display": "Avocado", "color": "green"},
@@ -33,11 +38,31 @@ _COMMODITY_META: dict[str, dict] = {
     "PLUM": {"emoji": "🟣", "display": "Plum", "color": "purple"},
 }
 
+# Emoji and display-name mapping for General Cargo
+_GC_META: dict[str, dict] = {
+    "STEEL_METALS": {"emoji": "🔩", "display": "Steel & Metals", "color": "slate", "description": "Coils, pipes, plates, bars, wire rods, tinplates"},
+    "MACHINERY_PARTS": {"emoji": "⚙️", "display": "Machinery & Equipment", "color": "amber", "description": "Industrial machinery, engines, bearings, pumps, transformers"},
+    "AUTOMOTIVE": {"emoji": "🚗", "display": "Automotive & Parts", "color": "indigo", "description": "CKD/SKD kits, vehicle chassis, engines, automotive components"},
+    "CHEMICALS_LIQUIDS": {"emoji": "🧪", "display": "Chemicals & Liquids", "color": "teal", "description": "Steel drums, plastic barrels, IBC tanks, ISO tanks, liquid bulk"},
+    "PAPER_PACKAGING": {"emoji": "📦", "display": "Paper & Packaging", "color": "yellow", "description": "Paper reels, packaging kraft, cartons, pulp bales"},
+    "GENERAL_CARGO": {"emoji": "🚢", "display": "General Merchandise", "color": "blue", "description": "Breakbulk cargo, bagged commodities, wooden cases, palletized cargo"},
+}
+
 
 @lru_cache(maxsize=1)
-def _load_archetypes() -> dict:
-    """Load and cache the archetypes JSON from disk."""
-    for path in (_ARCHETYPES_FILE, _FALLBACK_FILE):
+def _load_fruit_archetypes() -> dict:
+    """Load and cache the fruits archetypes JSON from disk."""
+    for path in (_FRUITS_ARCHETYPES_FILE, _FRUITS_FALLBACK_FILE):
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+    return {}
+
+
+@lru_cache(maxsize=1)
+def _load_gc_archetypes() -> dict:
+    """Load and cache the general cargo archetypes JSON from disk."""
+    for path in (_GC_ARCHETYPES_FILE, _GC_FALLBACK_FILE):
         if path.exists():
             with open(path, encoding="utf-8") as f:
                 return json.load(f)
@@ -45,51 +70,75 @@ def _load_archetypes() -> dict:
 
 
 @router.get("/commodities")
-async def list_commodities():
+async def list_commodities(category: Optional[str] = Query(None, description="Filter: FRUITS | GENERAL_CARGO")):
     """
     Return all discovered commodity templates from corpus mining.
-    Each entry includes: key, display name, emoji, report_count, unit,
+    Each entry includes: key, display name, emoji, category, report_count, unit,
     defect_columns (top 6), heading_sequence, top_narrative_clauses.
     """
-    raw = _load_archetypes()
-    if not raw:
-        raise HTTPException(
-            status_code=503,
-            detail="Commodity archetypes file not found. Run tools/mine_corpus.py first.",
-        )
+    fruit_raw = _load_fruit_archetypes()
+    gc_raw = _load_gc_archetypes()
 
     result = []
-    for key, data in sorted(raw.items()):
-        meta = _COMMODITY_META.get(key, {"emoji": "🌿", "display": key.capitalize(), "color": "gray"})
-        # Deduplicate & clean defect columns (some are noisy long sentences from PDF noise)
-        defect_cols = [
-            c for c in data.get("defect_columns", [])
-            if len(c) <= 60  # skip PDF noise lines masquerading as column headers
-        ]
-        # Keep at most 8 unique columns
-        seen: set[str] = set()
-        clean_cols: list[str] = []
-        for col in defect_cols:
-            normalised = col.strip().lower()
-            if normalised not in seen:
-                seen.add(normalised)
-                clean_cols.append(col.strip())
-            if len(clean_cols) >= 8:
-                break
 
-        result.append({
-            "key": key,
-            "display": meta["display"],
-            "emoji": meta["emoji"],
-            "color": meta["color"],
-            "report_count": data.get("report_count", 0),
-            "unit": data.get("unit", "pcs"),
-            "defect_columns": clean_cols,
-            "heading_sequence": data.get("heading_sequence", []),
-            "top_narrative_clauses": data.get("top_narrative_clauses", [])[:3],
-        })
+    cat_str = category if isinstance(category, str) else None
+    cat_upper = cat_str.upper() if cat_str else None
 
-    # Sort by report_count descending so popular commodities appear first
-    result.sort(key=lambda x: x["report_count"], reverse=True)
+    # 1. Fruits
+    if not cat_upper or cat_upper == "FRUITS":
+        for key, data in sorted(fruit_raw.items()):
+            meta = _FRUITS_META.get(key, {"emoji": "🌿", "display": key.capitalize(), "color": "gray"})
+            defect_cols = [c for c in data.get("defect_columns", []) if len(c) <= 60]
+            seen = set()
+            clean_cols = []
+            for col in defect_cols:
+                norm = col.strip().lower()
+                if norm not in seen:
+                    seen.add(norm)
+                    clean_cols.append(col.strip())
+                if len(clean_cols) >= 8:
+                    break
+
+            result.append({
+                "key": key,
+                "display": meta["display"],
+                "emoji": meta["emoji"],
+                "color": meta["color"],
+                "category": "FRUITS",
+                "report_count": data.get("report_count", 0),
+                "unit": data.get("unit", "pcs"),
+                "defect_columns": clean_cols,
+                "heading_sequence": data.get("heading_sequence", []),
+                "top_narrative_clauses": data.get("top_narrative_clauses", [])[:4],
+            })
+
+    # 2. General Cargo
+    if not cat_upper or cat_upper == "GENERAL_CARGO":
+        for key, meta in _GC_META.items():
+            data = gc_raw.get(key, {})
+            defect_cols = data.get("defect_columns") or [
+                "Sound", "Dented / Deformed", "Rusted / Oxidized", "Wet / Moisture", "Torn / Broken", "Shortage"
+            ]
+            result.append({
+                "key": key,
+                "display": meta["display"],
+                "emoji": meta["emoji"],
+                "color": meta["color"],
+                "description": meta.get("description", ""),
+                "category": "GENERAL_CARGO",
+                "report_count": data.get("report_count", 0),
+                "unit": data.get("unit", "pcs"),
+                "defect_columns": defect_cols,
+                "heading_sequence": data.get("heading_sequence") or [
+                    "PARTICULARS", "ATTENDANCE", "CIRCUMSTANCES OF LOSS", "CONDITION OF CONTAINER",
+                    "OUR SURVEY & CARGO FINDINGS", "DAMAGE INVENTORY & RECONCILIATION",
+                    "CAUSE OF LOSS & LIABILITY", "CLAIM RESERVE / QUANTIFICATION",
+                    "SALVAGE & MITIGATION", "DOCUMENTATION & ENCLOSURES", "SURVEY PHOTOGRAPHS"
+                ],
+                "top_narrative_clauses": data.get("top_narrative_clauses", [])[:4],
+            })
+
+    # Sort: within each category by report_count descending
+    result.sort(key=lambda x: (x["category"], -x["report_count"]))
 
     return JSONResponse(content={"commodities": result, "total": len(result)})

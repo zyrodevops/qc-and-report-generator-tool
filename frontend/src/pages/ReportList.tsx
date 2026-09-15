@@ -11,6 +11,9 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  CheckSquare,
+  Square,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { fetchReports, createReport, fetchCommodities, ReportSummary, CommodityArchetype } from '../api/client';
 
@@ -27,6 +30,19 @@ const REPORT_TYPE_OPTIONS = [
   { value: 'general-cargo-air', label: 'General Cargo Survey – Air', family: 'SURVEY_REPORT', mode: 'AIR' },
 ];
 
+export const GENERAL_CARGO_SECTIONS = [
+  { id: 'particulars', label: '1. Consignment Particulars', desc: 'Vessel/voyage, B/L, Container, Shipper, Consignee, Port' },
+  { id: 'attendance', label: '2. Attendance Register', desc: 'Surveyor, Consignee, CHA & Shipping Line representatives' },
+  { id: 'narrative_circ', label: '3. Circumstances of Loss', desc: 'Voyage history, discharge, CFS transfer & instructions' },
+  { id: 'narrative_survey', label: '4. Condition of Container & Cargo Findings', desc: 'Structural check, light/hose test & silver nitrate test' },
+  { id: 'table', label: '5. Damage Inventory & Reconciliation Table', desc: 'Itemized damage counts by defect category' },
+  { id: 'narrative_cause', label: '6. Cause of Loss & Liability', desc: 'Proximate causation analysis & carrier reservation' },
+  { id: 'narrative_reserve', label: '7. Claim Reserve / Final Quantification', desc: 'Provisional reserve (PLA) or final loss calculation' },
+  { id: 'photos', label: '8. Survey Photographs Plate', desc: 'Auto-numbered photo plate with container & damage views' },
+  { id: 'enclosures', label: '9. Documentation & Enclosures', desc: 'Checklist of shipping documents, weighbridge slips & EIR' },
+  { id: 'closure', label: '10. Formal Closure & Disclaimer', desc: 'Without prejudice disclaimer, date & signature block' },
+];
+
 // Color mapping for commodity pills
 const COLOR_CLASSES: Record<string, { bg: string; border: string; text: string; badge: string }> = {
   red:    { bg: 'bg-red-50',     border: 'border-red-400',    text: 'text-red-800',    badge: 'bg-red-100 text-red-700' },
@@ -36,6 +52,11 @@ const COLOR_CLASSES: Record<string, { bg: string; border: string; text: string; 
   purple: { bg: 'bg-purple-50',  border: 'border-purple-400', text: 'text-purple-800', badge: 'bg-purple-100 text-purple-700' },
   pink:   { bg: 'bg-pink-50',    border: 'border-pink-400',   text: 'text-pink-800',   badge: 'bg-pink-100 text-pink-700' },
   gray:   { bg: 'bg-gray-50',    border: 'border-gray-400',   text: 'text-gray-800',   badge: 'bg-gray-100 text-gray-700' },
+  slate:  { bg: 'bg-slate-50',   border: 'border-slate-400',  text: 'text-slate-800',  badge: 'bg-slate-100 text-slate-700' },
+  amber:  { bg: 'bg-amber-50',   border: 'border-amber-400',  text: 'text-amber-800',  badge: 'bg-amber-100 text-amber-700' },
+  indigo: { bg: 'bg-indigo-50',  border: 'border-indigo-400', text: 'text-indigo-800', badge: 'bg-indigo-100 text-indigo-700' },
+  teal:   { bg: 'bg-teal-50',    border: 'border-teal-400',   text: 'text-teal-800',   badge: 'bg-teal-100 text-teal-700' },
+  yellow: { bg: 'bg-yellow-50',  border: 'border-yellow-400', text: 'text-yellow-800', badge: 'bg-yellow-100 text-yellow-700' },
 };
 
 export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
@@ -48,6 +69,12 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
   const [commodities, setCommodities] = useState<CommodityArchetype[]>([]);
   const [commoditiesLoading, setCommoditiesLoading] = useState(false);
   const [expandedCommodity, setExpandedCommodity] = useState<string | null>(null);
+
+  // General cargo section customization
+  const [selectedSections, setSelectedSections] = useState<string[]>(
+    GENERAL_CARGO_SECTIONS.map((s) => s.id)
+  );
+  const [showSectionOptions, setShowSectionOptions] = useState(false);
 
   // New report form state
   const [selectedTemplate, setSelectedTemplate] = useState('perishable-qc-sea');
@@ -74,8 +101,11 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
       setCommoditiesLoading(true);
       const data = await fetchCommodities();
       setCommodities(data);
-      // Default-select the first (most common) commodity
-      if (data.length > 0) setSelectedCommodity(data[0].key);
+      const isGen = selectedTemplate.includes('general');
+      const filtered = isGen
+        ? data.filter((c) => c.category === 'GENERAL_CARGO')
+        : data.filter((c) => c.category !== 'GENERAL_CARGO');
+      if (filtered.length > 0) setSelectedCommodity(filtered[0].key);
     } catch (err) {
       console.error('Could not load commodities:', err);
     } finally {
@@ -98,7 +128,22 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
       setSelectedTemplate(val);
       setSelectedFamily(opt.family);
       setSelectedMode(opt.mode as 'SEA' | 'AIR');
+      const nextIsGeneral = val.includes('general');
+      const available = commodities.filter((c) =>
+        nextIsGeneral ? c.category === 'GENERAL_CARGO' : c.category !== 'GENERAL_CARGO'
+      );
+      if (available.length > 0) {
+        setSelectedCommodity(available[0].key);
+      } else {
+        setSelectedCommodity(nextIsGeneral ? 'STEEL_METALS' : 'APPLE');
+      }
     }
+  };
+
+  const toggleSection = (secId: string) => {
+    setSelectedSections((prev) =>
+      prev.includes(secId) ? prev.filter((id) => id !== secId) : [...prev, secId]
+    );
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -110,8 +155,9 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
         template_id: selectedTemplate,
         family: selectedFamily,
         mode: selectedMode,
-        commodity: isGeneral ? 'general_cargo' : selectedCommodity.toLowerCase(),
+        commodity: selectedCommodity,
         state: selectedFamily === 'SURVEY_REPORT' ? selectedState : 'FINAL',
+        selected_sections: isGeneral ? selectedSections : undefined,
         year: Number(year),
       });
       setShowModal(false);
@@ -311,78 +357,69 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
               )}
 
               {/* ── Commodity / Cargo Details ────────────────────────────── */}
-              {selectedTemplate.includes('general') ? (
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
-                    <span className="text-base">📦</span>
-                    <span>General Cargo Template Profile</span>
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    Configured for <strong>Machinery, Steel Coils, Equipment &amp; Containerized Dry Goods</strong>.
-                    Uses weight reconciliation and cargo damage inventory instead of perishable fruit tallies.
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 pt-1 text-[11px] text-slate-600">
-                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-medium">✓ Weighbridge Reconciliation</span>
-                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-medium">✓ Container Light &amp; Hose Test</span>
-                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-medium">✓ Damage Inventory Table</span>
-                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-medium">✓ Seawater Nitrate Test</span>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Commodity &amp; Defect Preset
-                    <span className="ml-2 text-xs font-normal text-gray-400">
-                      — mined from {commodities.reduce((s, c) => s + c.report_count, 0)} real client reports
-                    </span>
-                  </label>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  {selectedTemplate.includes('general') ? 'General Cargo Subcategory' : 'Perishable Fruit Commodity & Defect Preset'}
+                  <span className="ml-2 text-xs font-normal text-gray-400">
+                    — mined from {commodities.reduce((s, c) => s + c.report_count, 0)} real client reports
+                  </span>
+                </label>
 
                 {commoditiesLoading ? (
                   <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
                     <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    Loading commodity templates…
+                    Loading cargo templates…
                   </div>
                 ) : commodities.length === 0 ? (
                   <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    Corpus mining output not found. Run <code>tools/mine_corpus.py</code> to generate commodity presets.
+                    Corpus mining output not found. Run <code>tools/mine_corpus.py</code> to generate presets.
                   </div>
                 ) : (
                   <>
-                    {/* Grid of commodity cards */}
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-56 overflow-y-auto pr-1">
-                      {commodities.map((c) => {
-                        const colors = COLOR_CLASSES[c.color] || COLOR_CLASSES.gray;
-                        const isSelected = selectedCommodity === c.key;
-                        return (
-                          <button
-                            key={c.key}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCommodity(c.key);
-                              setExpandedCommodity(expandedCommodity === c.key ? null : c.key);
-                            }}
-                            className={`relative flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 text-center transition
-                              ${isSelected
-                                ? `${colors.bg} ${colors.border} ring-2 ring-offset-1 ring-blue-400`
-                                : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                              }`}
-                          >
-                            {isSelected && (
-                              <CheckCircle2 className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-blue-500" />
-                            )}
-                            <span className="text-2xl leading-none">{c.emoji}</span>
-                            <span className={`text-xs font-bold leading-tight ${isSelected ? colors.text : 'text-gray-700'}`}>
-                              {c.display}
-                            </span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isSelected ? colors.badge : 'bg-gray-100 text-gray-500'}`}>
-                              {c.report_count} reports
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {/* Grid of commodity / cargo cards */}
+                    {(() => {
+                      const isGeneral = selectedTemplate.includes('general');
+                      const visibleCommodities = commodities.filter((c) =>
+                        isGeneral ? c.category === 'GENERAL_CARGO' : c.category !== 'GENERAL_CARGO'
+                      );
 
-                    {/* Expanded detail panel for selected commodity */}
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
+                          {visibleCommodities.map((c) => {
+                            const colors = COLOR_CLASSES[c.color] || COLOR_CLASSES.gray;
+                            const isSelected = selectedCommodity === c.key;
+                            return (
+                              <button
+                                key={c.key}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCommodity(c.key);
+                                  setExpandedCommodity(expandedCommodity === c.key ? null : c.key);
+                                }}
+                                className={`relative flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 text-center transition cursor-pointer
+                                  ${isSelected
+                                    ? `${colors.bg} ${colors.border} ring-2 ring-offset-1 ring-blue-400`
+                                    : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                  }`}
+                              >
+                                {isSelected && (
+                                  <CheckCircle2 className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-blue-500" />
+                                )}
+                                <span className="text-2xl leading-none">{c.emoji}</span>
+                                <span className={`text-xs font-bold leading-tight ${isSelected ? colors.text : 'text-gray-700'}`}>
+                                  {c.display}
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isSelected ? colors.badge : 'bg-gray-100 text-gray-500'}`}>
+                                  {c.report_count > 0 ? `${c.report_count} reports` : 'Template preset'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Expanded detail panel for selected commodity / cargo */}
                     {selectedCommodityData && (
                       <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 text-xs">
                         <div className="flex items-start justify-between gap-2">
@@ -391,8 +428,13 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                               {selectedCommodityData.emoji} {selectedCommodityData.display}
                               <span className="ml-2 font-normal text-gray-500">· unit: {selectedCommodityData.unit}</span>
                             </p>
+                            {selectedCommodityData.description && (
+                              <p className="text-gray-600 mt-0.5 font-medium">{selectedCommodityData.description}</p>
+                            )}
                             <p className="text-gray-500 mt-0.5">
-                              Based on <strong>{selectedCommodityData.report_count}</strong> real client reports
+                              {selectedCommodityData.report_count > 0
+                                ? `Based on ${selectedCommodityData.report_count} real client reports`
+                                : 'Pre-configured canonical industry template'}
                             </p>
                           </div>
                           <Info className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
@@ -400,7 +442,7 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
 
                         {/* Defect columns */}
                         <div>
-                          <p className="font-semibold text-gray-700 mb-1.5">Defect Columns (auto-prefilled):</p>
+                          <p className="font-semibold text-gray-700 mb-1.5">Damage / Defect Columns (auto-prefilled):</p>
                           <div className="flex flex-wrap gap-1.5">
                             {selectedCommodityData.defect_columns.map((col) => (
                               <span key={col} className="bg-white border border-gray-300 text-gray-700 px-2 py-0.5 rounded-md font-mono text-[10px]">
@@ -410,29 +452,10 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                           </div>
                         </div>
 
-                        {/* Section sequence */}
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setExpandedCommodity(expandedCommodity === 'seq' ? null : 'seq')}
-                            className="flex items-center gap-1 text-gray-600 font-semibold hover:text-gray-900 transition"
-                          >
-                            Report Sections
-                            {expandedCommodity === 'seq' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                          </button>
-                          {expandedCommodity === 'seq' && (
-                            <ol className="mt-1.5 space-y-0.5 pl-4 list-decimal text-gray-600">
-                              {selectedCommodityData.heading_sequence.map((h, i) => (
-                                <li key={i}>{h}</li>
-                              ))}
-                            </ol>
-                          )}
-                        </div>
-
                         {/* Top narrative clause preview */}
-                        {selectedCommodityData.top_narrative_clauses.length > 0 && (
+                        {selectedCommodityData.top_narrative_clauses && selectedCommodityData.top_narrative_clauses.length > 0 && (
                           <div>
-                            <p className="font-semibold text-gray-700 mb-1">Common Wording (pre-filled):</p>
+                            <p className="font-semibold text-gray-700 mb-1">Common Corpus Wording (pre-filled):</p>
                             <p className="italic text-gray-600 leading-relaxed line-clamp-2">
                               "{selectedCommodityData.top_narrative_clauses[0]}"
                             </p>
@@ -440,10 +463,77 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                         )}
                       </div>
                     )}
+
+                    {/* General Cargo Section Checklist */}
+                    {selectedTemplate.includes('general') && (
+                      <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <SlidersHorizontal className="w-4 h-4 text-slate-700" />
+                            <span className="font-bold text-xs text-slate-900">
+                              Report Sections Included ({selectedSections.length} of {GENERAL_CARGO_SECTIONS.length})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSections(GENERAL_CARGO_SECTIONS.map((s) => s.id))}
+                              className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
+                            >
+                              Select All
+                            </button>
+                            <span className="text-gray-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSections(['particulars', 'attendance', 'narrative_survey', 'table', 'photos'])}
+                              className="text-[11px] font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
+                            >
+                              Essential Only
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-slate-500">
+                          Customize which modules and sections appear in this General Cargo report.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                          {GENERAL_CARGO_SECTIONS.map((sec) => {
+                            const checked = selectedSections.includes(sec.id);
+                            return (
+                              <div
+                                key={sec.id}
+                                onClick={() => toggleSection(sec.id)}
+                                className={`flex items-start gap-2.5 p-2 rounded-lg border text-left cursor-pointer transition select-none ${
+                                  checked
+                                    ? 'bg-white border-blue-400 shadow-xs'
+                                    : 'bg-slate-100/60 border-slate-200 text-gray-400'
+                                }`}
+                              >
+                                <div className="mt-0.5 shrink-0">
+                                  {checked ? (
+                                    <CheckSquare className="w-4 h-4 text-blue-600" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-gray-300" />
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className={`font-bold text-xs leading-tight ${checked ? 'text-gray-800' : 'text-gray-500'}`}>
+                                    {sec.label}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 truncate mt-0.5">
+                                    {sec.desc}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
-              )}
 
               {/* ── Transport mode + year ────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-3">

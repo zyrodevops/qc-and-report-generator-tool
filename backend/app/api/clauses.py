@@ -1,8 +1,8 @@
 """
-Clause Library API — surfaces frequently-used narrative paragraphs from the
-perishable-fruit corpus so surveyors can pick and lightly edit rather than type.
+Clause Library API — surfaces frequently-used narrative paragraphs from both
+perishable-fruit and general cargo reports so surveyors can pick and lightly edit rather than type.
 
-Endpoint: GET /api/clauses?commodity=APPLE&section=circumstances_of_loss
+Endpoint: GET /api/clauses?commodity=STEEL_METALS&section=survey_findings
 
 Section slugs accepted:
     circumstances_of_loss | cause_of_loss | survey_findings | next_step | documentation | general
@@ -23,64 +23,83 @@ from fastapi.responses import JSONResponse
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# File paths  (same two-path fallback pattern as commodities.py)
+# File paths
 # ---------------------------------------------------------------------------
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]  # backend/app/api → repo root
-_FREQ_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "sentence_frequency.csv"
-_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "template_archetypes.json"
-_FALLBACK_ARCHETYPES = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "template_archetypes.json"
+
+_FRUITS_FREQ_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "sentence_frequency.csv"
+_FRUITS_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "template_archetypes.json"
+_FRUITS_FALLBACK_ARCHETYPES = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "template_archetypes.json"
+
+_GC_FREQ_FILE = _REPO_ROOT / "tools" / "general_cargo_output" / "sentence_frequency.csv"
+_GC_FALLBACK_FREQ = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "general_cargo_sentences.csv"
+_GC_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "general_cargo_output" / "template_archetypes.json"
+_GC_FALLBACK_ARCHETYPES = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "general_cargo_archetypes.json"
 
 # ---------------------------------------------------------------------------
 # Section classification — keyword groups map sentence text → section slug
-# Each tuple: (required_keywords_any, exclude_keywords)
-# A sentence is assigned to the FIRST section whose any-keyword matches AND
-# none of its exclude-keywords match.
 # ---------------------------------------------------------------------------
 _SECTION_RULES: list[tuple[str, list[str], list[str]]] = [
     (
         "next_step",
-        ["next step", "we advised the consignee", "to mitigate losses", "sell them immediately",
-         "sell it immediately", "notice of claim", "best realisable", "best realizable"],
+        [
+            "next step", "we advised the consignee", "to mitigate losses", "sell them immediately",
+            "sell it immediately", "notice of claim", "best realisable", "best realizable",
+            "provisional reserve", "claim reserve", "salvage value", "mitigate further loss",
+            "reserve of", "holding them responsible", "segregation was highly recommended"
+        ],
         [],
     ),
     (
         "circumstances_of_loss",
-        ["hence, we were contact", "were apprised", "container was shift", "cfs",
-         "customs formalities", "detention charges", "were contacted and requested",
-         "forwarded for survey", "cargo was transfer", "container was discharg",
-         "inland container", "dwell time"],
-        ["cause", "deteriorat"],
+        [
+            "hence, we were contact", "were apprised", "container was shift", "cfs",
+            "customs formalities", "detention charges", "were contacted and requested",
+            "forwarded for survey", "cargo was transfer", "container was discharg",
+            "inland container", "dwell time", "pursuant to survey instructions",
+            "destuffed in the presence", "arrived at port of discharge", "original bolt seal",
+            "attended at the consignee", "unstuffing"
+        ],
+        ["cause of loss", "cause of damage"],
     ),
     (
         "cause_of_loss",
-        ["cause of loss", "mechanical injury", "pressure damage", "bruising",
-         "temperature excursion", "no variation in temperature",
-         "pre-harvest", "cold chain", "skin disorder", "over-ripen",
-         "senesc", "physiolog", "breakdown", "improper harvest",
-         "contributing factors"],
+        [
+            "cause of loss", "cause of damage", "mechanical injury", "pressure damage", "bruising",
+            "temperature excursion", "no variation in temperature", "pre-harvest", "cold chain",
+            "rough weather", "heavy rolling and pitching", "improper stowage", "inadequate lashing",
+            "handling by shore", "wire lashings", "shifting in transit", "ingress of sea water",
+            "monsoon transit", "impact crease", "negligence", "attributable to", "turnbuckle"
+        ],
         [],
     ),
     (
         "survey_findings",
-        ["pulp temperature", "brix", "firmness", "penetrometer",
-         "were opened for", "cartons were open", "randomly selected",
-         "digital thermometer", "condition found", "our survey:",
-         "consignee's representative", "on-site", "at site",
-         "sugar brix", "digital penetro"],
+        [
+            "pulp temperature", "brix", "firmness", "penetrometer",
+            "were opened for", "cartons were open", "randomly selected",
+            "digital thermometer", "condition found", "our survey:", "survey findings",
+            "consignee's representative", "on-site", "at site", "sugar brix",
+            "silver nitrate", "chlorides", "european rust grade", "surface rust",
+            "external examination", "light test", "hose test", "structural condition",
+            "dunnage wood", "gaskets were inspected", "water-tight condition"
+        ],
         [],
     ),
     (
         "documentation",
-        ["enclosure", "annexure", "reference of the recorder",
-         "reference to the recorder", "transport document",
-         "documentary evidence", "temperature recorder"],
+        [
+            "enclosure", "annexure", "reference of the recorder", "reference to the recorder",
+            "transport document", "documentary evidence", "temperature recorder",
+            "shipping documents", "bill of lading", "commercial invoice", "packing list",
+            "equipment interchange receipt", "port out-turn", "notice of loss"
+        ],
         [],
     ),
 ]
 
-# Commodity-name substitution words for "generic" sentences that mention
-# a specific fruit — we keep them but note they contain a fruit name.
 _COMMODITY_NOUNS: dict[str, list[str]] = {
+    # Fruits
     "APPLE": ["apple"],
     "APRICOT": ["apricot"],
     "AVOCADO": ["avocado"],
@@ -93,11 +112,19 @@ _COMMODITY_NOUNS: dict[str, list[str]] = {
     "ORANGE": ["orange", "oranges"],
     "PEAR": ["pear", "pears"],
     "PLUM": ["plum", "plums"],
+    # General Cargo
+    "STEEL_METALS": ["steel", "coil", "pipe", "tube", "plate", "billet", "iron", "metal", "tinplate"],
+    "MACHINERY_PARTS": ["machine", "machinery", "crane", "motor", "engine", "pump", "bearing", "shaft", "equipment"],
+    "AUTOMOTIVE": ["suzuki", "maruti", "vehicle", "chassis", "automotive", "ckd", "skd", "car"],
+    "CHEMICALS_LIQUIDS": ["drum", "barrel", "ibc", "liquid", "chemical", "resin", "oil"],
+    "PAPER_PACKAGING": ["paper", "pulp", "reel", "roll", "kraft", "carton"],
+    "GENERAL_CARGO": ["bag", "case", "merchandise", "breakbulk", "cargo", "pallet"],
 }
+
+_GC_KEYS = {"STEEL_METALS", "MACHINERY_PARTS", "AUTOMOTIVE", "CHEMICALS_LIQUIDS", "PAPER_PACKAGING", "GENERAL_CARGO"}
 
 
 def _classify_section(text: str) -> str:
-    """Return the section slug for a sentence, or 'general' if unclassified."""
     low = text.lower()
     for slug, includes, excludes in _SECTION_RULES:
         if any(kw in low for kw in includes):
@@ -107,31 +134,31 @@ def _classify_section(text: str) -> str:
 
 
 def _commodity_match(text: str, commodity: str) -> bool:
-    """Return True if sentence mentions the commodity OR is fully generic (no fruit noun)."""
     low = text.lower()
     target_words = _COMMODITY_NOUNS.get(commodity.upper(), [])
-    # Collect all fruit words across all commodities
-    all_fruit_words = [w for words in _COMMODITY_NOUNS.values() for w in words]
+    all_fruit_words = [w for k, words in _COMMODITY_NOUNS.items() if k not in _GC_KEYS for w in words]
+    all_gc_words = [w for k, words in _COMMODITY_NOUNS.items() if k in _GC_KEYS for w in words]
 
-    # Sentence is generic if it doesn't mention any fruit word
-    mentions_any_fruit = any(fw in low for fw in all_fruit_words)
-    if not mentions_any_fruit:
-        return True  # generic — valid for any commodity
+    is_gc = commodity.upper() in _GC_KEYS
 
-    # Sentence mentions this commodity → include
-    return any(tw in low for tw in target_words)
+    if is_gc:
+        # Don't match fruit sentences for general cargo
+        if any(fw in low for fw in all_fruit_words):
+            return False
+        # If it matches specific GC words
+        if target_words and any(tw in low for tw in target_words):
+            return True
+        # Generic GC sentence (mentions general logistics / maritime terms)
+        return True
+    else:
+        # Perishable fruit logic
+        mentions_any_fruit = any(fw in low for fw in all_fruit_words)
+        if not mentions_any_fruit:
+            return True
+        return any(tw in low for tw in target_words)
 
 
 def _placeholder_to_editable(text: str) -> str:
-    """
-    Convert anonymised corpus placeholders to user-friendly edit markers.
-    {CONTAINER} → [CONTAINER NO.]
-    {REPORT_NO} → [REPORT NO.]
-    {CURRENCY}  → [AMOUNT]
-    {TEMP}      → [TEMP °C]
-    {PERCENT}   → [_%]
-    {N}         → [N]
-    """
     replacements = [
         (r"\{CONTAINER\}", "[CONTAINER NO.]"),
         (r"\{REPORT_NO\}", "[REPORT NO.]"),
@@ -146,53 +173,74 @@ def _placeholder_to_editable(text: str) -> str:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Data loading (cached for process lifetime)
-# ---------------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def _load_frequency_data() -> list[dict]:
-    """
-    Load sentence_frequency.csv and return a list of dicts:
-    [{text, count, section, is_template}] sorted by count desc.
-    """
     rows: list[dict] = []
-    if not _FREQ_FILE.exists():
-        return rows
+    seen = set()
 
-    with open(_FREQ_FILE, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            count = int(row.get("count", 0))
-            if count < 8:  # skip very rare sentences
-                break
-            text = row.get("sentence", "").strip()
-            if not text:
-                continue
-            rows.append({
-                "raw_text": text,
-                "text": _placeholder_to_editable(text),
-                "count": count,
-                "section": _classify_section(text),
-                "is_template": bool(re.search(r"\[.*?\]|\{.*?\}", _placeholder_to_editable(text))),
-            })
+    # 1. Perishable fruits sentences
+    if _FRUITS_FREQ_FILE.exists():
+        with open(_FRUITS_FREQ_FILE, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                cnt = int(row.get("count", 0))
+                if cnt < 8:
+                    break
+                txt = row.get("sentence", "").strip()
+                if txt and txt not in seen:
+                    seen.add(txt)
+                    rows.append({
+                        "raw_text": txt,
+                        "text": _placeholder_to_editable(txt),
+                        "count": cnt,
+                        "section": _classify_section(txt),
+                        "is_template": bool(re.search(r"\[.*?\]|\{.*?\}", _placeholder_to_editable(txt))),
+                        "is_gc": False,
+                    })
+
+    # 2. General cargo sentences
+    gc_file = _GC_FREQ_FILE if _GC_FREQ_FILE.exists() else _GC_FALLBACK_FREQ
+    if gc_file.exists():
+        with open(gc_file, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                cnt = int(row.get("count", 0))
+                if cnt < 3:
+                    break
+                txt = row.get("sentence", "").strip()
+                if txt and txt not in seen:
+                    seen.add(txt)
+                    rows.append({
+                        "raw_text": txt,
+                        "text": _placeholder_to_editable(txt),
+                        "count": cnt,
+                        "section": _classify_section(txt),
+                        "is_template": bool(re.search(r"\[.*?\]|\{.*?\}", _placeholder_to_editable(txt))),
+                        "is_gc": True,
+                    })
+
     return rows
 
 
 @lru_cache(maxsize=1)
 def _load_archetypes() -> dict:
-    for path in (_ARCHETYPES_FILE, _FALLBACK_ARCHETYPES):
+    merged = {}
+    for path in (_FRUITS_ARCHETYPES_FILE, _FRUITS_FALLBACK_ARCHETYPES):
         if path.exists():
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
-    return {}
+                merged.update(json.load(f))
+            break
+    for path in (_GC_ARCHETYPES_FILE, _GC_FALLBACK_ARCHETYPES):
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                merged.update(json.load(f))
+            break
+    return merged
 
 
-# ---------------------------------------------------------------------------
-# Route
-# ---------------------------------------------------------------------------
 @router.get("/clauses")
 async def get_clauses(
-    commodity: Optional[str] = Query(None, description="Commodity key, e.g. APPLE"),
+    commodity: Optional[str] = Query(None, description="Commodity key, e.g. APPLE, STEEL_METALS"),
     section: Optional[str] = Query(
         None,
         description="Section slug: circumstances_of_loss | cause_of_loss | "
@@ -202,65 +250,58 @@ async def get_clauses(
 ):
     """
     Return top corpus clauses for a given commodity and/or section.
-
-    Clauses are sourced from sentence_frequency.csv (primary) and
-    template_archetypes.json (supplementary top_narrative_clauses).
-    Sentences are filtered to match the commodity (or generic sentences
-    that don't mention any specific fruit) and classified by section.
+    Supports both Perishable Fruits and General Cargo commodities.
     """
-    commodity_key = (commodity or "").upper().strip() or None
-    section_slug = (section or "").lower().strip() or None
+    commodity_key = commodity.upper().strip() if isinstance(commodity, str) and commodity.strip() else None
+    section_slug = section.lower().strip() if isinstance(section, str) and section.strip() else None
+    lim = limit if isinstance(limit, int) else 10
+    is_gc = commodity_key in _GC_KEYS if commodity_key else False
 
     all_rows = _load_frequency_data()
     archetypes = _load_archetypes()
 
-    # --- Filter by commodity ---
+    # Filter by commodity / cargo family
     if commodity_key:
         rows = [r for r in all_rows if _commodity_match(r["raw_text"], commodity_key)]
     else:
         rows = list(all_rows)
 
-    # --- Filter by section ---
+    # Filter by section
     if section_slug and section_slug != "general":
-        # Primary: exact section match
         matched = [r for r in rows if r["section"] == section_slug]
-        # Supplement with "general" sentences if we have too few
         if len(matched) < 4:
             general = [r for r in rows if r["section"] == "general"]
             matched = matched + general[: max(0, 6 - len(matched))]
     else:
         matched = rows
 
-    # Deduplicate by text
-    seen: set[str] = set()
+    seen_text = set()
     unique: list[dict] = []
     for r in matched:
-        key_txt = r["text"].lower()[:100]
-        if key_txt not in seen:
-            seen.add(key_txt)
+        k = r["text"].lower()[:100]
+        if k not in seen_text:
+            seen_text.add(k)
             unique.append(r)
 
-    # --- Merge archetype top_narrative_clauses as supplementary ---
+    # Supplement with archetype top_narrative_clauses
     if commodity_key and commodity_key in archetypes:
         archetype_clauses = archetypes[commodity_key].get("top_narrative_clauses", [])
         for raw in archetype_clauses:
             text = _placeholder_to_editable(raw)
             k = text.lower()[:100]
-            if k not in seen:
-                seen.add(k)
+            if k not in seen_text:
+                seen_text.add(k)
                 unique.append({
                     "raw_text": raw,
                     "text": text,
-                    "count": 0,  # frequency unknown for archetype extras
+                    "count": 0,
                     "section": _classify_section(raw),
                     "is_template": bool(re.search(r"\[.*?\]|\{.*?\}", text)),
+                    "is_gc": is_gc,
                 })
 
-    # Sort: known-frequency first (by count desc), then archetype extras
     unique.sort(key=lambda r: r["count"], reverse=True)
-
-    # Return limited set
-    result = unique[:limit]
+    result = unique[:lim]
 
     return JSONResponse(content={
         "clauses": [
