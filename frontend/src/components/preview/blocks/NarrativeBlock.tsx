@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 import { ClauseLibraryPicker } from './ClauseLibraryPicker';
 
 export interface NarrativeBlockProps {
@@ -19,11 +19,14 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   const text = block?.additional_text || '';
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.max(60, textareaRef.current.scrollHeight)}px`;
-    }
+  // useLayoutEffect fires synchronously after DOM mutation but before browser paint,
+  // so the resize happens immediately even when text is set programmatically
+  // (e.g. clause insertion), preventing overflow-hidden from clipping content.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(80, el.scrollHeight)}px`;
   }, [text, editable]);
 
   if (!text && !sectionTitle && !editable) return null;
