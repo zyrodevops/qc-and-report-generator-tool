@@ -40,6 +40,7 @@ export interface CreateReportParams {
   year?: number;
   mode?: 'SEA' | 'AIR';
   commodity?: string;
+  state?: 'PRELIMINARY' | 'FINAL';
   block_state?: any;
 }
 

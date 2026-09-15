@@ -103,17 +103,17 @@ class TallyPipeline:
             for r_idx, row in enumerate(grid_cells[1:]):
                 row_values: Dict[str, int] = {}
                 cell_details: Dict[str, Any] = {}
-                row_label = f"Count {50 + (r_idx * 5)}"
+                row_label = f"Sample Box #{r_idx + 1}"
 
                 for cell in row:
                     col_idx = cell["col"]
                     cat_key = col_mapping.get(col_idx)
                     
                     if col_idx == 0:
-                        # Col 0 is typically Count / Size label
+                        # Col 0 is typically Count / Size / Caliber label (e.g. 30 XF, 33 PR)
                         rec_label = self.recognizer.recognize(cell["crop_bgr"], expected_type="text")
-                        if rec_label.raw_text and len(rec_label.raw_text) >= 2:
-                            row_label = rec_label.raw_text
+                        if rec_label.raw_text:
+                            row_label = self.normalizer.normalize_caliber_label(rec_label.raw_text, fallback_idx=r_idx)
 
                     elif cat_key:
                         rec = self.recognizer.recognize(cell["crop_bgr"], expected_type="number")
@@ -159,7 +159,7 @@ class TallyPipeline:
 
                     rows.append({
                         "group": row_label,
-                        "boxes_opened": 2,
+                        "boxes_opened": 1,
                         "values": row_values,
                         "computed_total": computed_sum,
                         "checksum_valid": row_val.status == "PASSED",

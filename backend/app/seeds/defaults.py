@@ -646,50 +646,279 @@ def _build_blocks_for_commodity(
 
 
 # ---------------------------------------------------------------------------
+# General Cargo Block Builder (Gladstone & MCA Format)
+# ---------------------------------------------------------------------------
+
+def _build_blocks_for_general_cargo(
+    is_air: bool,
+    is_preliminary: bool,
+    today_str: str,
+) -> List[Dict[str, Any]]:
+    """
+    Builds authentic block sequence for General Cargo reports (Gladstone / MCA format),
+    covering steel coils, machinery, industrial goods, containerized dry cargo, and breakbulk.
+    Per DEVELOPER_WORKFLOW_AND_INSTRUCTIONS.md §5:
+    [PARTICULARS] -> [ATTENDANCE] -> [CIRCUMSTANCES OF LOSS] ->
+    [OUR SURVEY: Structural Condition of Container & Cargo] ->
+    [WEIGHT RECONCILIATION / DAMAGE INVENTORY TABLE] ->
+    [CAUSE OF LOSS & LIABILITY] -> [CLAIM RESERVE / FINAL CLAIM] ->
+    [DOCUMENTATION / ANNEXURES] -> [PHOTOS] -> [CLOSURE]
+    """
+    disclaimer = (
+        "This preliminary survey report is issued based on observations made at the time of inspection "
+        "and without prejudice to liability, terms, and conditions of applicable insurance policies and carrier contracts."
+        if is_preliminary
+        else "This survey report is issued without prejudice to the liability of any party and is subject to the terms, conditions, and exceptions of the governing policy of insurance."
+    )
+
+    blocks: List[Dict[str, Any]] = []
+
+    # 1. Particulars
+    blocks.append({
+        "id": "b_particulars",
+        "type": "particulars",
+        "title": "CONSIGNMENT PARTICULARS",
+        "rows": [
+            {"label": "Vessel / Voyage" if not is_air else "Flight / Date", "value": "[VESSEL / FLIGHT]", "provenance": "user_declared"},
+            {"label": "Bill of Lading / AWB No." if not is_air else "Air Waybill No.", "value": "[B/L or AWB NUMBER]", "provenance": "user_declared"},
+            {"label": "Container No. & Seal No.", "value": "[CONTAINER NO.] / [SEAL NO.]", "provenance": "user_declared"},
+            {"label": "Shipper", "value": "[SHIPPER NAME & ADDRESS]", "provenance": "user_declared"},
+            {"label": "Consignee", "value": "[CONSIGNEE NAME & ADDRESS]", "provenance": "user_declared"},
+            {"label": "Cargo Description", "value": "Industrial Machinery / Steel Products / General Manufactured Goods", "provenance": "user_declared"},
+            {"label": "Declared B/L Gross Weight", "value": "[DECLARED GROSS WT (KG)]", "provenance": "user_declared"},
+            {"label": "Port of Loading", "value": "[PORT OF LOADING]", "provenance": "user_declared"},
+            {"label": "Port of Discharge", "value": "Nhava Sheva (JNPT), India" if not is_air else "Mumbai Air Cargo Complex", "provenance": "user_declared"},
+            {"label": "Place & Date of Survey", "value": f"Consignee's CFS / Warehouse, {today_str}", "provenance": "user_declared"},
+        ],
+    })
+
+    # 2. Attendance
+    blocks.append({
+        "id": "b_attendance",
+        "type": "attendance",
+        "title": "ATTENDANCE REGISTER",
+        "rows": [
+            {"name": "Mr. [SURVEYOR NAME]", "representing": "Marine Cargo Agencies Pvt. Ltd. (Independent Surveyors)"},
+            {"name": "Mr. [CONSIGNEE REP]", "representing": "Consignee / Importer Representative"},
+            {"name": "Mr. [CFS / CARRIER REP]", "representing": "CFS Logistics / Shipping Line Representative"},
+        ],
+    })
+
+    # 3. Circumstances of Loss
+    blocks.append({
+        "id": "b_narrative_circ",
+        "type": "narrative",
+        "section": "CIRCUMSTANCES OF LOSS & INSTRUCTIONS",
+        "additional_text": (
+            f"Under instructions received from the Underwriters / Instructing Principals, we attended the joint survey on {today_str} "
+            f"at the Consignee's premises to ascertain the nature, cause, and extent of alleged loss/damage to the subject consignment. "
+            f"The container was reported to have arrived on board the carrier and was discharged at the port prior to destuffing. "
+            f"The original bolt seal was verified intact prior to cutting and opening in the presence of attending representatives."
+        ),
+    })
+
+    # 4. Our Survey (Container Condition & Cargo Inspection)
+    blocks.append({
+        "id": "b_narrative_survey",
+        "type": "narrative",
+        "section": "OUR SURVEY & FINDINGS",
+        "additional_text": (
+            "1. STRUCTURAL CONDITION OF THE CONTAINER:\n"
+            "External inspection revealed the container panels to be structurally sound without visible perforations or punctures. "
+            "Door rubber gaskets were inspected and found in pliable, weather-tight condition. Visual light testing inside the closed container "
+            "showed no daylight penetration from the roof or side panels.\n\n"
+            "2. CARGO STOWAGE & SECURING:\n"
+            "Upon opening the doors, cargo packages were observed stacked inside the container. Securing lashing polyester straps and wooden dunnage "
+            "chocks were inspected. Certain packages located in the doorway and mid-bay exhibited displacement, impact creases, and shifting during transit."
+        ),
+    })
+
+    # 5. Weight Reconciliation & Damage Table
+    blocks.append({
+        "id": "b_table",
+        "type": "table",
+        "title": "CARGO WEIGHT RECONCILIATION & DAMAGE INVENTORY",
+        "grouping_label": "Package Item / Lot",
+        "unit": "pcs",
+        "categories": [
+            {"key": "sound", "label": "Sound Units"},
+            {"key": "impact_dented", "label": "Dented / Impact Damaged"},
+            {"key": "scratched", "label": "Surface Scratches"},
+            {"key": "rust_moisture", "label": "Moisture / Rust Affected"},
+            {"key": "shortage", "label": "Shortage / Missing"},
+        ],
+        "rows": [
+            {
+                "group": "Item Lot #1 (Cases 01-10)",
+                "boxes_opened": 10,
+                "values": {"sound": 8, "impact_dented": 2, "scratched": 0, "rust_moisture": 0, "shortage": 0},
+                "provenance": "user_declared",
+            },
+            {
+                "group": "Item Lot #2 (Cases 11-25)",
+                "boxes_opened": 15,
+                "values": {"sound": 12, "impact_dented": 1, "scratched": 2, "rust_moisture": 0, "shortage": 0},
+                "provenance": "user_declared",
+            },
+        ],
+    })
+
+    # 6. Cause of Loss & Liability
+    blocks.append({
+        "id": "b_narrative_cause",
+        "type": "narrative",
+        "section": "CAUSE OF LOSS & LIABILITY OBSERVATIONS",
+        "additional_text": (
+            "Based on our physical inspection, the observed physical impact and exterior case deformations are attributed to "
+            "excessive motion, longitudinal acceleration, and heavy impact sustained during handling and intermodal sea/road transit. "
+            "There were no signs of sea water ingress (silver nitrate chemical test negative). "
+            "Carrier and stevedore liabilities are formally reserved. The Consignee was advised to issue a prompt written Notice of Claim "
+            "to the ocean carrier and CFS operators within the statutory limitation period."
+        ),
+    })
+
+    # 7. Claim Reserve (Preliminary) or Final Claim (Final)
+    if is_preliminary:
+        blocks.append({
+            "id": "b_narrative_reserve",
+            "type": "narrative",
+            "section": "CLAIM RESERVE & ESTIMATE",
+            "additional_text": (
+                "CLAIM RESERVE (PRELIMINARY):\n"
+                "Pending final testing, repair quotation, and commercial invoice quantification from the Consignees, "
+                "an initial claim reserve of INR [ESTIMATED RESERVE] / USD [RESERVE USD] is recommended to cover potential repair / depreciation costs. "
+                "This reserve is provisional and subject to adjustment upon production of salvage proceeds and documentary evidence."
+            ),
+        })
+    else:
+        blocks.append({
+            "id": "b_narrative_final_claim",
+            "type": "narrative",
+            "section": "FINAL LOSS ADJUSTMENT & QUANTIFICATION",
+            "additional_text": (
+                "FINAL QUANTIFICATION:\n"
+                "The loss has been adjusted on the basis of verified CIF commercial values and agreed depreciation/repair costs: "
+                "Gross Assessed Loss: INR [AMOUNT] less Agreed Salvage Retention: INR [SALVAGE], resulting in Net Adjusted Loss of INR [NET AMOUNT]. "
+                "Adjusted without prejudice to terms, conditions, and deductibles of the policy."
+            ),
+        })
+
+    # 8. Survey Photographs
+    blocks.append({
+        "id": "b_photos",
+        "type": "photo_plate",
+        "title": "SURVEY PHOTOGRAPHS",
+        "series_id": "survey",
+        "label": "Survey",
+        "provenance": "own_survey",
+        "columns": 2,
+        "groups": [
+            {"id": "pg1", "observation": "Container Exterior & High Security Bolt Seal Intact", "asset_ids": []},
+            {"id": "pg2", "observation": "Door Opening & Cargo Stowage Profile on Arrival", "asset_ids": []},
+            {"id": "pg3", "observation": "Damaged Cases / Dented Packages Close-up", "asset_ids": []},
+            {"id": "pg4", "observation": "Machine Serial Plates & Marking Identification", "asset_ids": []},
+        ],
+    })
+
+    # 9. Documentation / List of Enclosures
+    blocks.append({
+        "id": "b_enclosures",
+        "type": "fixed_text",
+        "title": "DOCUMENTATION & ANNEXURES SCHEDULE",
+        "content": (
+            "1. Copy of Ocean Bill of Lading / Air Waybill\n"
+            "2. Copy of Commercial Invoice and Packing List\n"
+            "3. Copy of Weighbridge Slip / Delivery Order\n"
+            "4. Container Destuffing Tally / Gate Pass\n"
+            "5. Consignee Letter of Protest / Notice of Claim to Carrier\n"
+            "6. Survey Photographic Annexure Sheet"
+        ),
+    })
+
+    # 10. Closure
+    blocks.append({
+        "id": "b_closure",
+        "type": "fixed_text",
+        "title": "CLOSURE",
+        "content": (
+            f"{disclaimer}\n\n"
+            "Consignees are requested to pursue any claims-related matter directly with the responsible carrier/parties.\n\n"
+            "\u201cISSUED WITHOUT PREJUDICE\u201d\n"
+            f"Dated: {today_str}\n"
+            "Marine Cargo Agencies Pvt. Ltd.\n"
+            "\u00d8\u00d8\u00d8"
+        ),
+    })
+
+    return blocks
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-def get_default_block_state(template_id: str, commodity_key: Optional[str] = None) -> Dict[str, Any]:
+def get_default_block_state(
+    template_id: str,
+    commodity_key: Optional[str] = None,
+    state: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Returns a rich, authentic initial block_state for a new report.
-    For all 12 mined perishable commodities the blocks are pre-populated
-    with authentic paragraph wording, defect columns, and sample rows from
-    the corpus of 432 real client reports.
-
-    The client just edits the bracketed [placeholders] and numeric values.
+    Supports:
+    1. All 12 mined perishable commodities (prefilled with authentic wording, defect columns, sample rows).
+    2. General Cargo templates (steel, machinery, industrial goods, weighbridge reconciliation).
+    3. State differentiation: PRELIMINARY (PLA with claim reserve) vs FINAL (full adjustment).
     """
-    key = (commodity_key or "APPLE").upper()
-
-    # Load mined archetypes
-    archetypes = _load_archetypes()
-    archetype = archetypes.get(key, {})
-
-    # Supplement data (narrative, measurements, sample rows)
-    supp = _COMMODITY_SUPPLEMENT.get(key)
-    if supp is None:
-        # Fallback: use MANDARIN for unknown commodity
-        key = "MANDARIN"
-        supp = _COMMODITY_SUPPLEMENT["MANDARIN"]
-        archetype = archetypes.get("MANDARIN", {})
-
-    today_str = date.today().strftime("%d %B %Y")
+    is_general = "general" in template_id.lower()
     is_qc = "qc" in template_id.lower()
     is_air = "air" in template_id.lower()
+    is_preliminary = (state or "").upper() == "PRELIMINARY" or "preliminary" in template_id.lower()
     mode = "AIR" if is_air else "SEA"
-    label = supp.get("label", key.capitalize())
+    today_str = date.today().strftime("%d %B %Y")
 
-    blocks = _build_blocks_for_commodity(key, supp, archetype, today_str, is_qc)
+    if is_general:
+        blocks = _build_blocks_for_general_cargo(is_air, is_preliminary, today_str)
+        report_title = (
+            "PRELIMINARY GENERAL CARGO SURVEY REPORT (PLA)" if is_preliminary
+            else "FINAL GENERAL CARGO SURVEY REPORT"
+        )
+        commodity_val = (commodity_key or "GENERAL_CARGO").upper()
+        metadata = {
+            "docx_template": "mca-general-canonical-v1.docx",
+            "family": "SURVEY_REPORT",
+            "commodity": commodity_val,
+            "state": "PRELIMINARY" if is_preliminary else "FINAL",
+        }
+    else:
+        key = (commodity_key or "APPLE").upper()
+        archetypes = _load_archetypes()
+        archetype = archetypes.get(key, {})
+        supp = _COMMODITY_SUPPLEMENT.get(key)
+        if supp is None:
+            key = "MANDARIN"
+            supp = _COMMODITY_SUPPLEMENT["MANDARIN"]
+            archetype = archetypes.get("MANDARIN", {})
 
-    return {
-        "report_title": (
-            f"IN-HOUSE QC INSPECTION REPORT ({label.upper()})" if is_qc
-            else "MARINE CARGO SURVEY REPORT"
-        ),
-        "metadata": {
+        label = supp.get("label", key.capitalize())
+        blocks = _build_blocks_for_commodity(key, supp, archetype, today_str, is_qc)
+
+        if is_qc:
+            report_title = f"IN-HOUSE QC INSPECTION REPORT ({label.upper()})"
+        elif is_preliminary:
+            report_title = f"PRELIMINARY MARINE CARGO SURVEY REPORT (PLA) — {label.upper()}"
+        else:
+            report_title = f"FINAL MARINE CARGO SURVEY REPORT — {label.upper()}"
+
+        metadata = {
             "docx_template": "mca-qc-canonical-v1.docx" if is_qc else "mca-synthetic-v1.docx",
             "family": "QC_REPORT" if is_qc else "SURVEY_REPORT",
             "commodity": key,
-        },
+            "state": "PRELIMINARY" if is_preliminary else "FINAL",
+        }
+
+    return {
+        "report_title": report_title,
+        "metadata": metadata,
         "transport": {
             "mode": mode,
             "container_no": "[CONTAINER NO.]",

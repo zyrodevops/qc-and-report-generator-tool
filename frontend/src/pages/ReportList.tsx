@@ -53,6 +53,7 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
   const [selectedTemplate, setSelectedTemplate] = useState('perishable-qc-sea');
   const [selectedMode, setSelectedMode] = useState<'SEA' | 'AIR'>('SEA');
   const [selectedFamily, setSelectedFamily] = useState('QC_REPORT');
+  const [selectedState, setSelectedState] = useState<'PRELIMINARY' | 'FINAL'>('FINAL');
   const [selectedCommodity, setSelectedCommodity] = useState('APPLE');
   const [year, setYear] = useState(new Date().getFullYear());
 
@@ -104,11 +105,13 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
     e.preventDefault();
     try {
       setCreating(true);
+      const isGeneral = selectedTemplate.includes('general');
       const newRep = await createReport({
         template_id: selectedTemplate,
         family: selectedFamily,
         mode: selectedMode,
-        commodity: selectedCommodity.toLowerCase(),
+        commodity: isGeneral ? 'general_cargo' : selectedCommodity.toLowerCase(),
+        state: selectedFamily === 'SURVEY_REPORT' ? selectedState : 'FINAL',
         year: Number(year),
       });
       setShowModal(false);
@@ -175,23 +178,40 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                     <span className="font-mono font-bold text-lg text-blue-900 tracking-wide">
                       {rep.report_number}
                     </span>
-                    <span
-                      className={`text-xs px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1 ${
-                        mode === 'SEA'
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      }`}
-                    >
-                      {mode === 'SEA' ? <Ship className="w-3.5 h-3.5" /> : <Plane className="w-3.5 h-3.5" />}
-                      {mode}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-xs px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1 ${
+                          mode === 'SEA'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {mode === 'SEA' ? <Ship className="w-3.5 h-3.5" /> : <Plane className="w-3.5 h-3.5" />}
+                        {mode}
+                      </span>
+                      {rep.state === 'PRELIMINARY' ? (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                          PLA (Preliminary)
+                        </span>
+                      ) : rep.family === 'SURVEY_REPORT' ? (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                          Final Survey
+                        </span>
+                      ) : (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-purple-50 text-purple-800 border border-purple-200">
+                          QC Report
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div>
                     <h3 className="font-semibold text-gray-900 text-base">
                       {rep.template_id.replace(/-/g, ' ').toUpperCase()}
                     </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">Family: {rep.family}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Family: {rep.family} • Stage: {rep.state || 'FINAL'}
+                    </p>
                   </div>
                 </div>
 
@@ -244,14 +264,78 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                 </select>
               </div>
 
-              {/* ── Commodity picker ─────────────────────────────────────── */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Commodity &amp; Defect Preset
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    — mined from {commodities.reduce((s, c) => s + c.report_count, 0)} real client reports
-                  </span>
-                </label>
+              {/* ── Survey Report Stage (Preliminary PLA vs Final) ───────── */}
+              {selectedFamily === 'SURVEY_REPORT' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Survey Report Stage
+                  </label>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedState('PRELIMINARY')}
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                        selectedState === 'PRELIMINARY'
+                          ? 'border-blue-500 bg-blue-50/70 ring-2 ring-blue-400'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-gray-900">Preliminary (PLA)</span>
+                        {selectedState === 'PRELIMINARY' && <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />}
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Issued promptly; preliminary findings, claim reserve &amp; reservation of rights
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedState('FINAL')}
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                        selectedState === 'FINAL'
+                          ? 'border-blue-500 bg-blue-50/70 ring-2 ring-blue-400'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-gray-900">Final Survey Report</span>
+                        {selectedState === 'FINAL' && <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />}
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Complete causation analysis, itemized damages, &amp; final adjustment
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Commodity / Cargo Details ────────────────────────────── */}
+              {selectedTemplate.includes('general') ? (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                    <span className="text-base">📦</span>
+                    <span>General Cargo Template Profile</span>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    Configured for <strong>Machinery, Steel Coils, Equipment &amp; Containerized Dry Goods</strong>.
+                    Uses weight reconciliation and cargo damage inventory instead of perishable fruit tallies.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1 text-[11px] text-slate-600">
+                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-medium">✓ Weighbridge Reconciliation</span>
+                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-medium">✓ Container Light &amp; Hose Test</span>
+                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-medium">✓ Damage Inventory Table</span>
+                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-medium">✓ Seawater Nitrate Test</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Commodity &amp; Defect Preset
+                    <span className="ml-2 text-xs font-normal text-gray-400">
+                      — mined from {commodities.reduce((s, c) => s + c.report_count, 0)} real client reports
+                    </span>
+                  </label>
 
                 {commoditiesLoading ? (
                   <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
@@ -359,6 +443,7 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                   </>
                 )}
               </div>
+              )}
 
               {/* ── Transport mode + year ────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-3">
