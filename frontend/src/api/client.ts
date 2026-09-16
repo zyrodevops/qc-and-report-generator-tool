@@ -325,3 +325,52 @@ export async function fetchClauses(
   const data = await res.json();
   return data.clauses as Clause[];
 }
+
+// ---------------------------------------------------------------------------
+// Clause Taxonomy — structured cause patterns and next-step actions
+// ---------------------------------------------------------------------------
+
+export interface CausePattern {
+  key: string;
+  label: string;
+  description: string;
+  icon: string;
+  wording: string;
+  is_commodity_specific: boolean;
+}
+
+export interface NextStepAction {
+  key: string;
+  label: string;
+  text: string;
+  is_applicable: boolean;
+  applies_to: string[];
+}
+
+export interface ClauseTaxonomyCauseResponse {
+  section: 'cause_of_loss';
+  commodity: string | null;
+  causes: CausePattern[];
+}
+
+export interface ClauseTaxonomyNextStepResponse {
+  section: 'next_step';
+  commodity: string | null;
+  actions: NextStepAction[];
+}
+
+export async function fetchClauseTaxonomy(
+  section: 'cause_of_loss' | 'next_step',
+  commodity?: string,
+): Promise<ClauseTaxonomyCauseResponse | ClauseTaxonomyNextStepResponse> {
+  const params = new URLSearchParams({ section });
+  if (commodity) params.set('commodity', commodity);
+
+  const res = await fetch(`/api/clause-taxonomy?${params.toString()}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch clause taxonomy: ${res.statusText}`);
+  }
+  return res.json();
+}
