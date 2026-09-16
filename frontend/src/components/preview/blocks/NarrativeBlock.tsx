@@ -1,5 +1,9 @@
-import React, { useRef, useLayoutEffect } from 'react';
-import { ClauseLibraryPicker } from './ClauseLibraryPicker';
+import React, { useRef, useLayoutEffect, useState } from 'react';
+import { detectSectionFromHeading } from '../../clauses/BoilerplatePicker';
+import { CauseOfLossPicker } from '../../clauses/CauseOfLossPicker';
+import { NextStepPicker } from '../../clauses/NextStepPicker';
+import { BoilerplatePicker } from '../../clauses/BoilerplatePicker';
+
 
 export interface NarrativeBlockProps {
   block: any;
@@ -18,6 +22,11 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   const sectionTitle = block?.section || 'ATTENDANCE & CIRCUMSTANCES';
   const text = block?.additional_text || '';
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Track which cause key was last selected (for CauseOfLossPicker visual state)
+  const [selectedCauseKey, setSelectedCauseKey] = useState<string | null>(
+    block?._cause_key ?? null
+  );
 
   // useLayoutEffect fires synchronously after DOM mutation but before browser paint,
   // so the resize happens immediately even when text is set programmatically
@@ -40,7 +49,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
     });
   };
 
-  /** Append clause text to the textarea (with double newline separator) */
+  /** Append text to the textarea (with double newline separator) */
   const handleInsertClause = (clauseText: string) => {
     if (!onChange) return;
     const current = text.trim();
@@ -50,7 +59,6 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       additional_text: newText,
       surveyor_edited: true,
     });
-    // Also move focus to the textarea and push caret to end
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
@@ -59,6 +67,31 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       }
     }, 50);
   };
+
+  /** Called when CauseOfLossPicker selects a cause — replaces block text entirely */
+  const handleCauseSelect = (wording: string, causeKey: string) => {
+    if (!onChange) return;
+    setSelectedCauseKey(causeKey);
+    onChange({
+      ...block,
+      additional_text: wording,
+      _cause_key: causeKey,
+      surveyor_edited: true,
+    });
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 50);
+  };
+
+  /** Called when NextStepPicker assembles actions */
+  const handleNextStepAssemble = (assembled: string) => {
+    handleInsertClause(assembled);
+  };
+
+  // Detect which section we're in
+  const sectionSlug = detectSectionFromHeading(sectionTitle);
 
   // Split and highlight bracketed photo references (Photo Nos?...)
   const renderFormattedText = (content: string) => {
@@ -86,17 +119,37 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       )}
       {editable && onChange ? (
         <>
-          {/* Clause Library Picker — only shown when editing */}
-          <ClauseLibraryPicker
-            commodity={commodity}
-            sectionHeading={sectionTitle}
-            onInsert={handleInsertClause}
-          />
+          {/* ── Smart clause pickers — section-aware routing ── */}
+          {sectionSlug === 'cause_of_loss' ? (
+            <CauseOfLossPicker
+              commodity={commodity}
+              selectedKey={selectedCauseKey}
+              onSelect={handleCauseSelect}
+            />
+          ) : sectionSlug === 'next_step' ? (
+            <NextStepPicker
+              commodity={commodity}
+              onAssemble={handleNextStepAssemble}
+            />
+          ) : (
+            <BoilerplatePicker
+              commodity={commodity}
+              sectionHeading={sectionTitle}
+              onInsert={handleInsertClause}
+            />
+          )}
+
           <textarea
             ref={textareaRef}
             value={text}
             onChange={handleTextChange}
-            placeholder="Click to enter findings and circumstances, or use Clause Library above…"
+            placeholder={
+              sectionSlug === 'cause_of_loss'
+                ? 'Select a cause pattern above, or type your cause-of-loss analysis…'
+                : sectionSlug === 'next_step'
+                ? 'Select next-step actions above, or type your recommendations…'
+                : 'Click to enter findings and circumstances, or use Clause Library above…'
+            }
             className="w-full bg-transparent border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white focus:outline-none rounded p-1 text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text"
           />
         </>

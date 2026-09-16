@@ -36,6 +36,8 @@ _GC_FALLBACK_FREQ = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "gen
 _GC_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "general_cargo_output" / "template_archetypes.json"
 _GC_FALLBACK_ARCHETYPES = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "general_cargo_archetypes.json"
 
+_FRUIT_TAXONOMY_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "fruit_clause_taxonomy.json"
+
 # ---------------------------------------------------------------------------
 # Section classification — keyword groups map sentence text → section slug
 # ---------------------------------------------------------------------------
@@ -317,3 +319,112 @@ async def get_clauses(
         "section": section_slug,
         "total": len(result),
     })
+
+
+# ---------------------------------------------------------------------------
+# Fruit Clause Taxonomy endpoint
+# GET /api/clause-taxonomy?commodity=APPLE&section=cause_of_loss
+# Returns structured cause patterns and next-step actions with canonical wording
+# ---------------------------------------------------------------------------
+
+@lru_cache(maxsize=1)
+def _load_taxonomy() -> dict:
+    if _FRUIT_TAXONOMY_FILE.exists():
+        with open(_FRUIT_TAXONOMY_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+@router.get("/clause-taxonomy")
+async def get_clause_taxonomy(
+    commodity: Optional[str] = Query(None, description="Commodity key e.g. APPLE, GRAPE"),
+    section: Optional[str] = Query(
+        None,
+        description="Section slug: cause_of_loss | next_step",
+    ),
+):
+    """
+    Returns the structured clause taxonomy for smart pickers in the form editor.
+
+    - For ``section=cause_of_loss``: returns 6 cause patterns, each with a commodity-specific
+      canonical paragraph (keyed by commodity) and fallback ``_DEFAULT`` wording.
+    - For ``section=next_step``: returns next-step action options with pre-filled text
+      and information about which commodities each action applies to.
+    - If ``section`` is omitted, returns the full taxonomy object.
+
+    This endpoint powers CauseOfLossPicker (radio selector) and NextStepPicker (checkbox list).
+    """
+    taxonomy = _load_taxonomy()
+    if not taxonomy:
+        return JSONResponse(content={"error": "Taxonomy not available"}, status_code=503)
+
+    commodity_key = commodity.upper().strip() if isinstance(commodity, str) and commodity.strip() else None
+    section_slug = section.lower().strip() if isinstance(section, str) and section.strip() else None
+
+    if section_slug == "cause_of_loss":
+        causes = taxonomy.get("CAUSE_OF_LOSS", {})
+        result = []
+        for cause_key, cause_data in causes.items():
+            # Resolve wording: try commodity-specific first, fall back to _DEFAULT
+            wording_map = cause_data.get("commodity_wording", {})
+            if commodity_key and commodity_key in wording_map:
+                wording = wording_map[commodity_key]
+            else:
+                wording = wording_map.get("_DEFAULT", "")
+
+            result.append({
+                "key": cause_key,
+                "label": cause_data.get("label", cause_key),
+                "description": cause_data.get("description", ""),
+                "icon": cause_data.get("icon", ""),
+                "wording": wording,
+                "is_commodity_specific": commodity_key in wording_map if commodity_key else False,
+            })
+        return JSONResponse(content={
+            "section": "cause_of_loss",
+            "commodity": commodity_key,
+            "causes": result,
+        })
+
+    elif section_slug == "next_step":
+        actions = taxonomy.get("NEXT_STEP", {})
+        result = []
+        for action_key, action_data in actions.items():
+            applies_to = action_data.get("applies_to", ["_ALL"])
+            # Determine if this action is relevant to this commodity
+            is_applicable = (
+                "_ALL" in applies_to
+                or not commodity_key
+                or commodity_key in applies_to
+            )
+            # Substitute {COMMODITY} placeholder with friendly commodity name
+            raw_text = action_data.get("text", "")
+            if commodity_key:
+                friendly = commodity_key.capitalize()
+                raw_text = raw_text.replace("{COMMODITY}", friendly)
+
+            result.append({
+                "key": action_key,
+                "label": action_data.get("label", action_key),
+                "text": raw_text,
+                "is_applicable": is_applicable,
+                "applies_to": applies_to,
+            })
+        return JSONResponse(content={
+            "section": "next_step",
+            "commodity": commodity_key,
+            "actions": result,
+        })
+
+    else:
+        # Return the entire taxonomy (minus per-commodity wording to keep payload small)
+        summary = {}
+        for section_name, items in taxonomy.items():
+            summary[section_name] = {}
+            for key, data in items.items():
+                summary[section_name][key] = {
+                    "label": data.get("label", key),
+                    "description": data.get("description", ""),
+                    "icon": data.get("icon", ""),
+                }
+        return JSONResponse(content={"taxonomy": summary})
