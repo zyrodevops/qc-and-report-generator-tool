@@ -99,3 +99,15 @@ Thumbs.db
 
 # 7. Agent Workspace Metadata
 .agents/
+
+# 8. Development Process Documentation (Kept locally, excluded from git)
+/CRITICAL-RULES.md
+/DEVELOPER_WORKFLOW_AND_INSTRUCTIONS.md
+/OCR_IMPLEMENTATION.md
+/ORIGINAL_REQUEST.md
+/PROJECT.md
+/Survey-QC-Platform-Master-Spec.md
+/TEMPLATE-NOTES.md
+/TEST_INFRA.md
+/TEST_READY.md
+/docs/
