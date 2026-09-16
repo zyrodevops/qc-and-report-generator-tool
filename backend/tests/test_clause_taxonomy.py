@@ -48,3 +48,4 @@ def test_clause_taxonomy_note_scenarios():
     assert len(data["scenarios"]) >= 2
     for s in data["scenarios"]:
         assert "NOTE:" in s["template"]
+

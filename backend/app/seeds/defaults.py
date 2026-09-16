@@ -599,14 +599,9 @@ def _build_blocks_for_commodity(
         "label": "Survey",
         "provenance": "own_survey",
         "columns": 2,
-        "groups": [
-            {"id": "pg1", "observation": "Container Exterior, Seal & Reefer Temperature Display", "asset_ids": []},
-            {"id": "pg2", "observation": "Cargo Stacking & General Condition on Destuffing", "asset_ids": []},
-            {"id": "pg3", "observation": "Pulp Temperature Probe & Instrument Readings", "asset_ids": []},
-            {"id": "pg4", "observation": f"Fruit Cutting & Internal Quality — {label}", "asset_ids": []},
-            {"id": "pg5", "observation": "Defect Segregation & Sorted Condition Overview", "asset_ids": []},
-        ],
+        "groups": [],
     })
+
 
     # ── Block 8: PARAGRAPH 3 — CAUSE OF LOSS ──────────────────────────────
     blocks.append({
@@ -1040,13 +1035,9 @@ def _build_blocks_for_general_cargo(
         "label": "Survey",
         "provenance": "own_survey",
         "columns": 2,
-        "groups": [
-            {"id": "pg1", "observation": "Container Exterior & High Security Bolt Seal Intact", "asset_ids": []},
-            {"id": "pg2", "observation": f"Door Opening & {cfg['label']} Stowage Profile on Arrival", "asset_ids": []},
-            {"id": "pg3", "observation": "Damaged Packages / Dented Units Close-up", "asset_ids": []},
-            {"id": "pg4", "observation": "Serial Plates & Marking Identification", "asset_ids": []},
-        ],
+        "groups": [],
     }))
+
 
     # 9. Documentation / List of Enclosures
     all_blocks.append(("enclosures", {
