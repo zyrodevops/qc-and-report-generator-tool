@@ -550,18 +550,17 @@ def _build_blocks_for_commodity(
         "additional_text": supp.get("para2_text", ""),
     })
 
-    # ── Note block (only if archetype has a NOTE heading) ─────────────────
-    has_note = any("note" in h.lower() for h in archetype.get("heading_sequence", []))
-    if has_note:
-        blocks.append({
-            "id": "b_note",
-            "type": "narrative",
-            "section": "NOTE:",
-            "additional_text": (
-                "The condition of the cargo described below is based on random sampling and visual/instrument inspection "
-                "conducted at the time of survey. Results are representative of the sampled portion only."
-            ),
-        })
+    # ── Note block (Container & site condition) ───────────────────────────
+    blocks.append({
+        "id": "b_note",
+        "type": "narrative",
+        "section": "NOTE:",
+        "additional_text": (
+            "NOTE: Upon our arrival, we observed that the container was no longer available on site. "
+            "The Consignees informed us that the container had been destuffed and released back to the shipping line "
+            "to avoid detention charges. As a result, container settings and initial door-opening stowage could not be physically verified."
+        ),
+    })
 
     # ── Block 4: PARAGRAPH 2.1 — OUR SURVEY ──────────────────────────────
     blocks.append({
@@ -609,20 +608,47 @@ def _build_blocks_for_commodity(
         ],
     })
 
-    # ── Block 8: NEXT STEP narrative (only for commodity types that have it in corpus) ──
-    next_step_commodities = {"BLUEBERRY", "DRAGON", "GRAPE", "PLUM", "CHERRY", "AVOCADO"}
-    if commodity_key.upper() in next_step_commodities:
-        blocks.append({
-            "id": "b_next_step",
-            "type": "narrative",
-            "section": "NEXT STEP:",
-            "additional_text": (
-                f"To mitigate losses from the damaged {label} cargo, we advised the Consignees to sell it immediately "
-                "to avoid further deterioration and value loss."
-            ),
-        })
+    # ── Block 8: PARAGRAPH 3 — CAUSE OF LOSS ──────────────────────────────
+    blocks.append({
+        "id": "b_cause",
+        "type": "narrative",
+        "section": "PARAGRAPH 3: CAUSE OF LOSS",
+        "additional_text": (
+            f"According to the Bill of Lading, the requested carrying temperature for this shipment of fresh {label} fruits was "
+            f"[SET POINT TEMP]. During our investigation, temperature recorder downloads were reviewed.\n\n"
+            f"Based on our physical survey findings and cargo condition, the observed deterioration is consistent with "
+            f"temperature variations and transit delays. Pressure bruising on sampled fruits points to harvesting and packing line sorting operations at origin."
+        ),
+    })
 
-    # ── Block 9: Formal closure ───────────────────────────────────────────
+    # ── Block 9: PARAGRAPH 4 — NEXT STEP ──────────────────────────────────
+    blocks.append({
+        "id": "b_next_step",
+        "type": "narrative",
+        "section": "PARAGRAPH 4: NEXT STEP",
+        "additional_text": (
+            f"1. To mitigate losses from the damaged {label} fruits cargo, we advised the Consignees to sell the consignment immediately at best realizable price to avoid further commercial deterioration.\n\n"
+            f"2. Consignees are requested to lodge a formal Notice of Claim against the Ocean Carrier / Shipping Line within statutory time limits, holding them liable for transit losses.\n\n"
+            f"3. We reserve the right to issue a Final Survey Report upon receipt and examination of complete temperature recorder downloads and salvage sale invoices."
+        ),
+    })
+
+    # ── Block 10: PARAGRAPH 5 — DOCUMENTATION ──────────────────────────────
+    blocks.append({
+        "id": "b_doc",
+        "type": "narrative",
+        "section": "PARAGRAPH 5: DOCUMENTATION",
+        "additional_text": (
+            "Documentation secured and reviewed during our enquiries and site attendance includes:\n"
+            "• Ocean Bill of Lading\n"
+            "• Commercial Invoice & Packing List\n"
+            "• Portable Temperature Recorder (Data Logger) Download Report\n"
+            "• Container Equipment Interchange Receipt (EIR) / CFS Gate Pass\n"
+            "• Survey Photographs (Photo Plates attached hereto)"
+        ),
+    })
+
+    # ── Block 11: Formal closure ──────────────────────────────────────────
     disclaimer = next(
         (c for c in archetype.get("top_narrative_clauses", []) if "without prejudice" in c.lower() or "reserve the right" in c.lower()),
         "We reserve the right to modify or add to this report if additional information comes to light.",
@@ -643,6 +669,7 @@ def _build_blocks_for_commodity(
     })
 
     return blocks
+
 
 
 # ---------------------------------------------------------------------------

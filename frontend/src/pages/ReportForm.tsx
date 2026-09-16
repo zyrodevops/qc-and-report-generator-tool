@@ -340,9 +340,12 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           }
 
           if (block.type === 'narrative') {
-            const commodity = blockState?.metadata?.commodity as string | undefined;
+            const commodity = (blockState?.metadata?.commodity as string | undefined) ||
+              (blockState?.report_title?.match(/APPLE|MANDARIN|ORANGE|GRAPE|KIWI|PEAR|BLUEBERRY|CHERRY|PLUM|DRAGON|AVOCADO/i)?.[0]?.toUpperCase()) ||
+              'APPLE';
             return (
               <div key={block.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+
                 {/* NarrativeBlock handles auto-resize (useLayoutEffect) + ClauseLibraryPicker */}
                 <NarrativeBlock
                   block={block}

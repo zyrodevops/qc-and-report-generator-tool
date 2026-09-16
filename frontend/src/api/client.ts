@@ -347,6 +347,20 @@ export interface NextStepAction {
   applies_to: string[];
 }
 
+export interface NarrativeScenario {
+  key: string;
+  label: string;
+  badge: string;
+  description: string;
+  template: string;
+}
+
+export interface ClauseTaxonomyScenarioResponse {
+  section: string;
+  commodity: string | null;
+  scenarios: NarrativeScenario[];
+}
+
 export interface ClauseTaxonomyCauseResponse {
   section: 'cause_of_loss';
   commodity: string | null;
@@ -360,9 +374,9 @@ export interface ClauseTaxonomyNextStepResponse {
 }
 
 export async function fetchClauseTaxonomy(
-  section: 'cause_of_loss' | 'next_step',
+  section: string,
   commodity?: string,
-): Promise<ClauseTaxonomyCauseResponse | ClauseTaxonomyNextStepResponse> {
+): Promise<ClauseTaxonomyCauseResponse | ClauseTaxonomyNextStepResponse | ClauseTaxonomyScenarioResponse> {
   const params = new URLSearchParams({ section });
   if (commodity) params.set('commodity', commodity);
 
@@ -374,3 +388,4 @@ export async function fetchClauseTaxonomy(
   }
   return res.json();
 }
+

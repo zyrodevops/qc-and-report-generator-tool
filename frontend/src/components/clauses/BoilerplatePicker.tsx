@@ -11,9 +11,11 @@ import { fetchClauses, Clause } from '../../api/client';
 // Section slug detection from heading text (shared utility)
 // ---------------------------------------------------------------------------
 export const HEADING_TO_SECTION: [RegExp, string][] = [
-  [/circumstance|circumstances of loss/i, 'circumstances_of_loss'],
-  [/cause of loss|cause \& liability/i, 'cause_of_loss'],
-  [/our survey|survey.*finding|findings|condition found/i, 'survey_findings'],
+  [/application|appointment/i, 'application'],
+  [/circumstance|circumstances of loss|attendance.*circumstance/i, 'circumstances_of_loss'],
+  [/note|survey notes/i, 'note'],
+  [/cause of loss|cause \& liability|cause.*damage/i, 'cause_of_loss'],
+  [/our survey|survey.*finding|findings|condition found|the condition found|internal quality.*temperature/i, 'survey_findings'],
   [/next step/i, 'next_step'],
   [/document|annexure|enclosure/i, 'documentation'],
 ];
@@ -26,12 +28,14 @@ export function detectSectionFromHeading(heading: string): string {
 }
 
 export const SECTION_LABELS: Record<string, string> = {
+  application: 'Application & Attendance',
   circumstances_of_loss: 'Circumstances of Loss',
-  cause_of_loss: 'Cause of Loss',
-  survey_findings: 'Survey Findings',
-  next_step: 'Next Step',
-  documentation: 'Documentation',
-  general: 'General',
+  note: 'Container & Site Observations',
+  survey_findings: 'Survey & Cargo Findings',
+  cause_of_loss: 'Cause of Loss & Liability',
+  next_step: 'Next Step Recommendations',
+  documentation: 'Documentation & Enclosures',
+  general: 'General Observations',
 };
 
 // ---------------------------------------------------------------------------
@@ -257,3 +261,4 @@ export const BoilerplatePicker: React.FC<BoilerplatePickerProps> = ({
     </div>
   );
 };
+
