@@ -37,6 +37,7 @@ _GC_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "general_cargo_output" / "template_
 _GC_FALLBACK_ARCHETYPES = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "general_cargo_archetypes.json"
 
 _FRUIT_TAXONOMY_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "fruit_clause_taxonomy.json"
+_FRUIT_SCENARIOS_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "fruit_scenarios.json"
 
 # ---------------------------------------------------------------------------
 # Section classification — keyword groups map sentence text → section slug
@@ -335,33 +336,72 @@ def _load_taxonomy() -> dict:
     return {}
 
 
+@lru_cache(maxsize=1)
+def _load_scenarios() -> dict:
+    if _FRUIT_SCENARIOS_FILE.exists():
+        with open(_FRUIT_SCENARIOS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
 @router.get("/clause-taxonomy")
 async def get_clause_taxonomy(
     commodity: Optional[str] = Query(None, description="Commodity key e.g. APPLE, GRAPE"),
     section: Optional[str] = Query(
         None,
-        description="Section slug: cause_of_loss | next_step",
+        description="Section slug: cause_of_loss | next_step | circumstances_of_loss | note | survey_findings | application | documentation",
     ),
 ):
     """
-    Returns the structured clause taxonomy for smart pickers in the form editor.
+    Returns the structured clause taxonomy and narrative scenarios for smart pickers in the form editor.
 
     - For ``section=cause_of_loss``: returns 6 cause patterns, each with a commodity-specific
       canonical paragraph (keyed by commodity) and fallback ``_DEFAULT`` wording.
     - For ``section=next_step``: returns next-step action options with pre-filled text
       and information about which commodities each action applies to.
-    - If ``section`` is omitted, returns the full taxonomy object.
-
-    This endpoint powers CauseOfLossPicker (radio selector) and NextStepPicker (checkbox list).
+    - For ``section in (circumstances_of_loss, note, survey_findings, application, documentation)``:
+      returns complete, authentic client report scenarios tailored to that section and commodity.
+    - If ``section`` is omitted, returns the full taxonomy summary.
     """
     taxonomy = _load_taxonomy()
-    if not taxonomy:
+    scenarios = _load_scenarios()
+    if not taxonomy and not scenarios:
         return JSONResponse(content={"error": "Taxonomy not available"}, status_code=503)
 
     commodity_key = commodity.upper().strip() if isinstance(commodity, str) and commodity.strip() else None
     section_slug = section.lower().strip() if isinstance(section, str) and section.strip() else None
+    friendly_commodity = commodity_key.capitalize() if commodity_key else "Fruit"
 
-    if section_slug == "cause_of_loss":
+    # Map section slugs to scenario category keys
+    SCENARIO_SECTION_MAP = {
+        "circumstances_of_loss": "CIRCUMSTANCES_OF_LOSS",
+        "note": "NOTE",
+        "survey_findings": "SURVEY_FINDINGS",
+        "application": "APPLICATION",
+        "documentation": "DOCUMENTATION",
+    }
+
+    if section_slug in SCENARIO_SECTION_MAP:
+        category_key = SCENARIO_SECTION_MAP[section_slug]
+        raw_items = scenarios.get(category_key, [])
+        result = []
+        for item in raw_items:
+            # Substitute {COMMODITY} placeholder
+            tmpl = item.get("template", "").replace("{COMMODITY}", friendly_commodity)
+            result.append({
+                "key": item.get("key"),
+                "label": item.get("label"),
+                "badge": item.get("badge", ""),
+                "description": item.get("description", ""),
+                "template": tmpl,
+            })
+        return JSONResponse(content={
+            "section": section_slug,
+            "commodity": commodity_key,
+            "scenarios": result,
+        })
+
+    elif section_slug == "cause_of_loss":
         causes = taxonomy.get("CAUSE_OF_LOSS", {})
         result = []
         for cause_key, cause_data in causes.items():
@@ -400,8 +440,7 @@ async def get_clause_taxonomy(
             # Substitute {COMMODITY} placeholder with friendly commodity name
             raw_text = action_data.get("text", "")
             if commodity_key:
-                friendly = commodity_key.capitalize()
-                raw_text = raw_text.replace("{COMMODITY}", friendly)
+                raw_text = raw_text.replace("{COMMODITY}", friendly_commodity)
 
             result.append({
                 "key": action_key,
@@ -417,7 +456,7 @@ async def get_clause_taxonomy(
         })
 
     else:
-        # Return the entire taxonomy (minus per-commodity wording to keep payload small)
+        # Return the entire taxonomy summary
         summary = {}
         for section_name, items in taxonomy.items():
             summary[section_name] = {}
@@ -428,3 +467,4 @@ async def get_clause_taxonomy(
                     "icon": data.get("icon", ""),
                 }
         return JSONResponse(content={"taxonomy": summary})
+

@@ -238,3 +238,4 @@ export const CauseOfLossPicker: React.FC<CauseOfLossPickerProps> = ({
     </div>
   );
 };
+

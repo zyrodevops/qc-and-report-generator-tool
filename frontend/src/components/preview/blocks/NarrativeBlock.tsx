@@ -1,8 +1,9 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
-import { detectSectionFromHeading } from '../../clauses/BoilerplatePicker';
+import { detectSectionFromHeading, SECTION_LABELS } from '../../clauses/BoilerplatePicker';
 import { CauseOfLossPicker } from '../../clauses/CauseOfLossPicker';
 import { NextStepPicker } from '../../clauses/NextStepPicker';
 import { BoilerplatePicker } from '../../clauses/BoilerplatePicker';
+import { ScenarioPicker } from '../../clauses/ScenarioPicker';
 
 
 export interface NarrativeBlockProps {
@@ -85,6 +86,21 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
     }, 50);
   };
 
+  /** Called when ScenarioPicker selects a full scenario paragraph */
+  const handleScenarioSelect = (scenarioText: string) => {
+    if (!onChange) return;
+    onChange({
+      ...block,
+      additional_text: scenarioText,
+      surveyor_edited: true,
+    });
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 50);
+  };
+
   /** Called when NextStepPicker assembles actions */
   const handleNextStepAssemble = (assembled: string) => {
     handleInsertClause(assembled);
@@ -92,6 +108,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
 
   // Detect which section we're in
   const sectionSlug = detectSectionFromHeading(sectionTitle);
+  const isScenarioSection = ['circumstances_of_loss', 'note', 'survey_findings', 'application', 'documentation'].includes(sectionSlug);
 
   // Split and highlight bracketed photo references (Photo Nos?...)
   const renderFormattedText = (content: string) => {
@@ -120,24 +137,41 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       {editable && onChange ? (
         <>
           {/* ── Smart clause pickers — section-aware routing ── */}
-          {sectionSlug === 'cause_of_loss' ? (
-            <CauseOfLossPicker
-              commodity={commodity}
-              selectedKey={selectedCauseKey}
-              onSelect={handleCauseSelect}
-            />
-          ) : sectionSlug === 'next_step' ? (
-            <NextStepPicker
-              commodity={commodity}
-              onAssemble={handleNextStepAssemble}
-            />
-          ) : (
-            <BoilerplatePicker
-              commodity={commodity}
-              sectionHeading={sectionTitle}
-              onInsert={handleInsertClause}
-            />
-          )}
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            {sectionSlug === 'cause_of_loss' ? (
+              <CauseOfLossPicker
+                commodity={commodity}
+                selectedKey={selectedCauseKey}
+                onSelect={handleCauseSelect}
+              />
+            ) : sectionSlug === 'next_step' ? (
+              <NextStepPicker
+                commodity={commodity}
+                onAssemble={handleNextStepAssemble}
+              />
+            ) : isScenarioSection ? (
+              <>
+                <ScenarioPicker
+                  commodity={commodity}
+                  sectionSlug={sectionSlug}
+                  sectionLabel={SECTION_LABELS[sectionSlug] || 'Section'}
+                  onSelect={handleScenarioSelect}
+                />
+                <BoilerplatePicker
+                  commodity={commodity}
+                  sectionHeading={sectionTitle}
+                  onInsert={handleInsertClause}
+                />
+              </>
+            ) : (
+              <BoilerplatePicker
+                commodity={commodity}
+                sectionHeading={sectionTitle}
+                onInsert={handleInsertClause}
+              />
+            )}
+          </div>
+
 
           <textarea
             ref={textareaRef}

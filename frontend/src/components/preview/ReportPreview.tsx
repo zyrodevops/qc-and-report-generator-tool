@@ -381,8 +381,13 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
                     block={b}
                     onChange={onBlockChange}
                     editable={editable}
-                    commodity={metadata?.commodity}
+                    commodity={
+                      metadata?.commodity ||
+                      (blockState?.report_title?.match(/APPLE|MANDARIN|ORANGE|GRAPE|KIWI|PEAR|BLUEBERRY|CHERRY|PLUM|DRAGON|AVOCADO/i)?.[0]?.toUpperCase()) ||
+                      'APPLE'
+                    }
                   />
+
                 );
               }
               if (b.type === 'measurements') {
