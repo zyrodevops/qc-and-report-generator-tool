@@ -111,8 +111,14 @@ async function createImageCell(imageData: ImageData): Promise<TableCell> {
     
     const arrayBuffer = await imageData.processedBlob.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
+
+    // The docx library needs to be told the image format explicitly. The
+    // processed blob is written as PNG or JPEG by imageProcessor, so take it
+    // from the blob rather than assuming one.
+    const imageType = imageData.processedBlob.type === 'image/png' ? 'png' : 'jpg';
     
     const image = new ImageRun({
+      type: imageType,
       data: uint8Array,
       transformation: {
         width: FIXED_IMAGE_WIDTH,
@@ -306,8 +312,14 @@ async function createProImageCell(
     
     const arrayBuffer = await imageData.processedBlob.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
+
+    // The docx library needs to be told the image format explicitly. The
+    // processed blob is written as PNG or JPEG by imageProcessor, so take it
+    // from the blob rather than assuming one.
+    const imageType = imageData.processedBlob.type === 'image/png' ? 'png' : 'jpg';
     
     const image = new ImageRun({
+      type: imageType,
       data: uint8Array,
       transformation: {
         width: PRO_IMAGE_WIDTH,

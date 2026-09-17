@@ -30,7 +30,7 @@ def test_full_week1_workflow_end_to_end():
 
     # 1. Create report
     create_payload = {
-        "template_id": "perishable-qc-sea",
+        "template_id": "perishable_qc_sea",
         "family": "QC_REPORT",
         "year": 2026,
         "block_state": {

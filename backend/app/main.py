@@ -8,7 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from app.config import settings
-from app.api import health, auth, reports, assets, generate, commodities, clauses
+from app.api import (
+    health, auth, reports, assets, generate, commodities, clauses, templates,
+)
 from app.core.security import hash_password
 from app.database import async_session_factory
 from app.models.user import User
@@ -43,24 +45,59 @@ async def lifespan(app: FastAPI):
                     )
                     db.add(user)
             # Seed the six canonical report templates
-            from app.seeds.templates import SIX_CANONICAL_TEMPLATES
+            from app.seeds.templates import (
+                SIX_CANONICAL_TEMPLATES,
+                LEGACY_DUPLICATE_TEMPLATE_IDS,
+                LEGACY_TEMPLATE_ID_MAP,
+            )
             from app.models.template import Template
+            from app.models.report import Report
+            from sqlalchemy import delete as sa_delete, update as sa_update
+
+            # Older builds seeded hyphenated aliases of the same six templates,
+            # leaving 12 rows for 6 report types. Existing reports may point at
+            # those ids and there is an FK, so repoint the reports first.
+            for legacy_id, canonical_id in LEGACY_TEMPLATE_ID_MAP.items():
+                await db.execute(
+                    sa_update(Report)
+                    .where(Report.template_id == legacy_id)
+                    .values(template_id=canonical_id)
+                )
+            await db.flush()
+            await db.execute(
+                sa_delete(Template).where(
+                    Template.id.in_(LEGACY_DUPLICATE_TEMPLATE_IDS)
+                )
+            )
+
+            # Upsert the canonical six: block sequences change as the spec evolves,
+            # so refresh existing rows rather than skipping them.
             for t_data in SIX_CANONICAL_TEMPLATES:
                 stmt = select(Template).where(Template.id == t_data["id"])
                 res = await db.execute(stmt)
-                if not res.scalars().first():
-                    tmpl = Template(
+                existing = res.scalars().first()
+                if existing:
+                    existing.name = t_data["name"]
+                    existing.family = t_data["family"]
+                    existing.mode = t_data["mode"]
+                    existing.block_sequence = t_data["block_sequence"]
+                else:
+                    db.add(Template(
                         id=t_data["id"],
                         name=t_data["name"],
                         family=t_data["family"],
                         mode=t_data["mode"],
                         block_sequence=t_data["block_sequence"],
-                    )
-                    db.add(tmpl)
+                    ))
             await db.commit()
-    except Exception:
-        # If database is not ready or tables not yet migrated at startup, continue
-        pass
+    except Exception as exc:
+        # If database is not ready or tables not yet migrated at startup, continue.
+        # Log it though: silently swallowing this hid a seeding failure for a whole
+        # release, so the templates table kept serving stale block sequences.
+        import logging
+        logging.getLogger(__name__).warning(
+            "Startup seeding skipped: %s: %s", type(exc).__name__, exc
+        )
 
     # 3. Schema migrations — add new columns safely (idempotent)
     try:
@@ -119,3 +156,4 @@ app.include_router(assets.router, prefix="/api/reports", tags=["Assets"])
 app.include_router(generate.router, prefix="/api/reports", tags=["Generate"])
 app.include_router(commodities.router, prefix="/api", tags=["Commodities"])
 app.include_router(clauses.router, prefix="/api", tags=["Clauses"])
+app.include_router(templates.router, prefix="/api", tags=["Templates"])

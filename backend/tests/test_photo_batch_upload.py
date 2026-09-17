@@ -25,7 +25,7 @@ def test_batch_photo_upload_endpoint():
 
     # 1. Create a draft report
     create_payload = {
-        "template_id": "perishable-qc-sea",
+        "template_id": "perishable_qc_sea",
         "family": "QC_REPORT",
         "year": 2026,
         "block_state": {

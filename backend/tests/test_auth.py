@@ -148,7 +148,7 @@ async def test_audit_trail_insertion_on_report_creation(async_client, db_session
     # 2. Create report
     headers = {"Authorization": f"Bearer {token}"}
     report_payload = {
-        "template_id": "mca-qc-v1",
+        "template_id": "perishable_qc_sea",
         "family": "marine_cargo",
         "year": 2026,
         "block_state": {"vessel": "MV Oceanic Star"},

@@ -41,12 +41,12 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
     # ── APPLE ──────────────────────────────────────────────────────────────
     "APPLE": {
         "label": "Fresh Apple",
-        "declared": "Fresh Apple Fruits (2,100 Cartons on 20 Pallets)",
+        "declared": "Fresh Apple Fruits — [quantity and packing from the invoice]",
         "packing_note": "Each carton contains approx. 100–125 pcs packed in individual poly sleeves.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "1.2", "max": "2.0", "unit": "°C"},
-            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (11 mm tip)", "min": "14.5", "max": "17.0", "unit": "lbs/cm²"},
-            {"subject": "Starch Iodine Index", "method": "CTIFL Scale (1–8)", "min": "4.0", "max": "5.5", "unit": "Score"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (11 mm tip)", "min": "", "max": "", "unit": "lbs/cm²"},
+            {"subject": "Starch Iodine Index", "method": "CTIFL Scale (1–8)", "min": "", "max": "", "unit": "Score"},
         ],
         "para1_text": (
             "We the undersigned surveyors were appointed to conduct survey of the subject consignment. "
@@ -70,22 +70,17 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Upon cutting the sound apples, the pulp was found firm and white; bruised fruits showed brownish discoloration "
             "below the epidermal layer."
         ),
-        "default_rows": [
-            {"group": "Count 100 (2 Cartons)", "values": {"Sound": "142", "Russet": "12", "Bruised": "26", "Damage": "14", "Rotten": "6", "Shriveled": "0"}},
-            {"group": "Count 113 (2 Cartons)", "values": {"Sound": "158", "Russet": "16", "Bruised": "32", "Damage": "18", "Rotten": "4", "Shriveled": "2"}},
-            {"group": "Count 125 (2 Cartons)", "values": {"Sound": "172", "Russet": "8",  "Bruised": "38", "Damage": "20", "Rotten": "8", "Shriveled": "4"}},
-        ],
     },
 
     # ── GRAPE ──────────────────────────────────────────────────────────────
     "GRAPE": {
         "label": "Fresh Table Grapes",
-        "declared": "Fresh Table Grapes (Approx. 3,250 cartons on 25 pallets)",
+        "declared": "Fresh Table Grapes — [quantity and packing from the invoice]",
         "packing_note": "Each carton contains approx. 9 kg packed in punnet trays with SO₂ pads.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "0.8", "max": "1.6", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "16.00", "max": "18.50", "unit": "%"},
-            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "Firm & Intact", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
+            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
@@ -105,22 +100,17 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Brix (soluble solids) was checked via digital refractometer and found between 16.00% and 18.50%.\n"
             "• Soft and rotten grapes emitted a characteristic fermented odour; shatter berries were loose at carton base."
         ),
-        "default_rows": [
-            {"group": "Pallet 1 – Boxes 1–4", "values": {"Sound Grapes": "18.820", "Soft Grapes": "0.450", "Rotten Grapes": "0.340"}},
-            {"group": "Pallet 2 – Boxes 5–8", "values": {"Sound Grapes": "19.110", "Soft Grapes": "0.310", "Rotten Grapes": "0.220"}},
-            {"group": "Pallet 3 – Boxes 9–12", "values": {"Sound Grapes": "18.650", "Soft Grapes": "0.520", "Rotten Grapes": "0.410"}},
-        ],
     },
 
     # ── BLUEBERRY ──────────────────────────────────────────────────────────
     "BLUEBERRY": {
         "label": "Fresh Blueberry",
-        "declared": "Fresh Blueberries (Approx. 5,500 punnets, 125 g each)",
+        "declared": "Fresh Blueberries — [quantity and packing from the invoice]",
         "packing_note": "Packed in 125 g retail punnets; 8 punnets per master carton.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "0.5", "max": "2.0", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "12.00", "max": "14.50", "unit": "%"},
-            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "Firm to Slightly Soft", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
+            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
@@ -140,22 +130,17 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Rotten berries were collapsed with visible mould colonisation.\n"
             "• To mitigate further losses from the damaged blueberry fruits, we advised the Consignees to sell them immediately."
         ),
-        "default_rows": [
-            {"group": "Pallet 1 – Carton 1", "values": {"Found Net Weight Of Sound Berries": "0.740", "Found Net Weight Of Soft Berries": "0.180", "Found Net Weight Of Rotten Berries": "0.080"}},
-            {"group": "Pallet 2 – Carton 2", "values": {"Found Net Weight Of Sound Berries": "0.810", "Found Net Weight Of Soft Berries": "0.120", "Found Net Weight Of Rotten Berries": "0.070"}},
-            {"group": "Pallet 3 – Carton 3", "values": {"Found Net Weight Of Sound Berries": "0.690", "Found Net Weight Of Soft Berries": "0.220", "Found Net Weight Of Rotten Berries": "0.090"}},
-        ],
     },
 
     # ── ORANGE ─────────────────────────────────────────────────────────────
     "ORANGE": {
         "label": "Fresh Orange",
-        "declared": "Fresh Orange Fruits (Approx. 2,400 Cartons on 22 Pallets)",
+        "declared": "Fresh Orange Fruits — [quantity and packing from the invoice]",
         "packing_note": "Each carton contains approx. 72–100 pcs individually wrapped in tissue.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "4.2", "max": "5.1", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "10.50", "max": "11.80", "unit": "%"},
-            {"subject": "Pulp Condition", "method": "Cutting Inspection", "min": "Firm & Juicy", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
+            {"subject": "Pulp Condition", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage facility to conduct a joint inspection "
@@ -175,22 +160,17 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Russet fruits showed superficial skin browning; internal quality was acceptable in most cases.\n"
             "• Rotten fruits exhibited collapsed pulp with a fermented odour."
         ),
-        "default_rows": [
-            {"group": "Count 72 (2 Cartons)", "values": {"Sound": "102", "Rotten": "4", "Russet": "12", "Soft": "8", "Rotten Spot": "5", "Shrivelled": "1"}},
-            {"group": "Count 88 (2 Cartons)", "values": {"Sound": "98",  "Rotten": "8", "Russet": "16", "Soft": "10","Rotten Spot": "6", "Shrivelled": "2"}},
-            {"group": "Count 100 (2 Cartons)", "values": {"Sound": "84",  "Rotten": "10","Russet": "22", "Soft": "14","Rotten Spot": "8", "Shrivelled": "2"}},
-        ],
     },
 
     # ── PEAR ───────────────────────────────────────────────────────────────
     "PEAR": {
         "label": "Fresh Pear",
-        "declared": "Fresh Pear Fruits (Approx. 2,600 Cartons on 24 Pallets)",
+        "declared": "Fresh Pear Fruits — [quantity and packing from the invoice]",
         "packing_note": "Each carton approx. 18 kg; fruits packed in individual poly bags.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "0.5", "max": "1.5", "unit": "°C"},
-            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (8 mm tip)", "min": "4.0", "max": "7.0", "unit": "lbs"},
-            {"subject": "Internal Flesh Colour", "method": "Cutting Inspection", "min": "Cream/White", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (8 mm tip)", "min": "", "max": "", "unit": "lbs"},
+            {"subject": "Internal Flesh Colour", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage to carry out a joint inspection "
@@ -209,22 +189,17 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Upon cutting, flesh of sound fruits was cream-coloured and firm; soft fruits showed brown discolouration progressing from core outward.\n"
             "• Shrivelled fruits had lost significant moisture; skin was wrinkled and fruit weight was noticeably reduced."
         ),
-        "default_rows": [
-            {"group": "Count 90 (2 Cartons)", "values": {"Sound": "120", "Rotten": "6", "Russet": "8", "Damaged": "10", "Shrivelled": "4", "Rotten Spot": "2"}},
-            {"group": "Count 100 (2 Cartons)", "values": {"Sound": "132", "Rotten": "8", "Russet": "10", "Damaged": "12", "Shrivelled": "6", "Rotten Spot": "2"}},
-            {"group": "Count 110 (2 Cartons)", "values": {"Sound": "144", "Rotten": "10", "Russet": "12", "Damaged": "14", "Shrivelled": "8", "Rotten Spot": "2"}},
-        ],
     },
 
     # ── KIWI ───────────────────────────────────────────────────────────────
     "KIWI": {
         "label": "Fresh Kiwi",
-        "declared": "Fresh Kiwi Fruits (Approx. 3,000 Cartons on 26 Pallets)",
+        "declared": "Fresh Kiwi Fruits — [quantity and packing from the invoice]",
         "packing_note": "Each carton contains 36 or 42 pcs; fruits individually wrapped.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "0.0", "max": "1.5", "unit": "°C"},
-            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (8 mm tip)", "min": "0.5", "max": "3.0", "unit": "kg/cm²"},
-            {"subject": "Internal Flesh Colour", "method": "Cutting Inspection", "min": "Bright Green", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (8 mm tip)", "min": "", "max": "", "unit": "kg/cm²"},
+            {"subject": "Internal Flesh Colour", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
@@ -246,22 +221,17 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "the soft kiwis are no longer fit for human consumption.\n"
             "• Sound fruits were firm with bright green flesh and no internal discolouration."
         ),
-        "default_rows": [
-            {"group": "Count 36 (2 Cartons)", "values": {"Sound": "42", "Soft": "16", "Rotten": "6", "Pitting": "8"}},
-            {"group": "Count 42 (2 Cartons)", "values": {"Sound": "54", "Soft": "20", "Rotten": "8", "Pitting": "10"}},
-            {"group": "Count 36 (2 Cartons)", "values": {"Sound": "38", "Soft": "22", "Rotten": "10", "Pitting": "2"}},
-        ],
     },
 
     # ── MANDARIN ───────────────────────────────────────────────────────────
     "MANDARIN": {
         "label": "Fresh Mandarin",
-        "declared": "Fresh Mandarin Fruits (2,916 Cartons on 24 Pallets)",
+        "declared": "Fresh Mandarin Fruits — [quantity and packing from the invoice]",
         "packing_note": "Each carton 9 kg net; packed with paper wrapping.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "4.0", "max": "4.6", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "10.00", "max": "12.00", "unit": "%"},
-            {"subject": "Internal Flesh Quality", "method": "Cutting Inspection", "min": "Soft & Juicy", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
+            {"subject": "Internal Flesh Quality", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the cold storage to conduct a joint survey upon container destuffing. "
@@ -281,22 +251,16 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Brix was checked and found in the range of 10.00% to 12.00%.\n"
             "• Upon cutting, the pulp was found soft and juicy; rotten spot fruits showed brown necrotic patches on the peel and flesh."
         ),
-        "default_rows": [
-            {"group": "Count 55 (2 Cartons)", "values": {"Sound": "133", "Soft": "54", "Russet": "14", "Rotten Spot": "9", "Rotten": "24"}},
-            {"group": "Count 60 (2 Cartons)", "values": {"Sound": "92",  "Soft": "46", "Russet": "16", "Rotten Spot": "7", "Rotten": "14"}},
-            {"group": "Count 65 (2 Cartons)", "values": {"Sound": "83",  "Soft": "36", "Russet": "8",  "Rotten Spot": "15","Rotten": "4"}},
-            {"group": "Count 70 (2 Cartons)", "values": {"Sound": "63",  "Soft": "36", "Russet": "13", "Rotten Spot": "3", "Rotten": "5"}},
-        ],
     },
 
     # ── DRAGON ─────────────────────────────────────────────────────────────
     "DRAGON": {
         "label": "Fresh Dragon Fruit",
-        "declared": "Fresh Dragon Fruits (Approx. 2,800 Cartons on 22 Pallets)",
+        "declared": "Fresh Dragon Fruits — [quantity and packing from the invoice]",
         "packing_note": "Each carton contains approx. 10 kg; fruits packed individually in foam sleeves.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "8.0", "max": "10.0", "unit": "°C"},
-            {"subject": "Pulp Colour", "method": "Visual Inspection", "min": "White to Slightly Translucent", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Pulp Colour", "method": "Visual Inspection", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
@@ -315,22 +279,17 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Soft fruits showed indentation under light finger pressure; shrivelled fruits had lost moisture with wrinkled skin.\n"
             "• To mitigate further losses from the damaged dragon fruits, we advised the Consignees to sell them immediately."
         ),
-        "default_rows": [
-            {"group": "Pallet 1 (5 Cartons)", "values": {"Sound": "28", "Soft": "12", "Shrivelled": "8", "Rotten": "2"}},
-            {"group": "Pallet 2 (5 Cartons)", "values": {"Sound": "32", "Soft": "10", "Shrivelled": "6", "Rotten": "2"}},
-            {"group": "Pallet 3 (5 Cartons)", "values": {"Sound": "26", "Soft": "14", "Shrivelled": "10", "Rotten": "0"}},
-        ],
     },
 
     # ── CHERRY ─────────────────────────────────────────────────────────────
     "CHERRY": {
         "label": "Fresh Cherry",
-        "declared": "Fresh Cherries (Approx. 1,500 Cartons on 15 Pallets)",
+        "declared": "Fresh Cherries — [quantity and packing from the invoice]",
         "packing_note": "Each carton approx. 5 kg; fruits packed in 250 g retail punnets.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "0.0", "max": "1.5", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "18.00", "max": "22.00", "unit": "%"},
-            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "Firm to Slightly Soft", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
+            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
@@ -349,22 +308,17 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Soft cherries were translucent with slight indentation; pitting marks were surface-level circular depressions.\n"
             "• Rotten cherries showed collapsed flesh with mould on the skin surface."
         ),
-        "default_rows": [
-            {"group": "Pallet 1 – Carton 1", "values": {"Sound": "180", "Soft Cargo": "42", "Pitting": "28", "Rotten": "8"}},
-            {"group": "Pallet 2 – Carton 2", "values": {"Sound": "196", "Soft Cargo": "36", "Pitting": "20", "Rotten": "6"}},
-            {"group": "Pallet 3 – Carton 3", "values": {"Sound": "172", "Soft Cargo": "48", "Pitting": "32", "Rotten": "12"}},
-        ],
     },
 
     # ── AVOCADO ────────────────────────────────────────────────────────────
     "AVOCADO": {
         "label": "Fresh Avocado",
-        "declared": "Fresh Avocado (Approx. 2,200 Cartons on 20 Pallets)",
+        "declared": "Fresh Avocado — [quantity and packing from the invoice]",
         "packing_note": "Each carton contains approx. 24 pcs in size 24; packed in ventilated cartons.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "5.5", "max": "7.0", "unit": "°C"},
-            {"subject": "Fruit Firmness", "method": "Visual & Touch Assessment", "min": "Firm to Soft", "max": "", "unit": "-"},
-            {"subject": "Pulp Colour (on cut)", "method": "Cutting Inspection", "min": "Light Yellow-Green", "max": "", "unit": "-"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Fruit Firmness", "method": "Visual & Touch Assessment", "min": "", "max": "", "unit": "-"},
+            {"subject": "Pulp Colour (on cut)", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
@@ -383,21 +337,16 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Soft-over-ripe fruits had black-streaked pulp; black & rotten fruits showed putrefaction and offensive odour.\n"
             "• Consignees are requested to sell sound and soft cargo immediately to mitigate further deterioration."
         ),
-        "default_rows": [
-            {"group": "Size 24 – Carton 1", "values": {"Sound": "14", "Soft": "6", "Soft/Over-Ripped": "2", "Black & Rotten": "2"}},
-            {"group": "Size 24 – Carton 2", "values": {"Sound": "16", "Soft": "4", "Soft/Over-Ripped": "2", "Black & Rotten": "2"}},
-            {"group": "Size 24 – Carton 3", "values": {"Sound": "12", "Soft": "8", "Soft/Over-Ripped": "2", "Black & Rotten": "2"}},
-        ],
     },
 
     # ── PLUM ───────────────────────────────────────────────────────────────
     "PLUM": {
         "label": "Fresh Plum",
-        "declared": "Fresh Plum Fruits (Approx. 2,400 Cartons on 22 Pallets)",
+        "declared": "Fresh Plum Fruits — [quantity and packing from the invoice]",
         "packing_note": "Each carton approx. 5 kg; fruits packed in trays with paper wrapping.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "0.0", "max": "2.0", "unit": "°C"},
-            {"subject": "Fruit Firmness", "method": "Penetrometer (8 mm tip)", "min": "1.5", "max": "4.0", "unit": "kg/cm²"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Fruit Firmness", "method": "Penetrometer (8 mm tip)", "min": "", "max": "", "unit": "kg/cm²"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
@@ -416,21 +365,16 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Soft fruits had lost firmness with internal browning; rotten fruits showed collapsed pulp and offensive odour.\n"
             "• To reduce the losses, we advised the consignees to sell the damaged plum fruits immediately."
         ),
-        "default_rows": [
-            {"group": "Size 50 (2 Cartons)", "values": {"Sound": "64", "Rotten": "6", "Soft": "14", "Russet": "8", "Shrivelled": "8"}},
-            {"group": "Size 60 (2 Cartons)", "values": {"Sound": "74", "Rotten": "8", "Soft": "16", "Russet": "10", "Shrivelled": "12"}},
-            {"group": "Size 70 (2 Cartons)", "values": {"Sound": "82", "Rotten": "10", "Soft": "18", "Russet": "12", "Shrivelled": "8"}},
-        ],
     },
 
     # ── APRICOT ────────────────────────────────────────────────────────────
     "APRICOT": {
         "label": "Fresh Apricot",
-        "declared": "Fresh Apricot, Peach & Nectarine (Approx. 1,800 Cartons on 18 Pallets)",
+        "declared": "Fresh Apricot, Peach & Nectarine — [quantity and packing from the invoice]",
         "packing_note": "Mixed fruit consignment; each carton approx. 5 kg.",
         "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "1.0", "max": "3.0", "unit": "°C"},
-            {"subject": "Fruit Firmness", "method": "Penetrometer (8 mm tip)", "min": "1.0", "max": "3.5", "unit": "kg/cm²"},
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
+            {"subject": "Fruit Firmness", "method": "Penetrometer (8 mm tip)", "min": "", "max": "", "unit": "kg/cm²"},
         ],
         "para1_text": (
             "We the undersigned surveyors attended at the cold storage to conduct a joint survey of the subject mixed stone "
@@ -449,11 +393,6 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
             "• Rotten fruits showed collapsed flesh and offensive odour.\n"
             "• Consignees are requested to pursue any claims related matter directly with the responsible parties."
         ),
-        "default_rows": [
-            {"group": "Apricot – 2 Cartons", "values": {"Sound Apricot": "42", "Soft Apricot": "14", "Rotten Apricot": "4"}},
-            {"group": "Nectarine – 2 Cartons", "values": {"Sound Nectarines Fruits": "38", "Soft Nectarines Fruits": "18", "Rotten Nectarines Fruits": "4"}},
-            {"group": "Peach – 2 Cartons", "values": {"Sound Peaches": "34", "Soft Peaches": "20", "Rotten Apricot": "0"}},
-        ],
     },
 }
 
@@ -471,32 +410,15 @@ def _build_blocks_for_commodity(
 ) -> List[Dict[str, Any]]:
     """Build the complete list of blocks for a given commodity."""
 
-    # Determine defect columns: prefer archetype columns but clean noise
-    arch_cols = [
-        c for c in archetype.get("defect_columns", [])
-        if len(c) <= 60
-    ]
-    # De-duplicate preserving order
-    seen: set = set()
-    clean_arch_cols: List[str] = []
-    for col in arch_cols:
-        key = col.strip().lower()
-        if key not in seen:
-            seen.add(key)
-            clean_arch_cols.append(col.strip())
-        if len(clean_arch_cols) >= 8:
-            break
+    # Columns come from the same place the Verification Workbench gets them, so
+    # the grid on the form and the grid the tally sheet is read into are the
+    # same shape. They used to be taken from the keys of the sample rows below,
+    # which is why the form showed six columns while the workbench offered the
+    # eleven this fruit is actually graded on.
+    from app.ingest.tally.categories import build_categories, unit_for
 
-    # Use sample rows to determine actual categories; align with archetype columns
-    sample_rows = supp.get("default_rows", [])
-    if sample_rows:
-        # Pull categories from first row keys that match clean_arch_cols (case-insensitive)
-        row_keys = list(sample_rows[0].get("values", {}).keys())
-        categories = [{"key": k, "label": k} for k in row_keys]
-    else:
-        categories = [{"key": c, "label": c} for c in (clean_arch_cols or ["Sound", "Rotten"])]
-
-    unit = archetype.get("unit", "pcs")
+    categories = [{"key": c["key"], "label": c["label"]} for c in build_categories(commodity_key)]
+    unit = unit_for(commodity_key) or archetype.get("unit", "pcs")
     label = supp.get("label", commodity_key.capitalize())
 
     # Determine heading label for the defect condition section
@@ -580,6 +502,13 @@ def _build_blocks_for_commodity(
         })
 
     # ── Block 6: Defect condition table ───────────────────────────────────
+    #
+    # Starts empty. It used to be seeded with three rows of made-up counts
+    # (Count 100: 142 sound, 12 russet, 26 bruised…) which appeared in every new
+    # report before the surveyor had uploaded anything. They totalled and
+    # percentaged like real figures, so a report could be finished and signed
+    # with numbers that came from this file. The counts belong to the tally
+    # sheet, and nowhere else.
     blocks.append({
         "id": "b_table",
         "type": "table",
@@ -587,7 +516,7 @@ def _build_blocks_for_commodity(
         "grouping_label": "Sample / Count",
         "unit": unit,
         "categories": categories,
-        "rows": sample_rows,
+        "rows": [],
     })
 
     # ── Block 7: Survey Photographs ───────────────────────────────────────

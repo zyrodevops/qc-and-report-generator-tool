@@ -4,10 +4,35 @@ Enforces CRITICAL-RULES §8: IRDAI Licence Number is loaded exclusively via envi
 """
 
 import os
+import platform
+import shutil
 from pathlib import Path
 from typing import List, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Repository root, i.e. the directory holding backend/ and frontend/.
+# The .env path is anchored to it because a bare ".env" resolves against the
+# current working directory: running the app from the repo root found the file,
+# running alembic from backend/ did not, and the database URL silently fell back
+# to the built-in default port.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _default_libreoffice() -> str:
+    """
+    Where to find headless LibreOffice for DOCX to PDF conversion.
+
+    This was a fixed /usr/bin path, which cannot exist on the Windows machines
+    the tool is developed and demonstrated on, so PDF download failed there with
+    a file-not-found error rather than anything that pointed at the cause.
+    """
+    found = shutil.which("soffice") or shutil.which("libreoffice")
+    if found:
+        return found
+    if platform.system() == "Windows":
+        return r"C:\Program Files\LibreOffice\program\soffice.exe"
+    return "/usr/bin/libreoffice"
 
 
 class Settings(BaseSettings):
@@ -57,7 +82,32 @@ class Settings(BaseSettings):
     TEMPLATES_DIR: Path = Path("./templates")
 
     # Headless LibreOffice
-    LIBREOFFICE_BINARY: str = "/usr/bin/libreoffice"
+    LIBREOFFICE_BINARY: str = _default_libreoffice()
+
+    # ------------------------------------------------------------------
+    # Reading handwritten tally sheets
+    # ------------------------------------------------------------------
+    # The sheets are pen on a pre-printed form, photographed on a phone, often
+    # sideways, often with highlighter over the subtotal rows. A local OCR
+    # engine does not cope with that. A hosted vision model does, so it is the
+    # primary reader when a key is configured, and the local engine is the
+    # fallback for when it is not.
+    #
+    # Primary means it reads first, not that it is believed. Everything it
+    # returns lands in the Verification Workbench flagged for checking, and the
+    # row arithmetic is proved against the total written on the sheet before
+    # anything can be saved.
+    #
+    # Confidentiality: the sheet carries the MCA letterhead, the party name and
+    # the container number, and free API tiers generally permit the provider to
+    # retain what is submitted. TALLY_CLOUD_SEND_FULL_SHEET decides whether the
+    # header band goes with it. Sending it means the model also fills in party,
+    # container, dates, room and brix; withholding it means the surveyor types
+    # those six fields and only the number grid leaves the building.
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    TALLY_CLOUD_SEND_FULL_SHEET: bool = os.getenv("TALLY_CLOUD_SEND_FULL_SHEET", "true").lower() in ("true", "1", "yes")
+    TALLY_CLOUD_TIMEOUT_SECONDS: int = 90
 
     # CORS Allowed Origins
     CORS_ORIGINS: List[str] = [
@@ -68,7 +118,7 @@ class Settings(BaseSettings):
     ]
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_REPO_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )

@@ -15,20 +15,15 @@ import {
   Square,
   SlidersHorizontal,
 } from 'lucide-react';
-import { fetchReports, createReport, fetchCommodities, ReportSummary, CommodityArchetype } from '../api/client';
+import { fetchReports, createReport, fetchCommodities, fetchTemplates, ReportSummary, CommodityArchetype, ReportTemplate } from '../api/client';
 
 interface ReportListProps {
   onSelectReport: (report: ReportSummary) => void;
 }
 
-const REPORT_TYPE_OPTIONS = [
-  { value: 'perishable-qc-sea', label: 'Perishable QC Report – Sea', family: 'QC_REPORT', mode: 'SEA' },
-  { value: 'perishable-qc-air', label: 'Perishable QC Report – Air', family: 'QC_REPORT', mode: 'AIR' },
-  { value: 'perishable-survey-sea', label: 'Perishable Survey – Sea', family: 'SURVEY_REPORT', mode: 'SEA' },
-  { value: 'perishable-survey-air', label: 'Perishable Survey – Air', family: 'SURVEY_REPORT', mode: 'AIR' },
-  { value: 'general-cargo-sea', label: 'General Cargo Survey – Sea', family: 'SURVEY_REPORT', mode: 'SEA' },
-  { value: 'general-cargo-air', label: 'General Cargo Survey – Air', family: 'SURVEY_REPORT', mode: 'AIR' },
-];
+// Report types come from GET /api/templates so the dropdown and the database
+// cannot drift apart. The previous hardcoded list still referenced the removed
+// duplicate ids (perishable-qc-sea etc.), which would have broken report creation.
 
 export const GENERAL_CARGO_SECTIONS = [
   { id: 'particulars', label: '1. Consignment Particulars', desc: 'Vessel/voyage, B/L, Container, Shipper, Consignee, Port' },
@@ -68,6 +63,7 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
   // Commodity data from backend
   const [commodities, setCommodities] = useState<CommodityArchetype[]>([]);
   const [commoditiesLoading, setCommoditiesLoading] = useState(false);
+  const [reportTypes, setReportTypes] = useState<ReportTemplate[]>([]);
   const [expandedCommodity, setExpandedCommodity] = useState<string | null>(null);
 
   // General cargo section customization
@@ -77,10 +73,15 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
   const [showSectionOptions, setShowSectionOptions] = useState(false);
 
   // New report form state
-  const [selectedTemplate, setSelectedTemplate] = useState('perishable-qc-sea');
+  // Set from GET /api/templates when the modal opens. Do not hardcode an id here:
+  // the previous default ('perishable-qc-sea') referenced a template that no
+  // longer exists, which would fail on the template foreign key.
+  const [selectedTemplate, setSelectedTemplate] = useState('');
   const [selectedMode, setSelectedMode] = useState<'SEA' | 'AIR'>('SEA');
-  const [selectedFamily, setSelectedFamily] = useState('QC_REPORT');
-  const [selectedState, setSelectedState] = useState<'PRELIMINARY' | 'FINAL'>('FINAL');
+  const [selectedFamily, setSelectedFamily] = useState('SURVEY_REPORT');
+  // Preliminary is 1 of 439 reports in the client's archive, so it is out of
+  // scope and every report is created as FINAL. See IMPLEMENTATION-SPEC section 1.
+  const [selectedState] = useState<'PRELIMINARY' | 'FINAL'>('FINAL');
   const [selectedCommodity, setSelectedCommodity] = useState('APPLE');
   const [year, setYear] = useState(new Date().getFullYear());
 
@@ -117,13 +118,31 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
     loadReports();
   }, []);
 
+  const loadReportTypes = async () => {
+    try {
+      const types = await fetchTemplates();
+      setReportTypes(types);
+      // Default to the first type the server returns (ordered by what the
+      // client actually produces most: perishable Final Survey Report).
+      if (types.length > 0 && !types.some((t) => t.id === selectedTemplate)) {
+        const first = types[0];
+        setSelectedTemplate(first.id);
+        setSelectedFamily(first.family);
+        setSelectedMode(first.mode);
+      }
+    } catch (err) {
+      console.error('Could not load report types:', err);
+    }
+  };
+
   const handleOpenModal = () => {
     setShowModal(true);
     if (commodities.length === 0) loadCommodities();
+    if (reportTypes.length === 0) loadReportTypes();
   };
 
   const handleTemplateChange = (val: string) => {
-    const opt = REPORT_TYPE_OPTIONS.find((o) => o.value === val);
+    const opt = reportTypes.find((o) => o.id === val);
     if (opt) {
       setSelectedTemplate(val);
       setSelectedFamily(opt.family);
@@ -304,65 +323,23 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                   onChange={(e) => handleTemplateChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  {REPORT_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  {reportTypes.length === 0 && (
+                    <option value="">Loading report types…</option>
+                  )}
+                  {reportTypes.map((opt) => (
+                    <option key={opt.id} value={opt.id}>{opt.name}</option>
                   ))}
                 </select>
               </div>
 
-              {/* ── Survey Report Stage (Preliminary PLA vs Final) ───────── */}
-              {selectedFamily === 'SURVEY_REPORT' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Survey Report Stage
-                  </label>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedState('PRELIMINARY')}
-                      className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-                        selectedState === 'PRELIMINARY'
-                          ? 'border-blue-500 bg-blue-50/70 ring-2 ring-blue-400'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-gray-900">Preliminary (PLA)</span>
-                        {selectedState === 'PRELIMINARY' && <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />}
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        Issued promptly; preliminary findings, claim reserve &amp; reservation of rights
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedState('FINAL')}
-                      className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-                        selectedState === 'FINAL'
-                          ? 'border-blue-500 bg-blue-50/70 ring-2 ring-blue-400'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-gray-900">Final Survey Report</span>
-                        {selectedState === 'FINAL' && <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />}
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        Complete causation analysis, itemized damages, &amp; final adjustment
-                      </p>
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Survey Report Stage removed: the report type already states it,
+                  and Preliminary is 1 of 439 reports in the client's archive (0.2%),
+                  so it is out of scope. See IMPLEMENTATION-SPEC section 1. */}
 
               {/* ── Commodity / Cargo Details ────────────────────────────── */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {selectedTemplate.includes('general') ? 'General Cargo Subcategory' : 'Perishable Fruit Commodity & Defect Preset'}
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    — mined from {commodities.reduce((s, c) => s + c.report_count, 0)} real client reports
-                  </span>
+                  {selectedTemplate.includes('general') ? 'Cargo Type' : 'Commodity'}
                 </label>
 
                 {commoditiesLoading ? (
@@ -410,7 +387,7 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                                   {c.display}
                                 </span>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isSelected ? colors.badge : 'bg-gray-100 text-gray-500'}`}>
-                                  {c.report_count > 0 ? `${c.report_count} reports` : 'Template preset'}
+                                  {c.unit === 'kg' ? 'by weight' : 'by count'}
                                 </span>
                               </button>
                             );
@@ -432,9 +409,16 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                               <p className="text-gray-600 mt-0.5 font-medium">{selectedCommodityData.description}</p>
                             )}
                             <p className="text-gray-500 mt-0.5">
-                              {selectedCommodityData.report_count > 0
-                                ? `Based on ${selectedCommodityData.report_count} real client reports`
-                                : 'Pre-configured canonical industry template'}
+                              {[
+                                selectedCommodityData.unit === 'kg'
+                                  ? 'Recorded by weight (Kg)'
+                                  : 'Recorded by piece count',
+                                selectedCommodityData.show_penetrometer ? 'Penetrometer readings' : null,
+                                selectedCommodityData.show_brix ? 'Brix readings' : null,
+                                selectedCommodityData.show_chart ? 'Defect chart' : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
                             </p>
                           </div>
                           <Info className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />

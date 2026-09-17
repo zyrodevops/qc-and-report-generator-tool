@@ -415,11 +415,16 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           }
 
           if (block.type === 'table') {
+            // No fallback commodity here. Guessing one would hand the surveyor
+            // another fruit's defect columns, and he would have to notice that
+            // the grid is wrong before he starts typing counts into it.
+            const tableCommodity = blockState?.metadata?.commodity as string | undefined;
             return (
               <TableGrid
                 key={block.id}
                 block={block}
                 reportId={report.id}
+                commodity={tableCommodity}
                 onChange={handleBlockChange}
                 onBlockStateChange={setBlockState}
                 onImportCsv={() => setCsvModalBlockId(block.id)}

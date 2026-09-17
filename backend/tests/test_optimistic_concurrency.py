@@ -46,7 +46,7 @@ def fresh_report(auth_client):
     res = auth_client.post(
         "/api/reports",
         json={
-            "template_id": "perishable-qc-sea",
+            "template_id": "perishable_qc_sea",
             "family": "QC_REPORT",
             "year": 2026,
             "block_state": {

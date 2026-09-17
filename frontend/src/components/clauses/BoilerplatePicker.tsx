@@ -161,7 +161,7 @@ export const BoilerplatePicker: React.FC<BoilerplatePickerProps> = ({
                 (click to insert)
               </span>
             </div>
-            <span className="text-[10px] text-slate-400">from real client reports</span>
+            <span className="text-[10px] text-slate-400">standard wording</span>
           </div>
 
           {/* Body */}
@@ -169,7 +169,7 @@ export const BoilerplatePicker: React.FC<BoilerplatePickerProps> = ({
             {loading && (
               <div className="flex items-center justify-center gap-2 py-6 text-slate-500 text-xs">
                 <Loader2 size={14} className="animate-spin" />
-                Loading corpus clauses…
+                Loading standard wording…
               </div>
             )}
             {error && !loading && (

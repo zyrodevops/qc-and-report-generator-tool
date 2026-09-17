@@ -21,8 +21,11 @@ from app.core.auth import get_current_actor
 from app.database import get_db
 from app.ingest.photos import process_photo_upload, verify_original_integrity
 from app.ingest.spreadsheet import parse_spreadsheet, build_column_mapping_preview
-from app.ingest.tally_ocr import parse_tally_image
-from app.ingest.tally_knowledge_base import list_available_sample_tallies, KNOWN_TALLY_CATALOG
+from app.ingest.tally.categories import build_categories, unit_for
+from app.ingest.tally.cloud_reader import cloud_reader_configured
+from app.ingest.tally.pipeline import available_engines, read_tally_sheet
+from app.ingest.tally.spreadsheet_grid import read_spreadsheet_as_grid
+from app.ingest.tally.validation import ValidationEngine
 from app.models.asset import Asset
 from app.models.report import Report
 from app.services.audit import AuditService
@@ -340,62 +343,174 @@ async def apply_spreadsheet_mapping(
 
 
 # ---------------------------------------------------------------------------
-# Tally Sheet OCR Ingestion (PaddleOCR + Knowledge Base Corroboration)
+# Tally sheet ingestion for the Verification Workbench
 # ---------------------------------------------------------------------------
 
-@router.get("/{report_id}/import/tally-samples")
-async def get_sample_tallies(
+def _report_commodity(report: Report) -> Optional[str]:
+    """The commodity a report was created for, as recorded in its block state."""
+    state = report.block_state or {}
+    meta = state.get("metadata") or {}
+    val = meta.get("commodity")
+    return str(val) if val else None
+
+
+@router.get("/{report_id}/import/tally/capabilities")
+async def tally_capabilities(
     report_id: str,
+    commodity: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     actor: str = Depends(get_current_actor),
-) -> List[Dict[str, Any]]:
-    """Return available sample tally sheets from client archive for 1-click test & prefill."""
-    await _get_report_or_404(report_id, db)
-    return list_available_sample_tallies()
+) -> Dict[str, Any]:
+    """
+    What this deployment can do with a tally sheet, and which columns this
+    commodity's grid should have.
+
+    The workbench asks for this before showing the upload box so it can tell the
+    surveyor plainly that no OCR engine is installed, rather than letting him
+    upload a sheet and wonder why nothing came back.
+    """
+    report = await _get_report_or_404(report_id, db)
+    key = commodity or _report_commodity(report)
+    engines = available_engines()
+    cloud = cloud_reader_configured()
+
+    return {
+        "commodity": key,
+        "unit": unit_for(key),
+        "categories": build_categories(key),
+        "ocr_engines": engines,
+        "ocr_available": bool(engines),
+        # The cloud reader is the main path when a key is set; the local engines
+        # are what runs otherwise.
+        "cloud_reader": cloud,
+        "cloud_sends_header": bool(settings.TALLY_CLOUD_SEND_FULL_SHEET),
+        "reader": "cloud" if cloud else ("local" if engines else "none"),
+    }
+
+
+@router.post("/{report_id}/import/tally-spreadsheet")
+async def import_tally_spreadsheet(
+    report_id: str,
+    file: UploadFile = File(...),
+    commodity: Optional[str] = Form(default=None),
+    sheet_name: Optional[str] = Form(default=None),
+    column_map_json: Optional[str] = Form(default=None),
+    db: AsyncSession = Depends(get_db),
+    actor: str = Depends(get_current_actor),
+) -> Dict[str, Any]:
+    """
+    Load a CSV or Excel tally into the Verification Workbench.
+
+    The same grid and the same row checks as a photographed sheet, because a
+    spreadsheet from the cold store is no more authoritative than a notebook
+    page: its column headings are whatever that cold store calls them, and any
+    column that cannot be matched is put in front of the surveyor rather than
+    dropped.
+
+    Call it again with column_map_json once he has mapped the leftovers.
+    """
+    import json as _json
+
+    report = await _get_report_or_404(report_id, db)
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty file upload")
+
+    column_map: Optional[Dict[str, str]] = None
+    if column_map_json:
+        try:
+            parsed = _json.loads(column_map_json)
+            if isinstance(parsed, dict):
+                column_map = {str(k): str(v) for k, v in parsed.items()}
+        except ValueError:
+            raise HTTPException(status_code=400, detail="column_map_json is not valid JSON")
+
+    try:
+        return read_spreadsheet_as_grid(
+            file_bytes=file_bytes,
+            filename=file.filename or "tally.xlsx",
+            commodity=commodity or _report_commodity(report),
+            sheet_name=sheet_name,
+            column_map=column_map,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/{report_id}/import/tally-ocr")
 async def import_tally_ocr(
     report_id: str,
-    file: Optional[UploadFile] = File(default=None),
-    sample_id: Optional[str] = Form(default=None),
+    file: UploadFile = File(...),
+    commodity: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
     actor: str = Depends(get_current_actor),
 ) -> Dict[str, Any]:
     """
-    Upload a cold-storage handwritten tally sheet photo, or select a sample tally ID.
-    Runs local OCR (EasyOCR primary, with RapidOCR, PaddleOCR, Tesseract fallbacks)
-    preprocessing and extraction for headers, QC readings, and defect tables,
-    corroborating with known client tally datasets.
-    """
-    await _get_report_or_404(report_id, db)
-    
-    if sample_id:
-        from pathlib import Path
-        sample_item = next((s for s in KNOWN_TALLY_CATALOG if s["id"].upper() == sample_id.upper()), None)
-        if not sample_item:
-            raise HTTPException(status_code=404, detail=f"Sample tally ID {sample_id} not found")
-        candidates = [
-            Path("sample-data/tally_sheets/Marine cargo/Tally sheets") / sample_item["source_photo"],
-            Path(__file__).resolve().parents[2] / "sample-data/tally_sheets/Marine cargo/Tally sheets" / sample_item["source_photo"],
-            Path(__file__).resolve().parents[3] / "sample-data/tally_sheets/Marine cargo/Tally sheets" / sample_item["source_photo"],
-        ]
-        photo_path = next((p for p in candidates if p.exists()), None)
-        if not photo_path:
-            raise HTTPException(status_code=404, detail=f"Sample photo file {sample_item['source_photo']} not found")
-        file_bytes = photo_path.read_bytes()
-        filename = sample_item["source_photo"]
-    elif file:
-        file_bytes = await file.read()
-        filename = file.filename or "tally_sheet.jpg"
-    else:
-        raise HTTPException(status_code=400, detail="Either 'file' or 'sample_id' must be provided")
+    Read a photographed tally sheet into a grid for the workbench.
 
-    extracted = parse_tally_image(
+    The hosted vision model reads it when a key is configured, because it is the
+    only reader that handles a sideways photo of a pen-filled form. The local
+    engines run otherwise. Either way the result is a draft: the surveyor checks
+    it against the sheet, and the row arithmetic has to tie out before any of it
+    reaches the report.
+    """
+    report = await _get_report_or_404(report_id, db)
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty file upload")
+
+    return await read_tally_sheet(
         image_bytes=file_bytes,
-        filename=filename,
+        filename=file.filename or "tally_sheet.jpg",
+        commodity=commodity or _report_commodity(report),
     )
-    return extracted
+
+
+def _recheck_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Recompute every row's sum and its agreement with the written total.
+
+    Done on the server on the way in, never taken from the request. The browser
+    computes the same figures live so the surveyor sees them as he types, but a
+    total that reaches the database has to be one this process derived from the
+    cell values sitting beside it, or the check is only as trustworthy as
+    whatever last posted to the endpoint.
+    """
+    checked: List[Dict[str, Any]] = []
+    for row in rows:
+        values: Dict[str, int] = {}
+        for k, v in (row.get("values") or {}).items():
+            try:
+                iv = int(v)
+            except (TypeError, ValueError):
+                continue
+            if iv >= 0:
+                values[k] = iv
+
+        stated = row.get("stated_total")
+        try:
+            stated_int = int(stated) if stated is not None and str(stated) != "" else None
+        except (TypeError, ValueError):
+            stated_int = None
+
+        computed, check = ValidationEngine.validate_row_total(values, stated_int)
+        status = {"PASSED": "OK", "FAILED": "MISMATCH", "SKIPPED": "UNCHECKED"}[check.status]
+
+        new_row = dict(row)
+        new_row.update({
+            "values": values,
+            "stated_total": stated_int,
+            "computed_total": computed,
+            "check": {
+                "status": status,
+                "delta": (computed - stated_int) if stated_int is not None else None,
+                "message": check.message,
+            },
+        })
+        checked.append(new_row)
+    return checked
 
 
 @router.post("/{report_id}/import/tally-ocr/apply")
@@ -406,14 +521,39 @@ async def apply_tally_ocr(
     actor: str = Depends(get_current_actor),
 ) -> Dict[str, Any]:
     """
-    Apply verified tally OCR data to report block_state.
-    Updates particulars, measurements, and table blocks with provenance tag 'ocr_verified'.
+    Write the grid the surveyor checked in the workbench into the report.
+
+    This is the point at which the data stops being a machine reading and
+    becomes the surveyor's figures, so it is tagged 'surveyor_verified'. Rows
+    whose cells still disagree with the written total are refused: a mismatch
+    means one of the two numbers is wrong, and carrying it into the report would
+    put an arithmetic error into a document that goes out under an IRDAI licence.
     """
     report = await _get_report_or_404(report_id, db)
-    
+
     headers = payload.get("headers", {})
     table_data = payload.get("table", {})
     target_block_id = payload.get("block_id")
+
+    rows_in = table_data.get("rows") or []
+    rechecked = _recheck_rows(rows_in)
+
+    mismatched = [
+        f"{r.get('group') or f'row {i + 1}'} ({r['check']['delta']:+d})"
+        for i, r in enumerate(rechecked)
+        if r["check"]["status"] == "MISMATCH"
+    ]
+    if mismatched:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": (
+                    "These rows do not add up to the total written on the sheet. "
+                    "Correct the cells or the total before applying."
+                ),
+                "rows": mismatched,
+            },
+        )
 
     state = dict(report.block_state) if report.block_state else {"blocks": []}
     blocks = list(state.get("blocks", []))
@@ -427,16 +567,16 @@ async def apply_tally_ocr(
                     lbl = str(row.get("label", "")).lower()
                     if "container" in lbl and headers.get("container_number"):
                         row["value"] = headers["container_number"]
-                        row["provenance"] = "ocr_verified"
+                        row["provenance"] = "surveyor_verified"
                     elif ("consignee" in lbl or "party" in lbl or "applicant" in lbl) and headers.get("party_name"):
                         row["value"] = headers["party_name"]
-                        row["provenance"] = "ocr_verified"
+                        row["provenance"] = "surveyor_verified"
                     elif "survey" in lbl and "date" in lbl and headers.get("survey_date"):
                         row["value"] = headers["survey_date"]
-                        row["provenance"] = "ocr_verified"
+                        row["provenance"] = "surveyor_verified"
                     elif "destuff" in lbl and "date" in lbl and headers.get("destuff_date"):
                         row["value"] = headers["destuff_date"]
-                        row["provenance"] = "ocr_verified"
+                        row["provenance"] = "surveyor_verified"
                 b["rows"] = rows
 
     # 2. Update Measurements Block
@@ -451,40 +591,41 @@ async def apply_tally_ocr(
                             row["min"] = str(headers["pulp_temp_min"])
                         if headers.get("pulp_temp_max") is not None:
                             row["max"] = str(headers["pulp_temp_max"])
-                        row["provenance"] = "ocr_verified"
+                        row["provenance"] = "surveyor_verified"
                     elif "brix" in subj and (headers.get("brix_min") is not None or headers.get("brix_max") is not None):
                         if headers.get("brix_min") is not None:
                             row["min"] = str(headers["brix_min"])
                         if headers.get("brix_max") is not None:
                             row["max"] = str(headers["brix_max"])
-                        row["provenance"] = "ocr_verified"
+                        row["provenance"] = "surveyor_verified"
                     elif ("ambient" in subj or "cold room" in subj or "storage" in subj) and headers.get("room_temp") is not None:
                         row["min"] = str(headers["room_temp"])
-                        row["provenance"] = "ocr_verified"
+                        row["provenance"] = "surveyor_verified"
                 b["rows"] = rows
 
-    # 3. Update Table Block
-    if table_data and table_data.get("rows"):
-        table_updated = False
+    # 3. Update the tally table block
+    if rechecked:
         for b in blocks:
             if b.get("type") == "table" and (not target_block_id or b.get("id") == target_block_id):
                 if table_data.get("categories"):
                     b["categories"] = table_data["categories"]
-                # Map rows and ensure string values for Decimal conversion
-                mapped_rows = []
-                for r in table_data["rows"]:
-                    row_vals = {}
-                    for k, v in r.get("values", {}).items():
-                        row_vals[k] = str(v)
-                    mapped_rows.append({
-                        "group": r.get("group", "Sample"),
+                if table_data.get("unit"):
+                    b["unit"] = table_data["unit"]
+
+                # Values are stored as strings because the renderer converts
+                # them with Decimal; going via float would reintroduce the
+                # rounding the report is supposed to be free of.
+                b["rows"] = [
+                    {
+                        "group": r.get("group") or f"Row {i + 1}",
                         "boxes_opened": r.get("boxes_opened", 1),
-                        "values": row_vals,
-                        "provenance": "ocr_verified",
-                    })
-                b["rows"] = mapped_rows
-                b["provenance"] = "ocr_verified"
-                table_updated = True
+                        "values": {k: str(v) for k, v in r["values"].items()},
+                        "stated_total": r["stated_total"],
+                        "provenance": "surveyor_verified",
+                    }
+                    for i, r in enumerate(rechecked)
+                ]
+                b["provenance"] = "surveyor_verified"
                 break
 
     state["blocks"] = blocks
@@ -500,7 +641,7 @@ async def apply_tally_ocr(
         report_id=report.id,
         path="blocks",
         before=None,
-        after={"provenance": "ocr_verified"},
+        after={"provenance": "surveyor_verified"},
     )
 
     await db.commit()

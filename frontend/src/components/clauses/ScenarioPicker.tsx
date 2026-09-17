@@ -110,7 +110,7 @@ export const ScenarioPicker: React.FC<ScenarioPickerProps> = ({
               </span>
             </div>
             <span className="text-[10px] text-indigo-600 font-medium bg-white px-2 py-0.5 rounded-full border border-indigo-100 shadow-2xs">
-              Mined from 432 Client Reports
+              Standard wording
             </span>
           </div>
 

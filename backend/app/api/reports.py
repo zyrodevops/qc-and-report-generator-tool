@@ -48,22 +48,37 @@ async def create_report(
     db: AsyncSession = Depends(get_db),
     actor: str = Depends(get_current_actor),
 ):
-    # Ensure referenced template exists (or create default placeholder if missing)
+    # The report type must be one that is actually seeded.
+    #
+    # This used to create a template on the fly for any id it was handed, with
+    # an empty block sequence, so that early tests would not block. The effect
+    # in practice was that a stale or mistyped id silently produced a new report
+    # type — 'mca-qc-v1' and 'tpl_qc_mandarin_v1' both reached the database this
+    # way — and a report built on one renders as an empty document, because
+    # there are no blocks to render. Refusing here keeps the report types to the
+    # six that are seeded and turns a typo into an error the caller can see.
     tmpl_stmt = select(Template).where(Template.id == payload.template_id)
     tmpl_res = await db.execute(tmpl_stmt)
     template = tmpl_res.scalars().first()
 
     if not template:
-        # Create a default template if not found so initial tests don't block
-        template = Template(
-            id=payload.template_id,
-            name=f"Template {payload.template_id}",
-            family=payload.family,
-            mode="SEA",
-            block_sequence=[],
+        known = (await db.execute(select(Template.id).order_by(Template.id))).scalars().all()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": f"Unknown report type '{payload.template_id}'.",
+                "available": list(known),
+            },
         )
-        db.add(template)
-        await db.flush()
+
+    if not template.block_sequence:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Report type '{payload.template_id}' has no sections defined, so it "
+                "would produce an empty document."
+            ),
+        )
 
     # 1. Atomically allocate gapless sequential report number
     report_number = await allocate_report_number_async(db, year=payload.year)

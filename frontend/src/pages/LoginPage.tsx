@@ -7,7 +7,7 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const [password, setPassword] = useState('surveyor123');
+  const [password, setPassword] = useState(import.meta.env.DEV ? 'surveyor123' : '');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,12 +101,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        <div className="pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-slate-500">
-          <span>Default access key:</span>
-          <code className="px-2 py-0.5 bg-slate-100 font-mono text-slate-800 rounded font-semibold select-all">
-            surveyor123
-          </code>
-        </div>
+        {/* Never print the access key in a production build. */}
+        {import.meta.env.DEV && (
+          <div className="pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Dev access key:</span>
+            <code className="px-2 py-0.5 bg-slate-100 font-mono text-slate-800 rounded font-semibold select-all">
+              surveyor123
+            </code>
+          </div>
+        )}
       </div>
 
       <p className="mt-8 text-xs text-slate-500 text-center">

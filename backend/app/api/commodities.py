@@ -84,32 +84,37 @@ async def list_commodities(category: Optional[str] = Query(None, description="Fi
     cat_str = category if isinstance(category, str) else None
     cat_upper = cat_str.upper() if cat_str else None
 
-    # 1. Fruits
+    # 1. Fruits — served from FRUIT_CONFIG, generated from the corpus analysis of
+    #    451 of the client's own reports. See IMPLEMENTATION-SPEC section 2.
+    #
+    #    Fruit is the master switch: it decides the unit, which sections render,
+    #    whether a chart is produced, which measurements are offered and which
+    #    tally columns appear. Transport mode is deliberately NOT here — that is a
+    #    property of the shipment, taken from the uploaded transport document or
+    #    chosen explicitly, never inferred from the commodity (spec section 2.0).
     if not cat_upper or cat_upper == "FRUITS":
-        for key, data in sorted(fruit_raw.items()):
-            meta = _FRUITS_META.get(key, {"emoji": "🌿", "display": key.capitalize(), "color": "gray"})
-            defect_cols = [c for c in data.get("defect_columns", []) if len(c) <= 60]
-            seen = set()
-            clean_cols = []
-            for col in defect_cols:
-                norm = col.strip().lower()
-                if norm not in seen:
-                    seen.add(norm)
-                    clean_cols.append(col.strip())
-                if len(clean_cols) >= 8:
-                    break
+        from app.seeds.fruit_config import FRUIT_CONFIG
 
+        for key, cfg in sorted(
+            FRUIT_CONFIG.items(), key=lambda kv: -kv[1]["reports_in_corpus"]
+        ):
+            legacy = fruit_raw.get(key, {})
             result.append({
                 "key": key,
-                "display": meta["display"],
-                "emoji": meta["emoji"],
-                "color": meta["color"],
+                "display": cfg["display"],
+                "emoji": cfg["emoji"],
+                "color": _FRUITS_META.get(key, {}).get("color", "gray"),
                 "category": "FRUITS",
-                "report_count": data.get("report_count", 0),
-                "unit": data.get("unit", "pcs"),
-                "defect_columns": clean_cols,
-                "heading_sequence": data.get("heading_sequence", []),
-                "top_narrative_clauses": data.get("top_narrative_clauses", [])[:4],
+                "report_count": cfg["reports_in_corpus"],
+                "unit": cfg["unit"],
+                "defect_columns": cfg["defect_columns"],
+                # feature flags that drive the form
+                "show_condition_found": cfg["show_condition_found"],
+                "show_chart": cfg["show_chart"],
+                "show_penetrometer": cfg["show_penetrometer"],
+                "show_brix": cfg["show_brix"],
+                "air_observed_pct": cfg["air_observed_pct"],
+                "heading_sequence": legacy.get("heading_sequence", []),
             })
 
     # 2. General Cargo

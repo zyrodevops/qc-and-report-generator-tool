@@ -12,7 +12,7 @@ Never silently modifies values to force arithmetic to match.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.ingest.tally.models import CellValidation
 
@@ -26,19 +26,28 @@ class ValidationEngine:
         stated_total: Optional[int] = None,
     ) -> Tuple[int, CellValidation]:
         """
-        Validates that sum of defect counts matches stated row total.
-        Returns: (computed_sum, validation_result)
+        Compare the sum of the cells read off the row against the total the
+        surveyor wrote at the end of it.
+
+        Three outcomes, and they are deliberately three rather than two:
+
+          PASSED   a total was written and it agrees with the cells
+          FAILED   a total was written and it does not agree
+          SKIPPED  no total was written, so there is nothing to check against
+
+        The third case used to return PASSED, which showed the surveyor a green
+        tick on a row that had never been checked. An unchecked row has to look
+        different from a verified one or the check is worse than not having it.
         """
         computed_sum = sum(v for v in defect_values.values() if isinstance(v, int) and v >= 0)
 
-        if stated_total is None or stated_total == 0:
-            # If no stated total on sheet, the computed sum is the valid checksum
+        if stated_total is None:
             return computed_sum, CellValidation(
-                status="PASSED",
-                rule="computed_total",
-                expected=computed_sum,
+                status="SKIPPED",
+                rule="row_total",
+                expected=None,
                 actual=computed_sum,
-                message=f"Computed checksum: {computed_sum}",
+                message="No written total on this row — nothing to check the cells against.",
             )
 
         if computed_sum == stated_total:
@@ -47,17 +56,35 @@ class ValidationEngine:
                 rule="row_total",
                 expected=stated_total,
                 actual=computed_sum,
-                message=f"Row checksum ties out: sum({computed_sum}) == total({stated_total})",
+                message=f"Row ties out: cells add to {computed_sum}, matching the written total.",
             )
 
-        # Mismatch detected: Never silently guess or alter values!
+        # Mismatch detected: never silently guess or alter values.
+        delta = computed_sum - stated_total
         return computed_sum, CellValidation(
             status="FAILED",
             rule="row_total",
             expected=stated_total,
             actual=computed_sum,
-            message=f"Arithmetic mismatch: sum of items is {computed_sum}, but sheet total reads {stated_total}",
+            message=(
+                f"Cells add to {computed_sum} but the written total reads {stated_total} "
+                f"({delta:+d}). Check this row against the sheet."
+            ),
         )
+
+    @staticmethod
+    def validate_column_totals(
+        rows: List[Dict[str, Any]],
+        category_keys: List[str],
+    ) -> Dict[str, int]:
+        """Column sums across every row, for the workbench footer."""
+        totals: Dict[str, int] = {k: 0 for k in category_keys}
+        for row in rows:
+            for k in category_keys:
+                v = row.get("values", {}).get(k)
+                if isinstance(v, int) and v >= 0:
+                    totals[k] += v
+        return totals
 
     @staticmethod
     def validate_range(

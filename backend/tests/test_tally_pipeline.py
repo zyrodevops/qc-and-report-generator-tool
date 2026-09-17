@@ -173,13 +173,28 @@ def test_pipeline_on_synthetic_sheet():
     img_bytes = buf.getvalue()
 
     pipeline = TallyPipeline()
-    result = pipeline.process_image(img_bytes, filename="synthetic_tally.jpg")
+    result = pipeline.process_image(img_bytes, filename="synthetic_tally.jpg", commodity="APPLE")
 
     assert "quality" in result
     assert result["quality"]["score"] > 0.50
     assert "layout" in result
     assert "headers" in result
     assert "table" in result
-    assert "image_preview" in result
-    assert result["provenance"] == "ocr_verified"
+
+    # The preview now carries the processed dimensions alongside the image, so
+    # the workbench can turn a cell's bounding box into a highlight on the photo
+    # at whatever size it is being displayed.
+    assert result["image"]["preview"].startswith("data:image/jpeg;base64,")
+    assert result["image"]["width"] > 0 and result["image"]["height"] > 0
+
+    # Columns come from the commodity, not from a fixed list.
+    assert [c["label"] for c in result["table"]["categories"]][0] == "Sound"
+    assert "Lenticels" in [c["label"] for c in result["table"]["categories"]]
+
+    # This grid is empty of handwriting, so no row should be invented for it.
+    assert result["table"]["rows"] == []
+    assert result["extraction_status"] in ("OK", "PARTIAL", "NO_GRID", "NO_ENGINE")
+
+    # Machine-read at best. 'verified' is what a surveyor does, not the pipeline.
+    assert result["provenance"] == "ocr_extracted"
 

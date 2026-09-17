@@ -243,7 +243,7 @@ def clean_report(auth_client_with_token):
     res = auth_client_with_token.post(
         "/api/reports",
         json={
-            "template_id": "perishable-qc-sea",
+            "template_id": "perishable_qc_sea",
             "family": "QC_REPORT",
             "year": 2026,
             "block_state": state,

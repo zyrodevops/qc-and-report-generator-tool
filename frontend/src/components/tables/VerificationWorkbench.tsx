@@ -1,0 +1,1339 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  CloudUpload,
+  Info,
+  Loader2,
+  Minus,
+  Plus,
+  ScanLine,
+  Trash2,
+  Upload,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
+import {
+  applyTallyGrid,
+  fetchTallyCapabilities,
+  uploadTallySheet,
+  uploadTallySpreadsheet,
+  TallyCapabilities,
+  TallyCategory,
+  TallyExtraction,
+  TallyRow,
+} from '../../api/client';
+
+/**
+ * Verification Workbench.
+ *
+ * The sheet photograph on the left, the grid on the right, and the surveyor
+ * moving between them. Focusing a cell zooms the photo to the handwriting that
+ * cell came from, so checking a number means glancing left rather than hunting
+ * across a page.
+ *
+ * The row check compares what is in the cells against the total the surveyor
+ * wrote at the end of the row. Those are two independent numbers, so when they
+ * disagree something really is wrong. A row with no written total is marked as
+ * unchecked rather than passed — it has not been verified, and showing a green
+ * tick for it would be worse than showing nothing.
+ */
+
+interface Props {
+  reportId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: (updatedBlockState: any) => void;
+  blockId?: string;
+  commodity?: string;
+}
+
+/**
+ * A row as it exists while being checked. Unlike the stored shape, a cell may
+ * be null: that is an unread cell the surveyor still has to fill, and it has to
+ * stay distinguishable from a genuine zero right up until he types something.
+ */
+type RowState = Omit<TallyRow, 'values'> & { values: Record<string, number | null> };
+
+interface FocusedCell {
+  rowIdx: number;
+  catKey: string;
+}
+
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 6;
+
+export const VerificationWorkbench: React.FC<Props> = ({
+  reportId,
+  isOpen,
+  onClose,
+  onSuccess,
+  blockId,
+  commodity,
+}) => {
+  const [caps, setCaps] = useState<TallyCapabilities | null>(null);
+  const [extraction, setExtraction] = useState<TallyExtraction | null>(null);
+  const [rows, setRows] = useState<RowState[]>([]);
+  const [categories, setCategories] = useState<TallyCategory[]>([]);
+  const [headers, setHeaders] = useState<Record<string, any>>({});
+
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [focused, setFocused] = useState<FocusedCell | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [addingColumn, setAddingColumn] = useState(false);
+  const [newColumn, setNewColumn] = useState('');
+  const [showHeader, setShowHeader] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Kept so a spreadsheet can be re-read when the surveyor maps a column.
+  const lastFile = useRef<File | null>(null);
+
+  // ---------------------------------------------------------------- capabilities
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetchTallyCapabilities(reportId, commodity)
+      .then((c) => {
+        if (cancelled) return;
+        setCaps(c);
+        setCategories(c.categories);
+      })
+      .catch((e) => !cancelled && setError(e.message));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, reportId, commodity]);
+
+  // Reset when the dialog closes so the next sheet starts clean.
+  useEffect(() => {
+    if (isOpen) return;
+    setExtraction(null);
+    setRows([]);
+    setHeaders({});
+    setFocused(null);
+    setError(null);
+  }, [isOpen]);
+
+  // --------------------------------------------------------------------- upload
+  const handleFile = useCallback(
+    async (file: File) => {
+      setLoading(true);
+      setError(null);
+      setFocused(null);
+      lastFile.current = file;
+      try {
+        const isSheet = /\.(csv|xlsx|xlsm|xls)$/i.test(file.name);
+        const result = isSheet
+          ? await uploadTallySpreadsheet(reportId, file, { commodity })
+          : await uploadTallySheet(reportId, file, { commodity });
+        setExtraction(result);
+        setCategories(result.table.categories);
+        setHeaders(result.headers || {});
+        setRows(
+          result.table.rows.map((r) => ({
+            ...r,
+            values: { ...r.values } as Record<string, number | null>,
+          })),
+        );
+      } catch (e: any) {
+        setError(e.message || 'Could not read that file.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [reportId, commodity],
+  );
+
+  // ------------------------------------------------------------------ live check
+  /**
+   * Recomputed on every keystroke. Deliberately the same arithmetic the server
+   * redoes on save, so what the surveyor signs off is what gets stored.
+   */
+  const checks = useMemo(
+    () =>
+      rows.map((row) => {
+        const computed = categories.reduce((sum, cat) => {
+          const v = row.values[cat.key];
+          return sum + (typeof v === 'number' && !Number.isNaN(v) ? v : 0);
+        }, 0);
+        const hasBlank = categories.some(
+          (c) => row.values[c.key] === null || row.values[c.key] === undefined,
+        );
+        if (row.stated_total === null || row.stated_total === undefined) {
+          return { computed, status: 'UNCHECKED' as const, delta: null, hasBlank };
+        }
+        const delta = computed - row.stated_total;
+        return {
+          computed,
+          status: delta === 0 ? ('OK' as const) : ('MISMATCH' as const),
+          delta,
+          hasBlank,
+        };
+      }),
+    [rows, categories],
+  );
+
+  const mismatchCount = checks.filter((c) => c.status === 'MISMATCH').length;
+  const blankCount = checks.filter((c) => c.hasBlank).length;
+  const uncheckedCount = checks.filter((c) => c.status === 'UNCHECKED').length;
+
+  const columnTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    categories.forEach((cat) => {
+      totals[cat.key] = rows.reduce((sum, r) => {
+        const v = r.values[cat.key];
+        return sum + (typeof v === 'number' && !Number.isNaN(v) ? v : 0);
+      }, 0);
+    });
+    return totals;
+  }, [rows, categories]);
+
+  // ------------------------------------------------------------------- mutations
+  const setCell = (rowIdx: number, catKey: string, raw: string) => {
+    setRows((prev) => {
+      const next = [...prev];
+      const parsed = raw.trim() === '' ? null : Number.parseInt(raw, 10);
+      next[rowIdx] = {
+        ...next[rowIdx],
+        values: {
+          ...next[rowIdx].values,
+          [catKey]: parsed !== null && Number.isNaN(parsed) ? null : parsed,
+        },
+      };
+      return next;
+    });
+  };
+
+  const setStatedTotal = (rowIdx: number, raw: string) => {
+    setRows((prev) => {
+      const next = [...prev];
+      const parsed = raw.trim() === '' ? null : Number.parseInt(raw, 10);
+      next[rowIdx] = {
+        ...next[rowIdx],
+        stated_total: parsed !== null && Number.isNaN(parsed) ? null : parsed,
+      };
+      return next;
+    });
+  };
+
+  const setGroup = (rowIdx: number, val: string) => {
+    setRows((prev) => {
+      const next = [...prev];
+      next[rowIdx] = { ...next[rowIdx], group: val };
+      return next;
+    });
+  };
+
+  const addRow = () => {
+    const values: Record<string, number | null> = {};
+    categories.forEach((c) => (values[c.key] = null));
+    setRows((prev) => [
+      ...prev,
+      { group: '', boxes_opened: 1, values, stated_total: null, provenance: 'manual' },
+    ]);
+  };
+
+  const deleteRow = (idx: number) => {
+    setRows((prev) => prev.filter((_, i) => i !== idx));
+    setFocused(null);
+  };
+
+  /**
+   * Add a defect column the sheet has and this fruit's list does not.
+   *
+   * The columns come from the client's own finished reports, but a surveyor can
+   * grade against anything he finds in the carton, and a sheet with a column
+   * nobody has used before is a normal event rather than a mistake. Without
+   * this he would have to leave those counts out, or push them into a column
+   * where they do not belong.
+   *
+   * Cells start empty, not at zero, so the new column does not silently claim
+   * every existing row had none of it.
+   */
+  const addColumn = (rawLabel: string) => {
+    const label = rawLabel.trim();
+    if (!label) return;
+
+    const key = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    if (!key || categories.some((c) => c.key === key)) {
+      setError(`There is already a column called "${label}".`);
+      return;
+    }
+
+    setCategories((prev) => [...prev, { key, label, role: 'extra' }]);
+    setRows((prev) => prev.map((r) => ({ ...r, values: { ...r.values, [key]: null } })));
+    setNewColumn('');
+    setAddingColumn(false);
+    setError(null);
+  };
+
+  /**
+   * Map a spreadsheet column the automatic matching could not place.
+   *
+   * Re-reads the file with the surveyor's decision rather than patching the
+   * grid in the browser, so the row totals and their checks are recomputed by
+   * the same code that produced them in the first place. 'DROP' excludes the
+   * column; anything else assigns it.
+   */
+  const remapSpreadsheetColumn = async (header: string, key: string) => {
+    const file = lastFile.current;
+    if (!file) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const existing = extraction?.spreadsheet?.column_map ?? {};
+      const result = await uploadTallySpreadsheet(reportId, file, {
+        commodity,
+        columnMap: { ...existing, [header]: key },
+      });
+      setExtraction(result);
+      setCategories(result.table.categories);
+      setRows(
+        result.table.rows.map((r) => ({
+          ...r,
+          values: { ...r.values } as Record<string, number | null>,
+        })),
+      );
+    } catch (e: any) {
+      setError(e.message || 'Could not re-read the spreadsheet.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Only columns added here can be removed; the fruit's own list stays put. */
+  const removeColumn = (key: string) => {
+    setCategories((prev) => prev.filter((c) => c.key !== key));
+    setRows((prev) =>
+      prev.map((r) => {
+        const { [key]: _dropped, ...rest } = r.values;
+        return { ...r, values: rest };
+      }),
+    );
+    setFocused(null);
+  };
+
+  // ---------------------------------------------------------------------- apply
+  const handleApply = async () => {
+    setApplying(true);
+    setError(null);
+    try {
+      const result = await applyTallyGrid(reportId, {
+        headers,
+        table: {
+          categories,
+          unit: extraction?.table.unit || caps?.unit || 'pcs',
+          rows: rows.map((r) => ({
+            group: r.group,
+            boxes_opened: r.boxes_opened ?? 1,
+            values: Object.fromEntries(
+              categories
+                .map((c) => [c.key, r.values[c.key]])
+                .filter(([, v]) => typeof v === 'number'),
+            ),
+            stated_total: r.stated_total,
+          })),
+        },
+        block_id: blockId,
+      });
+      onSuccess(result.block_state);
+      onClose();
+    } catch (e: any) {
+      setError(e.message || 'Could not save the tally.');
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const focusedDetail =
+    focused && rows[focused.rowIdx]?.cell_details?.[focused.catKey];
+  const focusedBox = focusedDetail?.bbox_norm;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-3">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1500px] h-[94vh] flex flex-col overflow-hidden">
+        {/* ------------------------------------------------------------ header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+              <ScanLine className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Tally Verification Workbench</h2>
+              <p className="text-xs text-gray-500">
+                Check each figure against the sheet before it goes into the report
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-200 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mx-5 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-red-800 text-sm">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- body */}
+        {!extraction ? (
+          <UploadPane
+            caps={caps}
+            loading={loading}
+            fileInputRef={fileInputRef}
+            onFile={handleFile}
+            onStartBlank={() => {
+              const values: Record<string, number | null> = {};
+              (caps?.categories || []).forEach((c) => (values[c.key] = null));
+              setCategories(caps?.categories || []);
+              setRows([{ group: '', boxes_opened: 1, values, stated_total: null, provenance: 'manual' }]);
+              setExtraction({
+                extraction_status: 'NO_GRID',
+                engines_available: caps?.ocr_engines || [],
+                ocr_engine: null,
+                quality: { score: 0, is_acceptable: true, warnings: [] },
+                headers: {},
+                table: {
+                  commodity: caps?.commodity ?? null,
+                  unit: caps?.unit || 'pcs',
+                  grouping_label: 'Count / Size',
+                  categories: caps?.categories || [],
+                  rows: [],
+                  column_totals: {},
+                },
+                image: { preview: '', width: 0, height: 0 },
+                filename: 'Typed by hand',
+              });
+            }}
+          />
+        ) : (
+          <div className="flex-1 grid grid-cols-12 gap-0 overflow-hidden">
+            {/* ------------------------------------------------ left: the sheet */}
+            <div className="col-span-4 border-r border-gray-200 bg-slate-100 flex flex-col">
+              <div className="px-3 py-2 border-b border-gray-200 bg-white flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-600 truncate max-w-[150px]">
+                  {extraction.filename}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - 0.5))}
+                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                    title="Zoom out"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[11px] font-mono text-gray-500 w-8 text-center">
+                    {zoom.toFixed(1)}x
+                  </span>
+                  <button
+                    onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z + 0.5))}
+                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                    title="Zoom in"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="ml-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2"
+                  >
+                    Change
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,.csv,.xlsx,.xlsm,.xls"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                  />
+                </div>
+              </div>
+
+              <SheetPane
+                src={extraction.image.preview}
+                box={focusedBox}
+                zoom={zoom}
+                hasFocus={Boolean(focused)}
+              />
+
+              {/* The crop the focused number was read from */}
+              <CellInspector
+                detail={focusedDetail}
+                label={categories.find((c) => c.key === focused?.catKey)?.label}
+                rowLabel={focused !== null ? rows[focused.rowIdx]?.group : undefined}
+              />
+            </div>
+
+            {/* ------------------------------------------------- right: the grid */}
+            <div className="col-span-8 flex flex-col overflow-hidden">
+              <StatusBar
+                extraction={extraction}
+                mismatchCount={mismatchCount}
+                blankCount={blankCount}
+                uncheckedCount={uncheckedCount}
+                rowCount={rows.length}
+              />
+
+              {extraction.spreadsheet && extraction.spreadsheet.unmapped_columns.length > 0 && (
+                <UnmappedColumns
+                  columns={extraction.spreadsheet.unmapped_columns}
+                  categories={categories}
+                  onMap={(header, key) => remapSpreadsheetColumn(header, key)}
+                />
+              )}
+
+              <HeaderPanel
+                headers={headers}
+                onChange={(field, value) => setHeaders((h) => ({ ...h, [field]: value }))}
+                open={showHeader}
+                onToggle={() => setShowHeader((v) => !v)}
+              />
+
+              <div className="flex-1 overflow-auto px-4 py-3">
+                <table className="w-full text-xs border-collapse">
+                  <thead className="sticky top-0 bg-white z-10">
+                    <tr className="border-b-2 border-gray-300 text-gray-600">
+                      <th className="py-2 px-2 text-left font-semibold w-32">
+                        {extraction.table.grouping_label}
+                      </th>
+                      {categories.map((cat) => (
+                        <th key={cat.key} className="py-2 px-1 text-right font-semibold">
+                          <span className="inline-flex items-center gap-0.5">
+                            <span className={cat.role === 'extra' ? 'text-amber-700' : ''}>
+                              {cat.label}
+                            </span>
+                            {cat.role === 'extra' && (
+                              <button
+                                onClick={() => removeColumn(cat.key)}
+                                className="text-gray-300 hover:text-red-500"
+                                title={`Remove the ${cat.label} column`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </span>
+                        </th>
+                      ))}
+                      <th className="py-2 px-1 w-8 align-bottom">
+                        {addingColumn ? (
+                          <input
+                            autoFocus
+                            value={newColumn}
+                            placeholder="Column name"
+                            onChange={(e) => setNewColumn(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') addColumn(newColumn);
+                              if (e.key === 'Escape') {
+                                setAddingColumn(false);
+                                setNewColumn('');
+                              }
+                            }}
+                            onBlur={() => newColumn.trim() ? addColumn(newColumn) : setAddingColumn(false)}
+                            className="w-28 px-1.5 py-1 border border-blue-400 rounded text-xs font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setAddingColumn(true)}
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                            title="Add a defect column this sheet has and the list does not"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </th>
+                      <th className="py-2 px-1 text-right font-semibold text-slate-700 bg-slate-100 w-20">
+                        Written
+                        <br />
+                        total
+                      </th>
+                      <th className="py-2 px-1 text-right font-semibold text-blue-800 bg-blue-50 w-20">
+                        Cells
+                        <br />
+                        add to
+                      </th>
+                      <th className="py-2 px-1 w-24 text-center font-semibold">Check</th>
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, rIdx) => {
+                      const chk = checks[rIdx];
+                      // Subtotal lines are the ones with a written total, so
+                      // they are the ones the arithmetic can actually check.
+                      // They are set apart the way the surveyor sets them apart
+                      // on the sheet, with the highlighter.
+                      const rowTint =
+                        chk.status === 'MISMATCH'
+                          ? 'bg-red-50'
+                          : chk.hasBlank
+                          ? 'bg-amber-50/60'
+                          : row.is_subtotal
+                          ? 'bg-lime-50/70'
+                          : '';
+                      return (
+                        <tr
+                          key={rIdx}
+                          className={`border-b border-gray-100 ${rowTint} ${
+                            row.is_subtotal ? 'font-semibold border-t-2 border-t-lime-300' : ''
+                          } hover:bg-slate-50/80`}
+                        >
+                          <td className="py-1 px-2">
+                            <input
+                              type="text"
+                              value={row.group}
+                              placeholder="e.g. 30 XF"
+                              onChange={(e) => setGroup(rIdx, e.target.value)}
+                              className="w-full px-1.5 py-1 border border-gray-200 rounded text-xs font-medium focus:ring-1 focus:ring-blue-500 outline-none"
+                            />
+                          </td>
+
+                          {categories.map((cat) => {
+                            const detail = row.cell_details?.[cat.key];
+                            const val = row.values[cat.key];
+                            const isFocused =
+                              focused?.rowIdx === rIdx && focused?.catKey === cat.key;
+                            const disagreed = detail?.agreement === 'DISAGREED';
+                            const needsReview =
+                              detail?.review_status === 'NEEDS_REVIEW' || val === null;
+
+                            return (
+                              <td key={cat.key} className="py-1 px-0.5 text-right relative">
+                                <input
+                                  type="number"
+                                  value={val ?? ''}
+                                  placeholder="?"
+                                  onFocus={() => setFocused({ rowIdx: rIdx, catKey: cat.key })}
+                                  onChange={(e) => setCell(rIdx, cat.key, e.target.value)}
+                                  className={[
+                                    'w-full min-w-[3rem] text-right px-1 py-1 rounded text-xs font-mono border outline-none transition',
+                                    isFocused
+                                      ? 'ring-2 ring-blue-500 border-blue-500'
+                                      : disagreed
+                                      ? 'border-purple-400 bg-purple-50 text-purple-900 font-bold'
+                                      : needsReview
+                                      ? 'border-amber-400 bg-amber-50 text-amber-900'
+                                      : 'border-gray-200',
+                                  ].join(' ')}
+                                />
+                                {disagreed && (
+                                  <span
+                                    className="absolute -bottom-0.5 right-1 text-[9px] text-purple-600 font-mono pointer-events-none"
+                                    title="The two readers disagreed on this cell"
+                                  >
+                                    ≠{detail?.assist_value}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+
+                          <td className="w-8" />
+
+                          {/* What the surveyor wrote at the end of the row */}
+                          <td className="py-1 px-0.5 bg-slate-50">
+                            <input
+                              type="number"
+                              value={row.stated_total ?? ''}
+                              placeholder="—"
+                              onChange={(e) => setStatedTotal(rIdx, e.target.value)}
+                              className="w-full text-right px-1 py-1 border border-slate-300 rounded text-xs font-mono font-semibold outline-none focus:ring-1 focus:ring-slate-500"
+                            />
+                          </td>
+
+                          {/* Derived, never typed over */}
+                          <td className="py-1 px-2 text-right font-mono font-bold text-blue-900 bg-blue-50/50 select-none">
+                            {chk.computed}
+                          </td>
+
+                          <td className="py-1 px-1">
+                            <RowCheckChip status={chk.status} delta={chk.delta} />
+                          </td>
+
+                          <td className="py-1 px-0.5 text-center">
+                            <button
+                              onClick={() => deleteRow(rIdx)}
+                              className="text-gray-300 hover:text-red-500 p-1 transition"
+                              title="Remove this row"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
+                      <td className="py-2 px-2 text-xs">All boxes</td>
+                      {categories.map((cat) => (
+                        <td key={cat.key} className="py-2 px-1 text-right font-mono text-xs">
+                          {columnTotals[cat.key]}
+                        </td>
+                      ))}
+                      <td className="w-8" />
+                      <td className="bg-slate-100" />
+                      <td className="py-2 px-2 text-right font-mono text-xs bg-blue-100/60 text-blue-950">
+                        {checks.reduce((s, c) => s + c.computed, 0)}
+                      </td>
+                      <td colSpan={2} />
+                    </tr>
+                  </tfoot>
+                </table>
+
+                <button
+                  onClick={addRow}
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 px-2.5 py-1.5 rounded transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add a sample box
+                </button>
+
+                <p className="mt-2 text-[11px] text-gray-400">
+                  One row per sample box opened. Several boxes of the same count are normal —
+                  they are aggregated in the report, not merged here.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------ footer */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50">
+          <div className="text-xs text-gray-500">
+            {extraction && mismatchCount > 0 && (
+              <span className="text-red-700 font-semibold">
+                {mismatchCount} row{mismatchCount > 1 ? 's do' : ' does'} not add up to the written
+                total — fix before saving.
+              </span>
+            )}
+            {extraction && mismatchCount === 0 && blankCount > 0 && (
+              <span className="text-amber-700 font-medium">
+                {blankCount} row{blankCount > 1 ? 's have' : ' has'} a cell that could not be read.
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded-lg transition"
+            >
+              Cancel
+            </button>
+            {extraction && (
+              <button
+                onClick={handleApply}
+                disabled={applying || mismatchCount > 0 || rows.length === 0}
+                className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition"
+                title={
+                  mismatchCount > 0
+                    ? 'Rows that do not add up cannot be saved'
+                    : 'Save these figures into the report'
+                }
+              >
+                {applying ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    Save to report
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ========================================================================== */
+/* Sub-components                                                             */
+/* ========================================================================== */
+
+/**
+ * The photograph: zoom, drag to move around, and a highlight on the cell in hand.
+ *
+ * Zoom applies whether or not a cell carries a crop box. It used to apply only
+ * when one did, and the cloud reader reads the page whole rather than cell by
+ * cell, so it returns no boxes — which meant the zoom buttons moved the number
+ * on screen and did nothing else. Since the surveyor is reading handwriting off
+ * a phone photo, being able to magnify and move around it is the point.
+ *
+ * When the focused cell does have a box, the view centres on it automatically
+ * and any manual panning is set aside, so clicking through cells walks the photo
+ * for him.
+ */
+const SheetPane: React.FC<{
+  src: string;
+  box?: [number, number, number, number];
+  zoom: number;
+  hasFocus: boolean;
+}> = ({ src, box, zoom, hasFocus }) => {
+  const [pan, setPan] = React.useState({ x: 0, y: 0 });
+  const drag = React.useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+
+  const centred = Boolean(box) && hasFocus;
+
+  // Nothing to pan at 1x, so the offset is dropped rather than left stale.
+  React.useEffect(() => {
+    if (zoom <= 1) setPan({ x: 0, y: 0 });
+  }, [zoom]);
+
+  // The focused cell wins over wherever the surveyor had dragged to.
+  React.useEffect(() => {
+    if (centred) setPan({ x: 0, y: 0 });
+  }, [centred, box?.[0], box?.[1]]);
+
+  if (!src) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-gray-400 text-xs px-6 text-center">
+        No sheet image — figures are being typed by hand.
+      </div>
+    );
+  }
+
+  const cx = box ? (box[0] + box[2]) / 2 : 0.5;
+  const cy = box ? (box[1] + box[3]) / 2 : 0.5;
+  const offsetX = centred ? (0.5 - cx) * 100 : 0;
+  const offsetY = centred ? (0.5 - cy) * 100 : 0;
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (zoom <= 1) return;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    setPan({
+      x: drag.current.panX + (e.clientX - drag.current.x),
+      y: drag.current.panY + (e.clientY - drag.current.y),
+    });
+  };
+
+  const endDrag = () => {
+    drag.current = null;
+  };
+
+  return (
+    <div
+      className="flex-1 overflow-hidden relative bg-slate-200"
+      style={{ cursor: zoom > 1 ? (drag.current ? 'grabbing' : 'grab') : 'default' }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerLeave={endDrag}
+    >
+      <div
+        className={`absolute inset-0 ${drag.current ? '' : 'transition-transform duration-200 ease-out'}`}
+        style={{
+          transform:
+            `translate(${pan.x}px, ${pan.y}px) ` +
+            `scale(${zoom}) ` +
+            `translate(${offsetX}%, ${offsetY}%)`,
+          transformOrigin: 'center center',
+        }}
+      >
+        <img
+          src={src}
+          alt="Tally sheet"
+          draggable={false}
+          className="w-full h-full object-contain select-none"
+        />
+        {box && (
+          <div
+            className="absolute border-2 border-blue-500 bg-blue-400/20 rounded-sm pointer-events-none shadow-[0_0_0_9999px_rgba(15,23,42,0.35)]"
+            style={{
+              left: `${box[0] * 100}%`,
+              top: `${box[1] * 100}%`,
+              width: `${(box[2] - box[0]) * 100}%`,
+              height: `${(box[3] - box[1]) * 100}%`,
+            }}
+          />
+        )}
+      </div>
+      {/*
+        No box means the page was read whole rather than cell by cell, so there
+        is no rectangle to point at. Saying which row and column is in hand and
+        inviting the surveyor to zoom is more use than an apology.
+      */}
+      {!box && hasFocus && (
+        <div className="absolute bottom-2 left-2 right-2 text-[11px] text-slate-700 bg-white/90 rounded px-2 py-1">
+          {zoom > 1
+            ? 'Drag the sheet to move around it.'
+            : 'Zoom in with + to read the handwriting, then drag to move around.'}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** The cropped handwriting the focused number came from. */
+const CellInspector: React.FC<{
+  detail?: any;
+  label?: string;
+  rowLabel?: string;
+}> = ({ detail, label, rowLabel }) => {
+  if (!label) {
+    return (
+      <div className="border-t border-gray-200 bg-white px-3 py-2.5 text-[11px] text-gray-400 h-[88px] flex items-center">
+        Click a cell to see the handwriting it was read from.
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-gray-200 bg-white px-3 py-2.5 h-[88px]">
+      <div className="text-[11px] font-semibold text-gray-700 mb-1.5 truncate">
+        {rowLabel || 'Row'} → {label}
+      </div>
+      <div className="flex items-center gap-3">
+        {detail?.cell_image ? (
+          <img
+            src={detail.cell_image}
+            alt="Handwriting"
+            className="h-10 max-w-[110px] object-contain border border-gray-200 rounded bg-white"
+          />
+        ) : (
+          <span className="text-[11px] text-gray-400 italic">
+            Read from the whole page — use the sheet on the left.
+          </span>
+        )}
+        <div className="text-[11px] text-gray-600 space-y-0.5 min-w-0">
+          {detail?.raw_text ? (
+            <div className="truncate">
+              Read as <code className="bg-gray-100 px-1 rounded font-mono">{detail.raw_text}</code>
+            </div>
+          ) : null}
+          {typeof detail?.confidence === 'number' && detail.confidence > 0 && (
+            <div>
+              Confidence{' '}
+              <span
+                className={
+                  detail.confidence >= 0.85 ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'
+                }
+              >
+                {Math.round(detail.confidence * 100)}%
+              </span>
+            </div>
+          )}
+          {detail?.agreement === 'DISAGREED' && (
+            <div className="text-purple-700 font-medium">
+              Second reader made it {detail.assist_value}
+            </div>
+          )}
+          {detail?.agreement === 'AGREED' && (
+            <div className="text-emerald-700">Both readers agree</div>
+          )}
+          {detail?.validation?.message && (
+            <div className="text-amber-700 truncate" title={detail.validation.message}>
+              {detail.validation.message}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * The header block off the sheet: party, container, dates, room, readings.
+ *
+ * Read as a separate set from the counts, because it is separate on the sheet
+ * and it goes somewhere else in the report — the particulars table and the
+ * measurements table, not the defect grid.
+ *
+ * Unlike the counts, none of this can be proved by arithmetic. There is no
+ * total to check a container number against. So these fields are laid out to be
+ * read against the sheet rather than trusted: six or seven values, a few
+ * seconds, and they carry straight into the report once confirmed.
+ */
+const HEADER_FIELDS: Array<{ key: string; label: string; type: 'text' | 'date' | 'number' }> = [
+  { key: 'party_name', label: 'Party / Consignee', type: 'text' },
+  { key: 'container_number', label: 'Container No.', type: 'text' },
+  { key: 'survey_date', label: 'Survey date', type: 'date' },
+  { key: 'destuff_date', label: 'Destuff date', type: 'date' },
+  { key: 'room_no', label: 'Cold room', type: 'text' },
+  { key: 'room_temp', label: 'Room temp °C', type: 'number' },
+];
+
+const HEADER_RANGES: Array<{ min: string; max: string; label: string }> = [
+  { min: 'pulp_temp_min', max: 'pulp_temp_max', label: 'Pulp temp °C' },
+  { min: 'brix_min', max: 'brix_max', label: 'Brix %' },
+  { min: 'pressure_min', max: 'pressure_max', label: 'Pressure' },
+];
+
+/**
+ * Spreadsheet columns that matched nothing.
+ *
+ * The cold store names its columns whatever it likes, and the old import wrote
+ * a zero wherever a name did not line up — a zero being a real count of nothing
+ * that shifts every percentage in the finished report. So an unmatched column
+ * stops here and waits for the surveyor: put it somewhere, or say it is not a
+ * defect count. Nothing is assumed either way.
+ */
+const UnmappedColumns: React.FC<{
+  columns: string[];
+  categories: TallyCategory[];
+  onMap: (header: string, key: string) => void;
+}> = ({ columns, categories, onMap }) => (
+  <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5">
+    <div className="flex items-start gap-2 text-xs text-amber-900">
+      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+      <div className="flex-1">
+        <p className="font-semibold">
+          {columns.length} column{columns.length > 1 ? 's' : ''} in this spreadsheet
+          {columns.length > 1 ? ' do' : ' does'} not match any of the report's columns.
+        </p>
+        <p className="text-amber-800 mt-0.5">
+          Say where each belongs, or drop it. Until then its figures are not in the grid.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {columns.map((header) => (
+            <div
+              key={header}
+              className="flex items-center gap-1.5 bg-white border border-amber-300 rounded px-2 py-1"
+            >
+              <span className="font-mono text-[11px] text-gray-800">{header}</span>
+              <span className="text-amber-500">→</span>
+              <select
+                defaultValue=""
+                onChange={(e) => e.target.value && onMap(header, e.target.value)}
+                className="text-[11px] border border-gray-300 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="" disabled>
+                  choose…
+                </option>
+                {categories.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+                <option value="DROP">— not a defect count —</option>
+              </select>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const HeaderPanel: React.FC<{
+  headers: Record<string, any>;
+  onChange: (field: string, value: any) => void;
+  open: boolean;
+  onToggle: () => void;
+}> = ({ headers, onChange, open, onToggle }) => {
+  const filled = [...HEADER_FIELDS.map((f) => f.key), ...HEADER_RANGES.map((r) => r.min)].filter(
+    (k) => headers[k] !== null && headers[k] !== undefined && headers[k] !== '',
+  ).length;
+
+  return (
+    <div className="border-b border-gray-200 bg-slate-50/70">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-2 text-xs hover:bg-slate-100 transition"
+      >
+        <span className="font-semibold text-gray-700">
+          Details from the top of the sheet
+          <span className="ml-2 font-normal text-gray-500">
+            {filled} of {HEADER_FIELDS.length + HEADER_RANGES.length} read — check against the sheet
+          </span>
+        </span>
+        <span className="text-gray-400">{open ? '▾' : '▸'}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-3 grid grid-cols-3 gap-x-3 gap-y-2">
+          {HEADER_FIELDS.map((f) => (
+            <label key={f.key} className="block">
+              <span className="block text-[10px] font-medium text-gray-500 mb-0.5">{f.label}</span>
+              <input
+                type={f.type === 'number' ? 'number' : f.type}
+                step={f.type === 'number' ? '0.01' : undefined}
+                value={headers[f.key] ?? ''}
+                placeholder="—"
+                onChange={(e) =>
+                  onChange(
+                    f.key,
+                    f.type === 'number'
+                      ? (e.target.value === '' ? null : Number(e.target.value))
+                      : e.target.value,
+                  )
+                }
+                className={`w-full px-1.5 py-1 border rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 ${
+                  headers[f.key] ? 'border-gray-300 bg-white' : 'border-amber-300 bg-amber-50/50'
+                }`}
+              />
+            </label>
+          ))}
+
+          {HEADER_RANGES.map((r) => (
+            <label key={r.min} className="block">
+              <span className="block text-[10px] font-medium text-gray-500 mb-0.5">{r.label}</span>
+              <div className="flex gap-1">
+                {[r.min, r.max].map((k, i) => (
+                  <input
+                    key={k}
+                    type="number"
+                    step="0.01"
+                    value={headers[k] ?? ''}
+                    placeholder={i === 0 ? 'min' : 'max'}
+                    onChange={(e) => onChange(k, e.target.value === '' ? null : Number(e.target.value))}
+                    className={`w-1/2 px-1.5 py-1 border rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 ${
+                      headers[k] !== null && headers[k] !== undefined
+                        ? 'border-gray-300 bg-white'
+                        : 'border-amber-300 bg-amber-50/50'
+                    }`}
+                  />
+                ))}
+              </div>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Green / red / grey — three states, because unchecked is not the same as passed. */
+const RowCheckChip: React.FC<{ status: 'OK' | 'MISMATCH' | 'UNCHECKED'; delta: number | null }> = ({
+  status,
+  delta,
+}) => {
+  if (status === 'OK') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+        <Check className="w-3 h-3" /> Ties out
+      </span>
+    );
+  }
+  if (status === 'MISMATCH') {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-100 border border-red-300 px-1.5 py-0.5 rounded"
+        title="The cells and the written total disagree"
+      >
+        <AlertTriangle className="w-3 h-3" />
+        {delta !== null && delta > 0 ? `+${delta}` : delta}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded"
+      title="No total was written on this row, so there is nothing to check against"
+    >
+      <Minus className="w-3 h-3" /> No total
+    </span>
+  );
+};
+
+/** Says plainly what happened, including when nothing could be read. */
+const StatusBar: React.FC<{
+  extraction: TallyExtraction;
+  mismatchCount: number;
+  blankCount: number;
+  uncheckedCount: number;
+  rowCount: number;
+}> = ({ extraction, mismatchCount, blankCount, uncheckedCount, rowCount }) => {
+  const reader = extraction.reader;
+
+  const tone =
+    mismatchCount > 0
+      ? 'bg-red-50 border-red-200 text-red-900'
+      : blankCount > 0
+      ? 'bg-amber-50 border-amber-200 text-amber-900'
+      : 'bg-emerald-50 border-emerald-200 text-emerald-900';
+
+  let headline: string;
+  if (extraction.extraction_status === 'NO_ENGINE') {
+    headline =
+      'No handwriting reader is installed on this server, so nothing was read from the photo. Type the figures in — the row checks still work.';
+  } else if (extraction.extraction_status === 'NO_GRID') {
+    headline =
+      rowCount > 0
+        ? 'Figures are being entered by hand.'
+        : 'The ruled grid could not be found on this photo — the lines may be too faint. Add the rows by hand; the sheet stays on the left to read from.';
+  } else if (mismatchCount > 0) {
+    headline = `${mismatchCount} row${mismatchCount > 1 ? 's' : ''} disagree with the written total.`;
+  } else if (blankCount > 0) {
+    headline = `${blankCount} row${blankCount > 1 ? 's' : ''} still have a cell that could not be read.`;
+  } else {
+    headline = `All ${rowCount} rows checked.`;
+  }
+
+  return (
+    <div className={`px-4 py-2 border-b ${tone} text-xs`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Info className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-medium truncate">{headline}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 text-[11px]">
+          {uncheckedCount > 0 && (
+            <span className="text-gray-600 bg-white/70 px-1.5 py-0.5 rounded border border-gray-200">
+              {uncheckedCount} without a written total
+            </span>
+          )}
+          {reader?.used === 'cloud' && (
+            <span className="bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded border border-blue-200">
+              Read online{reader.header_sent === false ? ' (header not sent)' : ''}
+            </span>
+          )}
+          {reader?.used === 'local' && extraction.ocr_engine && (
+            <span className="bg-white/70 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">
+              Read on this server by {extraction.ocr_engine}
+            </span>
+          )}
+          {reader?.used === 'local' && reader.cloud_error && (
+            <span
+              className="bg-white/70 px-1.5 py-0.5 rounded border border-gray-200 text-gray-600 max-w-[280px] truncate"
+              title={reader.cloud_error}
+            >
+              {reader.cloud_error}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** First screen: what this deployment can do, and the upload box. */
+const UploadPane: React.FC<{
+  caps: TallyCapabilities | null;
+  loading: boolean;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onFile: (f: File) => void;
+  onStartBlank: () => void;
+}> = ({ caps, loading, fileInputRef, onFile, onStartBlank }) => {
+  if (loading) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-9 h-9 text-blue-600 animate-spin" />
+        <p className="text-sm font-medium text-gray-700">Reading the sheet…</p>
+        <p className="text-xs text-gray-500">Finding the grid and the handwriting in each cell</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="max-w-2xl mx-auto space-y-4">
+        <div
+          className="border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center hover:border-blue-500 hover:bg-blue-50/30 transition cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const f = e.dataTransfer.files?.[0];
+            if (f) onFile(f);
+          }}
+          onDragOver={(e) => e.preventDefault()}
+        >
+          <div className="w-14 h-14 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3">
+            <Upload className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-semibold text-gray-800">
+            Upload the tally sheet photo
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            The photo you took of the notebook page in the cold room. Drop it here or click to browse.
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.csv,.xlsx,.xlsm,.xls"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+          />
+        </div>
+
+        {caps && (
+          <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/60 space-y-3 text-xs">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="font-semibold text-gray-700">Columns for this report</span>
+                <p className="text-gray-500 mt-0.5">
+                  {caps.commodity
+                    ? `Set by the commodity (${caps.commodity.toLowerCase()}), counted in ${caps.unit}.`
+                    : 'No commodity chosen yet, so only Sound is set up. Pick one on the report to get the rest.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {caps.categories.map((c) => (
+                <span
+                  key={c.key}
+                  className="px-2 py-0.5 bg-white border border-gray-200 rounded text-gray-700"
+                >
+                  {c.label}
+                </span>
+              ))}
+            </div>
+
+            {caps.reader === 'cloud' && (
+              <div className="flex items-start gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-900">
+                <CloudUpload className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-semibold">The sheet is read online.</span>{' '}
+                  {caps.cloud_sends_header
+                    ? 'The whole page is sent, so the party name, container number, dates and readings at the top are filled in too.'
+                    : 'Only the number grid is sent — the top of the sheet stays here, so the party name and container number are typed in by hand.'}{' '}
+                  Everything that comes back is a draft until you have checked it.
+                </span>
+              </div>
+            )}
+
+            {caps.reader === 'local' && (
+              <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Reading happens on this server ({caps.ocr_engines.join(', ')}), which does not cope
+                  with a sideways photo or highlighter across a row. Expect to fill in a fair
+                  amount by hand. Setting an online reader key makes this much better.
+                </span>
+              </div>
+            )}
+
+            {caps.reader === 'none' && (
+              <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Nothing on this server can read handwriting, so an uploaded photo will not be read
+                  automatically. The workbench still works: the sheet shows on the left and the row
+                  checks run as you type.
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="text-center">
+          <button
+            onClick={onStartBlank}
+            className="text-xs text-gray-500 hover:text-gray-800 underline underline-offset-2"
+          >
+            Skip the photo and type the figures in
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

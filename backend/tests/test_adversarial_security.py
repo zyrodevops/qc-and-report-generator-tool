@@ -51,7 +51,7 @@ def auth_session(test_client):
 def sample_report_id(auth_session):
     client, _ = auth_session
     payload = {
-        "template_id": "perishable-qc-sea",
+        "template_id": "perishable_qc_sea",
         "family": "marine_cargo",
         "year": 2026,
         "block_state": {
@@ -239,7 +239,7 @@ def test_xss_live_endpoint_roundtrip(auth_session):
     """Save an adversarial XSS report to the DB and verify preview endpoint renders safely."""
     client, token = auth_session
     payload = {
-        "template_id": "perishable-qc-sea",
+        "template_id": "perishable_qc_sea",
         "family": "marine_cargo",
         "year": 2026,
         "block_state": {
@@ -459,7 +459,7 @@ def test_lfi_asset_path_exposure_vulnerability(auth_session):
     client, token = auth_session
     # Target /etc/hosts which is universally readable on Linux
     payload = {
-        "template_id": "perishable-qc-sea",
+        "template_id": "perishable_qc_sea",
         "family": "marine_cargo",
         "year": 2026,
         "block_state": {

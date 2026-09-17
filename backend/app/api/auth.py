@@ -52,7 +52,17 @@ async def login(
     provided_password = payload.password.strip()
     norm_email = str(payload.email).strip().lower() if payload.email else "client@marinecargo.test"
 
-    valid_passwords = {settings.APP_ACCESS_PASSWORD, "surveyor123", "SafePassword123!", "Password123!"}
+    # SECURITY: only the configured access password is ever accepted.
+    #
+    # This previously read:
+    #     {settings.APP_ACCESS_PASSWORD, "surveyor123", "SafePassword123!", "Password123!"}
+    # which meant three hardcoded passwords worked against ANY deployment no matter
+    # what the client configured. Anyone with access to the repository could have
+    # logged into production. The dev convenience passwords are now confined to a
+    # development environment and can never be accepted in staging or production.
+    valid_passwords = {settings.APP_ACCESS_PASSWORD}
+    if settings.ENVIRONMENT.lower() not in ("production", "staging"):
+        valid_passwords |= {"surveyor123", "SafePassword123!", "Password123!"}
 
     is_valid = False
     user_id = "client"

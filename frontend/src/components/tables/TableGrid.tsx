@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Table, Upload, Plus, Trash2, Scan } from 'lucide-react';
-import { TallyOcrModal } from './TallyOcrModal';
+import { Table, Upload, Plus, Trash2, ScanLine } from 'lucide-react';
+import { VerificationWorkbench } from './VerificationWorkbench';
 
 interface Category {
   key: string;
@@ -26,6 +26,8 @@ interface TableBlockProps {
   onImportCsv?: () => void;
   reportId?: string;
   onBlockStateChange?: (updatedBlockState: any) => void;
+  /** Decides which defect columns the tally grid offers. */
+  commodity?: string;
 }
 
 export const TableGrid: React.FC<TableBlockProps> = ({
@@ -34,6 +36,7 @@ export const TableGrid: React.FC<TableBlockProps> = ({
   onImportCsv,
   reportId,
   onBlockStateChange,
+  commodity,
 }) => {
   const [isOcrOpen, setIsOcrOpen] = useState(false);
   const { categories, rows, unit = 'pcs', grouping_label = 'Group' } = block;
@@ -123,8 +126,8 @@ export const TableGrid: React.FC<TableBlockProps> = ({
               onClick={() => setIsOcrOpen(true)}
               className="flex items-center gap-1.5 text-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-3 py-1.5 rounded transition border border-indigo-200"
             >
-              <Scan className="w-4 h-4 text-indigo-600" />
-              Upload Tally (OCR)
+              <ScanLine className="w-4 h-4 text-indigo-600" />
+              Tally Sheet
             </button>
           )}
           {onImportCsv && (
@@ -241,11 +244,12 @@ export const TableGrid: React.FC<TableBlockProps> = ({
       </p>
 
       {reportId && (
-        <TallyOcrModal
+        <VerificationWorkbench
           reportId={reportId}
           isOpen={isOcrOpen}
           onClose={() => setIsOcrOpen(false)}
           blockId={block.id}
+          commodity={commodity}
           onSuccess={(updatedBlockState) => {
             if (onBlockStateChange) {
               onBlockStateChange(updatedBlockState);
