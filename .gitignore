@@ -99,3 +99,18 @@ Thumbs.db
 
 # 7. Agent Workspace Metadata
 .agents/
+
+# 8. Development process notes — kept locally, not committed.
+#
+# CRITICAL-RULES.md, DEVELOPER_WORKFLOW_AND_INSTRUCTIONS.md, OCR_IMPLEMENTATION.md
+# and Survey-QC-Platform-Master-Spec.md are deliberately NOT in this list. They
+# hold the domain knowledge needed to work on the report logic — what a caliber
+# is, why a count repeats, how the tally sheets are laid out — and HANDOVER.md
+# sends whoever picks this up to read them. They contain no licence number and
+# no client data; that was checked.
+/ORIGINAL_REQUEST.md
+/PROJECT.md
+/TEMPLATE-NOTES.md
+/TEST_READY.md
+/TEST_INFRA.md
+/docs/

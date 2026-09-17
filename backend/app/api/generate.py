@@ -10,6 +10,7 @@ Week 2 additions:
 
 from __future__ import annotations
 
+import copy
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -31,6 +32,21 @@ from app.compute.traceability import check_traceability
 from app.services.audit import AuditService
 
 router = APIRouter()
+
+
+def _sanitize_photo_groups_for_render(block_state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Ensures that empty photo groups (e.g. unpopulated placeholder groups like pg1
+    from template defaults) do not trigger assertion failures during preview/download.
+    Per Master Spec §10.2, only groups that contain at least one photo are rendered.
+    If no photos are uploaded yet, the photo plate renders '[No photos in this series]'.
+    """
+    state = copy.deepcopy(block_state)
+    for block in state.get("blocks", []):
+        if block.get("type") == "photo_plate":
+            groups = block.get("groups", [])
+            block["groups"] = [g for g in groups if g.get("asset_ids")]
+    return state
 
 
 # ---------------------------------------------------------------------------
@@ -68,9 +84,10 @@ async def preview_html(
     compute() is called fresh inside render_html() — guaranteed zero drift with DOCX.
     """
     report = await _get_report_or_404(report_id, db)
+    sanitized_state = _sanitize_photo_groups_for_render(report.block_state)
 
     try:
-        html_content = render_html(report.block_state)
+        html_content = render_html(sanitized_state)
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -95,14 +112,16 @@ async def preview_pdf(
     Renders DOCX, converts via headless LibreOffice, and serves as inline application/pdf.
     """
     report = await _get_report_or_404(report_id, db)
+    sanitized_state = _sanitize_photo_groups_for_render(report.block_state)
 
     try:
-        docx_bytes = render_docx(report.block_state)
+        docx_bytes = render_docx(sanitized_state)
     except Exception as exc:
         raise HTTPException(
             status_code=500,
             detail=f"DOCX generation failed: {exc}",
         )
+
 
     try:
         pdf_bytes = render_pdf(docx_bytes)
@@ -155,9 +174,10 @@ async def download_docx(
     Traceability gate runs before serving; pass ?force=true to bypass (logged).
     """
     report = await _get_report_or_404(report_id, db)
+    sanitized_state = _sanitize_photo_groups_for_render(report.block_state)
 
     try:
-        docx_bytes = render_docx(report.block_state)
+        docx_bytes = render_docx(sanitized_state)
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -166,7 +186,7 @@ async def download_docx(
 
     # Numeric traceability gate
     if not force:
-        result = check_traceability(report.block_state, docx_bytes)
+        result = check_traceability(sanitized_state, docx_bytes)
         if not result.passed:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -220,10 +240,11 @@ async def download_pdf(
     Traceability gate runs on the DOCX before conversion.
     """
     report = await _get_report_or_404(report_id, db)
+    sanitized_state = _sanitize_photo_groups_for_render(report.block_state)
 
     # Generate DOCX first (needed for gate + as input to LibreOffice)
     try:
-        docx_bytes = render_docx(report.block_state)
+        docx_bytes = render_docx(sanitized_state)
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -232,7 +253,8 @@ async def download_pdf(
 
     # Numeric traceability gate (on DOCX — same content goes to PDF)
     if not force:
-        result = check_traceability(report.block_state, docx_bytes)
+        result = check_traceability(sanitized_state, docx_bytes)
+
         if not result.passed:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
