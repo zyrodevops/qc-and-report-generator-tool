@@ -204,9 +204,15 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     if title:
         doc.add_heading(title, level=2)
 
-    categories = block.get("categories", [])
+    from app.render.table_columns import visible_columns
+
     rows = block.get("rows", [])
     unit = block.get("unit", "pcs")
+    # Only columns with at least one value are printed; see table_columns.py.
+    # Must match the HTML engine exactly.
+    shown = visible_columns(block)
+    shown_idx = [i for i, _ in shown]
+    categories = [c for _, c in shown]
     cat_keys = [c["key"] for c in categories]
     cat_labels = [c["label"] for c in categories]
 
@@ -255,9 +261,9 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
             prow = table.rows[curr_row].cells
             prow[0].text = "Percentage"
             pct_row = row_pcts[i] if i < len(row_pcts) else []
-            for j, p in enumerate(pct_row):
-                if j < len(cat_keys):
-                    prow[1 + j].text = f"{p}%" if str(p) else ""
+            for j, orig in enumerate(shown_idx):
+                p = pct_row[orig] if orig < len(pct_row) else ""
+                prow[1 + j].text = f"{p}%" if str(p) else ""
             prow[-1].text = "100.00%"
             curr_row += 1
 
@@ -283,8 +289,9 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
                 c.paragraphs[0].runs[0].bold = True
 
     else:
-        # Standard table layout (existing single-row format)
-        col_count = 1 + len(categories) + 2
+        # Standard single-row layout. The joined "%" column is gone — see the
+        # HTML engine for why; per-column percentages are in the foot row.
+        col_count = 1 + len(categories) + 1
         table = doc.add_table(rows=1 + len(rows) + 2, cols=col_count)
         table.style = "Table Grid"
 
@@ -293,8 +300,7 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
         hrow[0].text = block.get("grouping_label", "Group")
         for i, label in enumerate(cat_labels):
             hrow[1 + i].text = label
-        hrow[-2].text = f"Total ({unit})"
-        hrow[-1].text = "%"
+        hrow[-1].text = f"Total ({unit})"
         for cell in hrow:
             if cell.paragraphs[0].runs:
                 cell.paragraphs[0].runs[0].bold = True
@@ -307,24 +313,29 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
             for j, key in enumerate(cat_keys):
                 trow[1 + j].text = str(values.get(key, ""))
             if i < len(row_totals):
-                trow[-2].text = str(row_totals[i])
-                pct_row = row_pcts[i] if i < len(row_pcts) else []
-                pct_str = " / ".join(str(p) for p in pct_row)
-                trow[-1].text = pct_str
+                trow[-1].text = str(row_totals[i])
 
         # Column totals row
         tot_row = table.rows[-2].cells
         tot_row[0].text = "Total"
         for j, key in enumerate(cat_keys):
             tot_row[1 + j].text = str(col_totals.get(key, ""))
-        tot_row[-2].text = str(grand_total)
-        tot_row[-1].text = ""
+        tot_row[-1].text = str(grand_total)
 
         # Percentage row
         pct_row_cells = table.rows[-1].cells
         pct_row_cells[0].text = "%"
         for j, key in enumerate(cat_keys):
-            pct_row_cells[1 + j].text = str(col_pcts.get(key, ""))
+            p = col_pcts.get(key, "")
+            pct_row_cells[1 + j].text = f"{p}%" if str(p) else ""
+        pct_row_cells[-1].text = "100.00%"
+
+    # A dozen columns only fit portrait A4 at a small size.
+    for trow in table.rows:
+        for cell in trow.cells:
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(7.5)
 
     doc.add_paragraph()
 

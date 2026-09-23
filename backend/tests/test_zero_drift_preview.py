@@ -44,11 +44,15 @@ def extract_docx_data(docx_bytes: bytes) -> Dict[str, Any]:
             defect_tables.append({
                 "header": header,
                 "data_rows": data_rows,
-                "row_totals": [r[-2] for r in data_rows],
-                "row_pcts": [r[-1] for r in data_rows],
-                "col_totals": totals_row[1:-2],
-                "grand_total": totals_row[-2],
-                "col_pcts": pct_row[1:-2],
+                # Last column is the row total. The old final "%" column,
+                # which joined every row percentage with " / " and stretched
+                # each row several times its height, was removed; per-column
+                # percentages are in the foot row, suffixed with "%".
+                "row_totals": [r[-1] for r in data_rows],
+                "row_pcts": [],
+                "col_totals": totals_row[1:-1],
+                "grand_total": totals_row[-1],
+                "col_pcts": [c.rstrip("%") for c in pct_row[1:-1]],
                 "full_grid": t_rows,
             })
 
@@ -116,11 +120,15 @@ def extract_html_data(html_content: str) -> Dict[str, Any]:
             defect_tables.append({
                 "header": header,
                 "data_rows": data_rows,
-                "row_totals": [r[-2] for r in data_rows],
-                "row_pcts": [r[-1] for r in data_rows],
-                "col_totals": totals_row[1:-2],
-                "grand_total": totals_row[-2],
-                "col_pcts": pct_row[1:-2],
+                # Last column is the row total. The old final "%" column,
+                # which joined every row percentage with " / " and stretched
+                # each row several times its height, was removed; per-column
+                # percentages are in the foot row, suffixed with "%".
+                "row_totals": [r[-1] for r in data_rows],
+                "row_pcts": [],
+                "col_totals": totals_row[1:-1],
+                "grand_total": totals_row[-1],
+                "col_pcts": [c.rstrip("%") for c in pct_row[1:-1]],
                 "full_grid": t_rows,
             })
 
@@ -189,7 +197,9 @@ def test_zero_drift_mandarin_citrus_benchmark():
     html_data = extract_html_data(html_content)
     tab = html_data["defect_tables"][0]
     assert tab["row_totals"] == ["234.00"]
-    assert tab["row_pcts"] == ["56.84 / 23.08 / 5.98 / 10.26 / 3.84"]
+    # No joined-percentage column: every row is exactly as wide as the header.
+    assert "%" not in tab["header"]
+    assert all(len(r) == len(tab["header"]) for r in tab["data_rows"])
     assert tab["col_totals"] == ["133.00", "54.00", "14.00", "24.00", "9.00"]
     assert tab["grand_total"] == "234.00"
     assert tab["col_pcts"] == ["56.84", "23.08", "5.98", "10.26", "3.84"]

@@ -59,8 +59,70 @@ def _upscale_small_crop(rgb: np.ndarray) -> np.ndarray:
     return cv2.copyMakeBorder(resized, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=[255, 255, 255])
 
 
+class RapidOCRCellRecognizer:
+    """
+    Primary local engine: PaddleOCR's own recognition models, run through ONNX.
+
+    `pip install rapidocr onnxruntime`. It is the PaddleOCR engine without the
+    PaddlePaddle framework, which does not install cleanly on Python 3.13 and
+    weighs several hundred megabytes. On the client's apple sheet it read 243
+    text pieces in five seconds, including the container number and every
+    subtotal.
+
+    Cells are read with detection switched off: the crop already is the text
+    region, and the detector tends to find nothing in a crop that small.
+    """
+
+    def __init__(self) -> None:
+        self._engine: Optional[Any] = None
+        self._tried = False
+
+    def _get_engine(self) -> Optional[Any]:
+        if self._engine is None and not self._tried:
+            self._tried = True
+            try:
+                from rapidocr import RapidOCR
+                self._engine = RapidOCR()
+                logger.info("RapidOCR (PaddleOCR models) ready.")
+            except Exception as exc:
+                logger.warning("RapidOCR unavailable: %s", exc)
+                self._engine = None
+        return self._engine
+
+    def recognize(self, cell_img: np.ndarray | Image.Image, expected_type: str = "number") -> RecognitionResult:
+        engine = self._get_engine()
+        if engine is None:
+            return RecognitionResult("", 0.0, "RapidOCR_unavailable")
+
+        rgb = _upscale_small_crop(_to_rgb(cell_img))
+        # A single cell is already one text region, so detection is skipped.
+        # A large area such as the header block holds many lines and needs it.
+        h, w = rgb.shape[:2]
+        # Headings are often written on two lines inside one cell — "Rotten /
+        # spot", "Less / colour" — and recognition alone reads only one of them,
+        # which turns "Rotten spot" into "Rotten" and puts its counts under the
+        # wrong defect. So text is tried with line detection first.
+        attempts = [True, False] if (expected_type == "text" or min(h, w) > 150) else [False]
+        try:
+            texts, scores = [], []
+            for use_det in attempts:
+                res = engine(rgb, use_det=use_det, use_cls=False, use_rec=True)
+                texts = [str(t).strip() for t in (res.txts or []) if str(t).strip()]
+                scores = [float(x) for x in (res.scores or [])]
+                if texts:
+                    break
+            if texts:
+                return RecognitionResult(
+                    " ".join(texts), float(np.mean(scores)) if scores else 0.0, "PaddleOCR (RapidOCR)"
+                )
+        except Exception as exc:
+            logger.warning("RapidOCR error: %s", exc)
+
+        return RecognitionResult("", 0.0, "PaddleOCR (RapidOCR)")
+
+
 class PaddleOCRCellRecognizer:
-    """Primary local engine."""
+    """Full PaddleOCR, used if it happens to be installed."""
 
     def __init__(self) -> None:
         self._engine: Optional[Any] = None
@@ -176,21 +238,20 @@ class CompositeCellRecognizer:
     """Tries each local engine in turn until one returns text."""
 
     def __init__(self) -> None:
-        self.primary = PaddleOCRCellRecognizer()
-        self.fallback = EasyOCRCellRecognizer()
-        self.last_resort = TesseractCellRecognizer()
+        self.primary = RapidOCRCellRecognizer()
+        self.fallback = PaddleOCRCellRecognizer()
+        self.engines = [
+            self.primary,
+            self.fallback,
+            EasyOCRCellRecognizer(),
+            TesseractCellRecognizer(),
+        ]
 
     def recognize(self, cell_img: np.ndarray | Image.Image, expected_type: str = "number") -> RecognitionResult:
-        first = self.primary.recognize(cell_img, expected_type=expected_type)
-        if first.raw_text:
-            return first
-
-        second = self.fallback.recognize(cell_img, expected_type=expected_type)
-        if second.raw_text:
-            return second
-
-        third = self.last_resort.recognize(cell_img, expected_type=expected_type)
-        if third.raw_text:
-            return third
-
-        return first
+        first: Optional[RecognitionResult] = None
+        for engine in self.engines:
+            res = engine.recognize(cell_img, expected_type=expected_type)
+            if res.raw_text:
+                return res
+            first = first or res
+        return first or RecognitionResult("", 0.0, "none")

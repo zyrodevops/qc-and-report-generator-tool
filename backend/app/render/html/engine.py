@@ -130,6 +130,32 @@ table.report-table tr.percentages-row td {
     background-color: #f8fafc;
 }
 
+/* The defect table can carry a dozen columns. A small size lets them share
+   the page width; headings wrap between words, figures never wrap, and
+   columns empty in every row are not printed at all (table_columns.py). */
+table.defect-table {
+    font-size: 7.5pt;
+}
+table.defect-table th, table.defect-table td {
+    padding: 3px 4px;
+    /* wrap headings between words only: never "Shrivelle/d" */
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: manual;
+}
+table.defect-table th {
+    text-align: center;
+    vertical-align: bottom;
+    line-height: 1.2;
+}
+table.defect-table td {
+    text-align: right;
+    white-space: nowrap;
+}
+table.defect-table td:first-child, table.defect-table th:first-child {
+    text-align: left;
+}
+
 .narrative-block {
     margin: 10px 0 14px 0;
     font-size: 9.5pt;
@@ -334,12 +360,17 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
     Render defect analysis table with locked computed totals/percentages.
     Matches Word cell-for-cell bit-exact.
     """
+    from app.render.table_columns import visible_columns
+
     title = block.get("title", "")
     categories = block.get("categories", [])
     rows = block.get("rows", [])
     unit = block.get("unit", "pcs")
-    cat_keys = [c["key"] for c in categories]
-    cat_labels = [c["label"] for c in categories]
+    # Only columns with at least one value are printed; see table_columns.py.
+    shown = visible_columns(block)
+    shown_idx = [i for i, _ in shown]
+    cat_keys = [c["key"] for _, c in shown]
+    cat_labels = [c["label"] for _, c in shown]
 
     out = []
     if title:
@@ -377,7 +408,8 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
             # Row 2: Percentage row
             p_cells = ["<td><em>Percentage</em></td>"]
             pct_row = row_pcts[i] if i < len(row_pcts) else []
-            for j, p in enumerate(pct_row):
+            for j in shown_idx:
+                p = pct_row[j] if j < len(pct_row) else ""
                 p_val = f"{p}%" if str(p) else ""
                 p_cells.append(f"<td>{html.escape(p_val)}</td>")
             p_cells.append("<td>100.00%</td>")
@@ -400,13 +432,18 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
 
         out.append('</tbody></table>')
     else:
-        # Standard table layout (existing single-row format)
+        # Standard single-row layout.
+        #
+        # There used to be a final "%" column holding every percentage for the
+        # row joined with " / " — thirteen figures in one cell for an apple
+        # sheet. It wrapped into a tall stack and stretched every row several
+        # times its height. Per-column percentages are in the "%" row at the
+        # foot of the table, which is where the client's reports carry them.
         group_col = html.escape(block.get("grouping_label", "Group"))
         headers = [f'<th>{group_col}</th>']
         for lab in cat_labels:
             headers.append(f'<th>{html.escape(lab)}</th>')
         headers.append(f'<th>Total ({html.escape(unit)})</th>')
-        headers.append('<th>%</th>')
         out.append(f"<thead><tr>{''.join(headers)}</tr></thead>")
 
         out.append('<tbody>')
@@ -415,29 +452,21 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
             values = r.get("values", {})
             for key in cat_keys:
                 cells.append(f"<td>{html.escape(str(values.get(key, '')))}</td>")
-
-            if i < len(row_totals):
-                cells.append(f"<td>{html.escape(str(row_totals[i]))}</td>")
-                pct_row = row_pcts[i] if i < len(row_pcts) else []
-                pct_str = " / ".join(str(p) for p in pct_row)
-                cells.append(f"<td>{html.escape(pct_str)}</td>")
-            else:
-                cells.append("<td></td><td></td>")
-
+            tot = str(row_totals[i]) if i < len(row_totals) else ""
+            cells.append(f"<td>{html.escape(tot)}</td>")
             out.append(f"<tr>{''.join(cells)}</tr>")
 
         tot_cells = ["<td>Total</td>"]
         for key in cat_keys:
             tot_cells.append(f"<td>{html.escape(str(col_totals.get(key, '')))}</td>")
         tot_cells.append(f"<td>{html.escape(str(grand_total))}</td>")
-        tot_cells.append("<td></td>")
         out.append(f'<tr class="totals-row">{"".join(tot_cells)}</tr>')
 
         pct_cells = ["<td>%</td>"]
         for key in cat_keys:
-            pct_cells.append(f"<td>{html.escape(str(col_pcts.get(key, '')))}</td>")
-        pct_cells.append("<td></td>")
-        pct_cells.append("<td></td>")
+            p = col_pcts.get(key, "")
+            pct_cells.append(f"<td>{html.escape(f'{p}%' if str(p) else '')}</td>")
+        pct_cells.append("<td>100.00%</td>")
         out.append(f'<tr class="percentages-row">{"".join(pct_cells)}</tr>')
 
         out.append('</tbody></table>')

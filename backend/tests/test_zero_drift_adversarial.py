@@ -95,9 +95,10 @@ def test_adversarial_empty_table_zero_categories_render_simulation():
     ]
 
     expected_grid = [
-        ["Group", "Total (pcs)", "%"],
-        ["Total", "0.00", ""],
-        ["%", "", ""],
+        # No joined-percentage column any more; the % row closes on 100.00%.
+        ["Group", "Total (pcs)"],
+        ["Total", "0.00"],
+        ["%", "100.00%"],
     ]
     assert docx_grid == expected_grid
     assert html_grid == expected_grid
@@ -198,7 +199,7 @@ def test_adversarial_single_cell_table():
     docx_data = extract_docx_data(docx_bytes)
     tab = docx_data["defect_tables"][0]
     assert tab["row_totals"] == ["42.00"]
-    assert tab["row_pcts"] == ["100.00"]
+    assert tab["row_pcts"] == []  # joined-percentage column removed
     assert tab["col_totals"] == ["42.00"]
     assert tab["grand_total"] == "42.00"
     assert tab["col_pcts"] == ["100.00"]
@@ -236,11 +237,7 @@ def test_adversarial_all_zeros_table_multi_cell():
 
     tab = extract_docx_data(docx_bytes)["defect_tables"][0]
     assert tab["row_totals"] == ["0.00", "0.00", "0.00"]
-    assert tab["row_pcts"] == [
-        "0.00 / 0.00 / 0.00",
-        "0.00 / 0.00 / 0.00",
-        "0.00 / 0.00 / 0.00",
-    ]
+    assert tab["row_pcts"] == []  # joined-percentage column removed
     assert tab["col_totals"] == ["0.00", "0.00", "0.00"]
     assert tab["grand_total"] == "0.00"
     assert tab["col_pcts"] == ["0.00", "0.00", "0.00"]
@@ -393,7 +390,7 @@ def test_adversarial_hare_niemeyer_3way_tie():
 
     tab = extract_docx_data(docx_bytes)["defect_tables"][0]
     assert tab["col_pcts"] == ["33.34", "33.33", "33.33"]
-    assert tab["row_pcts"] == ["33.34 / 33.33 / 33.33"]
+    assert tab["row_pcts"] == []  # joined-percentage column removed
     assert sum(Decimal(p) for p in tab["col_pcts"]) == Decimal("100.00")
 
 

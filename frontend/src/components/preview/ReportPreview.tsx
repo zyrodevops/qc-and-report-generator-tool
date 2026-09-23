@@ -37,6 +37,12 @@ export interface ReportPreviewProps {
   onBlockChange?: (updatedBlock: any) => void;
   onBlockStateChange?: (updatedState: any) => void;
   editable?: boolean;
+  /**
+   * Runs before a download. Downloads are built from what the server holds, so
+   * unsaved edits have to be saved first or the file comes out stale. Return
+   * false to cancel.
+   */
+  beforeDownload?: () => Promise<boolean>;
 }
 
 export const ReportPreview: React.FC<ReportPreviewProps> = ({
@@ -47,6 +53,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
   onBlockChange,
   onBlockStateChange,
   editable = true,
+  beforeDownload,
 }) => {
   const [zoom, setZoom] = useState<number>(100);
   const [viewMode, setViewMode] = useState<'paginated' | 'all'>('all');
@@ -131,20 +138,22 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
     window.print();
   };
 
-  const handleDownloadDocx = () => {
-    if (report?.id) {
+  const ready = async () => (beforeDownload ? beforeDownload() : true);
+
+  const handleDownloadDocx = async () => {
+    if (report?.id && (await ready())) {
       window.location.href = getDownloadDocxUrl(report.id);
     }
   };
 
-  const handleDownloadPdf = () => {
-    if (report?.id) {
+  const handleDownloadPdf = async () => {
+    if (report?.id && (await ready())) {
       window.location.href = getDownloadPdfUrl(report.id);
     }
   };
 
-  const handleOpenServerHtml = () => {
-    if (report?.id) {
+  const handleOpenServerHtml = async () => {
+    if (report?.id && (await ready())) {
       window.open(getPreviewHtmlUrl(report.id), '_blank');
     }
   };

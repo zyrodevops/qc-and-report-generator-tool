@@ -210,10 +210,33 @@ def match_header_to_category(
         ):
             return cat["key"]
 
-    # Last: an abbreviation or extension of a single-word column. Four
-    # characters minimum, for the same reason.
+    # An abbreviation or extension of a single-word column. Four characters
+    # minimum, for the same reason.
     if len(key) >= 4:
         for cat in categories:
             if key in cat["key"] or cat["key"] in key:
                 return cat["key"]
+
+    # Last: a heading OCR misspelled. Handwritten headings come back as
+    # "Le55 Colour" for Less Colour and "Shoiveled" for Shrivelled. Digits that
+    # stand in for letters are swapped back, then a close spelling match is
+    # accepted — but only a close one (80% alike), so that "Rotten" can never be
+    # taken for "Rotten Spot" and move counts into the wrong defect.
+    import difflib
+
+    repaired = re.sub(
+        r"[0-9]",
+        lambda m: {"5": "s", "0": "o", "1": "l", "3": "e", "4": "a", "8": "b"}.get(m.group(0), ""),
+        re.sub(r"\([^)]*\)", " ", raw_header),
+    )
+    repaired_key = slug(re.sub(r"[^a-zA-Z\s]", " ", repaired).strip())
+    if len(repaired_key) >= 4:
+        for cat in categories:
+            if cat["key"] == repaired_key:
+                return cat["key"]
+        close = difflib.get_close_matches(
+            repaired_key, [c["key"] for c in categories], n=1, cutoff=0.8
+        )
+        if close:
+            return close[0]
     return None

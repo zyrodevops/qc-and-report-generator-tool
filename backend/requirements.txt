@@ -22,8 +22,14 @@ pytest>=8.1.1
 pytest-asyncio>=0.23.5
 pytest-cov>=4.1.0
 matplotlib>=3.8.0
+# Local tally reader, used when the online reader is busy or offline.
+# rapidocr runs PaddleOCR's own models without the PaddlePaddle framework.
+# (The older rapidocr-onnxruntime package has no Python 3.13 build, which is
+# why no local reader was actually installed during the 23 Sep demo.)
+rapidocr>=3.0
+onnxruntime>=1.20
 pytesseract>=0.3.10
-rapidocr-onnxruntime>=1.3.0
-easyocr>=1.7.2
-torch>=2.0.0
-torchvision>=0.15.0
+# Optional and heavy (torch is ~2 GB). Uncomment only if needed.
+# easyocr>=1.7.2
+# torch>=2.0.0
+# torchvision>=0.15.0

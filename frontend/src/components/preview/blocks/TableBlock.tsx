@@ -1,5 +1,6 @@
 import React from 'react';
 import { computeTable } from '../compute';
+import { columnTitle } from '../../../utils/labels';
 
 export interface TableBlockProps {
   block: any;
@@ -14,8 +15,21 @@ export const TableBlock: React.FC<TableBlockProps> = ({
   onChange,
   editable = true,
 }) => {
-  const categories: any[] = block?.categories || [];
+  const allCategories: any[] = block?.categories || [];
   const rows: any[] = block?.rows || [];
+
+  // Same rule as backend/app/render/table_columns.py, so the preview shows the
+  // columns the downloaded report will: a column appears when at least one row
+  // has a value in it. Zero counts as a value; only an all-blank column is
+  // left out. The original index is kept because per-row percentages are
+  // positional against the full list.
+  const hasValue = (v: any) => v !== null && v !== undefined && String(v).trim() !== '';
+  const shownWithIdx = allCategories
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => rows.length === 0 || rows.some((r) => hasValue(r?.values?.[c.key])));
+  const visible = shownWithIdx.length ? shownWithIdx : allCategories.map((c, i) => ({ c, i }));
+  const categories: any[] = visible.map((v) => v.c);
+  const origIdx: number[] = visible.map((v) => v.i);
   const unit = block?.unit || 'pcs';
   const title = block?.title || 'DEFECT ANALYSIS BREAKDOWN';
   const groupLabel = block?.grouping_label || 'Group';
@@ -47,7 +61,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
   // Donut chart slices calculation
   const colors = ['#2563eb', '#f59e0b', '#ef4444', '#8b5cf6', '#10b981', '#64748b'];
   const chartItems: { label: string; pct: number; color: string }[] = [];
-  categories.forEach((cat, idx) => {
+  allCategories.forEach((cat, idx) => {
     const p = parseFloat(String(colPcts[cat.key] || 0));
     if (p > 0) {
       chartItems.push({
@@ -111,10 +125,10 @@ export const TableBlock: React.FC<TableBlockProps> = ({
         <table className="w-full border-collapse border border-slate-400 text-xs">
           <thead>
             <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-400">
-              <th className="border border-slate-400 px-2.5 py-1.5 text-left">{groupLabel}</th>
+              <th className="border border-slate-400 px-2.5 py-1.5 text-left">{columnTitle(groupLabel)}</th>
               {categories.map((c) => (
                 <th key={c.key} className="border border-slate-400 px-2 py-1.5 text-right">
-                  {c.label}
+                  {columnTitle(c.label)}
                 </th>
               ))}
               <th className="border border-slate-400 px-2.5 py-1.5 text-right font-bold">
@@ -175,7 +189,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
                         key={c.key}
                         className="border border-slate-400 px-2 py-1 text-right font-mono text-[11px] text-slate-700"
                       >
-                        {rowPct[cIdx] ? `${rowPct[cIdx]}%` : ''}
+                        {rowPct[origIdx[cIdx]] ? `${rowPct[origIdx[cIdx]]}%` : ''}
                       </td>
                     ))}
                     <td className="border border-slate-400 px-2.5 py-1 text-right font-mono font-bold text-[11px] text-slate-800">
@@ -220,25 +234,34 @@ export const TableBlock: React.FC<TableBlockProps> = ({
           </tbody>
         </table>
       ) : (
-        <table className="w-full border-collapse border border-slate-400 text-xs">
+        <table
+          className="w-full border-collapse border border-slate-400"
+          // Headings may wrap between words but never inside one ("Shrivelle/d"),
+          // so the size steps down as the column count goes up instead.
+          style={{ fontSize: categories.length > 11 ? '8px' : categories.length > 8 ? '9px' : '10px' }}
+        >
           <thead>
             <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-400">
-              <th className="border border-slate-400 px-2.5 py-1.5 text-left">{groupLabel}</th>
+              <th className="border border-slate-400 px-1 py-1 text-left align-bottom leading-tight">
+                {columnTitle(groupLabel)}
+              </th>
               {categories.map((c) => (
-                <th key={c.key} className="border border-slate-400 px-2 py-1.5 text-right">
-                  {c.label}
+                <th
+                  key={c.key}
+                  className="border border-slate-400 px-1 py-1 text-center align-bottom leading-tight"
+                  style={{ wordBreak: 'normal', overflowWrap: 'normal', hyphens: 'manual' }}
+                >
+                  {columnTitle(c.label)}
                 </th>
               ))}
-              <th className="border border-slate-400 px-2.5 py-1.5 text-right font-bold">
+              <th className="border border-slate-400 px-1 py-1 text-center align-bottom font-bold leading-tight">
                 Total ({unit})
               </th>
-              <th className="border border-slate-400 px-2 py-1.5 text-center">%</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, rIdx) => {
               const rowSum = rowTotals[rIdx] ?? '';
-              const rowPct = rowPcts[rIdx] ? rowPcts[rIdx].join(' / ') : '';
 
               return (
                 <tr key={rIdx} className="border-b border-slate-300 hover:bg-slate-50/50">
@@ -248,10 +271,11 @@ export const TableBlock: React.FC<TableBlockProps> = ({
                         type="text"
                         value={row.group}
                         onChange={(e) => handleGroupChange(rIdx, e.target.value)}
-                        className="w-full bg-transparent px-2.5 py-1.5 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium text-xs text-slate-800 transition-colors"
+                        size={1}
+                        className="w-full min-w-0 bg-transparent px-1 py-1 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 font-medium text-[1em] text-slate-800 transition-colors"
                       />
                     ) : (
-                      <div className="px-2.5 py-1.5">{row.group}</div>
+                      <div className="px-1 py-1">{row.group}</div>
                     )}
                   </td>
                   {categories.map((c) => (
@@ -264,18 +288,16 @@ export const TableBlock: React.FC<TableBlockProps> = ({
                           type="text"
                           value={row.values?.[c.key] ?? ''}
                           onChange={(e) => handleCellChange(rIdx, c.key, e.target.value)}
-                          className="w-full bg-transparent px-2 py-1.5 text-right font-mono border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-xs text-slate-700 transition-colors"
+                          size={1}
+                          className="w-full min-w-0 bg-transparent px-1 py-1 text-right font-mono border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-[1em] text-slate-700 transition-colors"
                         />
                       ) : (
-                        <div className="px-2 py-1.5">{row.values?.[c.key] ?? ''}</div>
+                        <div className="px-1 py-1">{row.values?.[c.key] ?? ''}</div>
                       )}
                     </td>
                   ))}
-                  <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-[#00387A] bg-blue-50/30">
+                  <td className="border border-slate-400 px-1 py-1 text-right font-mono font-bold text-[#00387A] bg-blue-50/30 whitespace-nowrap">
                     {rowSum}
-                  </td>
-                  <td className="border border-slate-400 px-2.5 py-1.5 text-center font-mono text-[11px] text-slate-600 bg-slate-50/50">
-                    {rowPct}
                   </td>
                 </tr>
               );
@@ -283,36 +305,34 @@ export const TableBlock: React.FC<TableBlockProps> = ({
 
             {/* Column Totals Row */}
             <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
-              <td className="border border-slate-400 px-2.5 py-1.5 font-bold">Total</td>
+              <td className="border border-slate-400 px-1 py-1 font-bold">Total</td>
               {categories.map((c) => (
                 <td
                   key={c.key}
-                  className="border border-slate-400 px-2 py-1.5 text-right font-mono font-bold text-slate-900"
+                  className="border border-slate-400 px-1 py-1 text-right font-mono font-bold text-slate-900 whitespace-nowrap"
                 >
                   {colTotals[c.key] ?? ''}
                 </td>
               ))}
-              <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-black text-[#00387A] bg-blue-100/50">
+              <td className="border border-slate-400 px-1 py-1 text-right font-mono font-black text-[#00387A] bg-blue-100/50 whitespace-nowrap">
                 {grandTotal}
               </td>
-              <td className="border border-slate-400 px-2.5 py-1.5"></td>
             </tr>
 
             {/* Column Percentages Row */}
             <tr className="bg-slate-50 font-semibold text-slate-800">
-              <td className="border border-slate-400 px-2.5 py-1.5 font-bold">%</td>
+              <td className="border border-slate-400 px-1 py-1 font-bold">%</td>
               {categories.map((c) => (
                 <td
                   key={c.key}
-                  className="border border-slate-400 px-2 py-1.5 text-right font-mono text-[11px] text-slate-700"
+                  className="border border-slate-400 px-1 py-1 text-right font-mono text-slate-700 whitespace-nowrap"
                 >
                   {colPcts[c.key] ? `${colPcts[c.key]}%` : ''}
                 </td>
               ))}
-              <td className="border border-slate-400 px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">
+              <td className="border border-slate-400 px-1 py-1 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
                 100.00%
               </td>
-              <td className="border border-slate-400 px-2.5 py-1.5"></td>
             </tr>
           </tbody>
         </table>

@@ -105,9 +105,18 @@ class Settings(BaseSettings):
     # container, dates, room and brix; withholding it means the surveyor types
     # those six fields and only the number grid leaves the building.
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
+    # Asked at the same time as GEMINI_MODEL; the first usable answer wins.
+    # Comma-separated so a retired or newly released model can be swapped in
+    # from .env without touching code.
+    GEMINI_FALLBACK_MODELS: str = os.getenv(
+        "GEMINI_FALLBACK_MODELS",
+        "gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.8-flash,gemini-flash-latest,gemini-3.5-flash",
+    )
     TALLY_CLOUD_SEND_FULL_SHEET: bool = os.getenv("TALLY_CLOUD_SEND_FULL_SHEET", "true").lower() in ("true", "1", "yes")
-    TALLY_CLOUD_TIMEOUT_SECONDS: int = 90
+    # Per request, and for the whole attempt across every model and round.
+    TALLY_CLOUD_TIMEOUT_SECONDS: int = 60
+    TALLY_CLOUD_TOTAL_BUDGET_SECONDS: int = int(os.getenv("TALLY_CLOUD_TOTAL_BUDGET_SECONDS", "75"))
 
     # CORS Allowed Origins
     CORS_ORIGINS: List[str] = [

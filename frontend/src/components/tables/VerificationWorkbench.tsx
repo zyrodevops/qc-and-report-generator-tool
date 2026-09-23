@@ -25,6 +25,7 @@ import {
   TallyExtraction,
   TallyRow,
 } from '../../api/client';
+import { columnTitle } from '../../utils/labels';
 
 /**
  * Verification Workbench.
@@ -45,9 +46,14 @@ interface Props {
   reportId: string;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (updatedBlockState: any) => void;
+  /** Gets the server's new state and version, so the page's next save does not conflict. */
+  onSuccess: (updatedBlockState: any, version: number) => void;
   blockId?: string;
   commodity?: string;
+  /** 'spreadsheet' when opened from Import CSV / Excel. */
+  sourceHint?: 'any' | 'spreadsheet';
+  /** The figures already saved in the report, so they can be reopened and corrected. */
+  existing?: { categories: TallyCategory[]; rows: any[]; unit?: string };
 }
 
 /**
@@ -72,6 +78,8 @@ export const VerificationWorkbench: React.FC<Props> = ({
   onSuccess,
   blockId,
   commodity,
+  sourceHint = 'any',
+  existing,
 }) => {
   const [caps, setCaps] = useState<TallyCapabilities | null>(null);
   const [extraction, setExtraction] = useState<TallyExtraction | null>(null);
@@ -306,8 +314,28 @@ export const VerificationWorkbench: React.FC<Props> = ({
     }
   };
 
-  /** Only columns added here can be removed; the fruit's own list stays put. */
+  /**
+   * Remove any column — added here or from the fruit's own list.
+   *
+   * Removing a column deletes its figures, so if any row has one the surveyor
+   * is asked first and told how many. An empty column goes straight away.
+   */
   const removeColumn = (key: string) => {
+    const cat = categories.find((c) => c.key === key);
+    const filled = rows.filter((r) => {
+      const v = r.values[key];
+      return v !== null && v !== undefined;
+    }).length;
+    if (
+      filled > 0 &&
+      !window.confirm(
+        `Remove the "${columnTitle(cat?.label || key)}" column?\n\n` +
+          `${filled} row${filled > 1 ? 's have' : ' has'} a figure in it. ` +
+          `Those figures will be deleted.`,
+      )
+    ) {
+      return;
+    }
     setCategories((prev) => prev.filter((c) => c.key !== key));
     setRows((prev) =>
       prev.map((r) => {
@@ -316,6 +344,60 @@ export const VerificationWorkbench: React.FC<Props> = ({
       }),
     );
     setFocused(null);
+  };
+
+  /**
+   * Open the grid without a new file: either blank, or with the figures already
+   * saved in the report so a surveyor who comes back later can correct them and
+   * save again. Saving goes through the same row checks as a fresh sheet.
+   */
+  const startManual = (seed?: { categories: TallyCategory[]; rows: any[]; unit?: string }) => {
+    const cats = seed?.categories?.length ? seed.categories : caps?.categories || [];
+    const toNum = (v: any): number | null => {
+      if (v === null || v === undefined || String(v).trim() === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+    const seededRows: RowState[] = seed?.rows?.length
+      ? seed.rows.map((r: any) => {
+          const values: Record<string, number | null> = {};
+          cats.forEach((c) => (values[c.key] = toNum(r.values?.[c.key])));
+          return {
+            group: r.group || '',
+            boxes_opened: r.boxes_opened ?? 1,
+            values,
+            stated_total: toNum(r.stated_total),
+            provenance: r.provenance || 'manual',
+          };
+        })
+      : [
+          {
+            group: '',
+            boxes_opened: 1,
+            values: Object.fromEntries(cats.map((c) => [c.key, null])),
+            stated_total: null,
+            provenance: 'manual',
+          },
+        ];
+    setCategories(cats);
+    setRows(seededRows);
+    setExtraction({
+      extraction_status: 'NO_GRID',
+      engines_available: caps?.ocr_engines || [],
+      ocr_engine: null,
+      quality: { score: 0, is_acceptable: true, warnings: [] },
+      headers: {},
+      table: {
+        commodity: caps?.commodity ?? null,
+        unit: seed?.unit || caps?.unit || 'pcs',
+        grouping_label: 'Count / Size',
+        categories: cats,
+        rows: [],
+        column_totals: {},
+      },
+      image: { preview: '', width: 0, height: 0 },
+      filename: 'Typed by hand',
+    });
   };
 
   // ---------------------------------------------------------------------- apply
@@ -341,7 +423,7 @@ export const VerificationWorkbench: React.FC<Props> = ({
         },
         block_id: blockId,
       });
-      onSuccess(result.block_state);
+      onSuccess(result.block_state, result.version);
       onClose();
     } catch (e: any) {
       setError(e.message || 'Could not save the tally.');
@@ -394,29 +476,10 @@ export const VerificationWorkbench: React.FC<Props> = ({
             loading={loading}
             fileInputRef={fileInputRef}
             onFile={handleFile}
-            onStartBlank={() => {
-              const values: Record<string, number | null> = {};
-              (caps?.categories || []).forEach((c) => (values[c.key] = null));
-              setCategories(caps?.categories || []);
-              setRows([{ group: '', boxes_opened: 1, values, stated_total: null, provenance: 'manual' }]);
-              setExtraction({
-                extraction_status: 'NO_GRID',
-                engines_available: caps?.ocr_engines || [],
-                ocr_engine: null,
-                quality: { score: 0, is_acceptable: true, warnings: [] },
-                headers: {},
-                table: {
-                  commodity: caps?.commodity ?? null,
-                  unit: caps?.unit || 'pcs',
-                  grouping_label: 'Count / Size',
-                  categories: caps?.categories || [],
-                  rows: [],
-                  column_totals: {},
-                },
-                image: { preview: '', width: 0, height: 0 },
-                filename: 'Typed by hand',
-              });
-            }}
+            onStartBlank={() => startManual()}
+            sourceHint={sourceHint}
+            existingCount={existing?.rows?.length || 0}
+            onEditExisting={() => startManual(existing)}
           />
         ) : (
           <div className="flex-1 grid grid-cols-12 gap-0 overflow-hidden">
@@ -478,6 +541,7 @@ export const VerificationWorkbench: React.FC<Props> = ({
             {/* ------------------------------------------------- right: the grid */}
             <div className="col-span-8 flex flex-col overflow-hidden">
               <StatusBar
+                onRetry={() => lastFile.current && handleFile(lastFile.current)}
                 extraction={extraction}
                 mismatchCount={mismatchCount}
                 blankCount={blankCount}
@@ -500,28 +564,40 @@ export const VerificationWorkbench: React.FC<Props> = ({
                 onToggle={() => setShowHeader((v) => !v)}
               />
 
-              <div className="flex-1 overflow-auto px-4 py-3">
-                <table className="w-full text-xs border-collapse">
+              <div className="flex-1 overflow-auto pr-4 py-3">
+                <table className="min-w-full text-xs border-collapse">
                   <thead className="sticky top-0 bg-white z-10">
+                    {/*
+                      Every heading on one line, in the same style. They used
+                      to wrap wherever the column happened to be narrow, so
+                      "Count / Size", "Rotten Spot" and "Stem Crack" broke
+                      over two lines while "Sound" did not.
+                    */}
                     <tr className="border-b-2 border-gray-300 text-gray-600">
-                      <th className="py-2 px-2 text-left font-semibold w-32">
-                        {extraction.table.grouping_label}
+                      <th className="w-9 min-w-9 sticky left-0 z-10 bg-white" />
+                      <th className="py-2 px-2 text-left font-semibold whitespace-nowrap sticky left-9 z-10 bg-white">
+                        {columnTitle(extraction.table.grouping_label)}
                       </th>
                       {categories.map((cat) => (
-                        <th key={cat.key} className="py-2 px-1 text-right font-semibold">
-                          <span className="inline-flex items-center gap-0.5">
-                            <span className={cat.role === 'extra' ? 'text-amber-700' : ''}>
-                              {cat.label}
+                        <th key={cat.key} className="py-2 px-1 font-semibold whitespace-nowrap">
+                          <span className="inline-flex items-center justify-end gap-1 w-full">
+                            <span
+                              title={
+                                cat.role === 'extra'
+                                  ? 'Not one of the usual columns for this fruit — read from the sheet or added here'
+                                  : undefined
+                              }
+                            >
+                              {columnTitle(cat.label)}
+                              {cat.role === 'extra' && <span className="text-blue-500">*</span>}
                             </span>
-                            {cat.role === 'extra' && (
-                              <button
-                                onClick={() => removeColumn(cat.key)}
-                                className="text-gray-300 hover:text-red-500"
-                                title={`Remove the ${cat.label} column`}
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => removeColumn(cat.key)}
+                              className="text-gray-300 hover:text-red-500"
+                              title={`Remove the ${columnTitle(cat.label)} column`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           </span>
                         </th>
                       ))}
@@ -552,18 +628,13 @@ export const VerificationWorkbench: React.FC<Props> = ({
                           </button>
                         )}
                       </th>
-                      <th className="py-2 px-1 text-right font-semibold text-slate-700 bg-slate-100 w-20">
-                        Written
-                        <br />
-                        total
+                      <th className="py-2 px-2 text-right font-semibold text-slate-700 bg-slate-100 whitespace-nowrap">
+                        Written Total
                       </th>
-                      <th className="py-2 px-1 text-right font-semibold text-blue-800 bg-blue-50 w-20">
-                        Cells
-                        <br />
-                        add to
+                      <th className="py-2 px-2 text-right font-semibold text-blue-800 bg-blue-50 whitespace-nowrap">
+                        Cells Add To
                       </th>
-                      <th className="py-2 px-1 w-24 text-center font-semibold">Check</th>
-                      <th className="w-8" />
+                      <th className="py-2 px-2 text-center font-semibold whitespace-nowrap">Check</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -588,13 +659,24 @@ export const VerificationWorkbench: React.FC<Props> = ({
                             row.is_subtotal ? 'font-semibold border-t-2 border-t-lime-300' : ''
                           } hover:bg-slate-50/80`}
                         >
-                          <td className="py-1 px-2">
+                          {/* First in the row so it is always in view; at the far right
+                              it scrolled out of sight on a wide sheet. */}
+                          <td className="w-9 min-w-9 py-1 pl-1 text-center sticky left-0 z-10 bg-white">
+                            <button
+                              onClick={() => deleteRow(rIdx)}
+                              className="text-gray-400 hover:text-red-500 p-1 transition"
+                              title="Remove this row"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                          <td className="py-1 px-2 sticky left-9 z-10 bg-white">
                             <input
                               type="text"
                               value={row.group}
                               placeholder="e.g. 30 XF"
                               onChange={(e) => setGroup(rIdx, e.target.value)}
-                              className="w-full px-1.5 py-1 border border-gray-200 rounded text-xs font-medium focus:ring-1 focus:ring-blue-500 outline-none"
+                              className="w-24 px-1.5 py-1 border border-gray-200 rounded text-xs font-medium focus:ring-1 focus:ring-blue-500 outline-none"
                             />
                           </td>
 
@@ -660,22 +742,14 @@ export const VerificationWorkbench: React.FC<Props> = ({
                             <RowCheckChip status={chk.status} delta={chk.delta} />
                           </td>
 
-                          <td className="py-1 px-0.5 text-center">
-                            <button
-                              onClick={() => deleteRow(rIdx)}
-                              className="text-gray-300 hover:text-red-500 p-1 transition"
-                              title="Remove this row"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                   <tfoot>
                     <tr className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
-                      <td className="py-2 px-2 text-xs">All boxes</td>
+                      <td className="sticky left-0 z-10 bg-gray-100" />
+                      <td className="py-2 px-2 text-xs whitespace-nowrap sticky left-9 z-10 bg-gray-100">All boxes</td>
                       {categories.map((cat) => (
                         <td key={cat.key} className="py-2 px-1 text-right font-mono text-xs">
                           {columnTotals[cat.key]}
@@ -686,20 +760,20 @@ export const VerificationWorkbench: React.FC<Props> = ({
                       <td className="py-2 px-2 text-right font-mono text-xs bg-blue-100/60 text-blue-950">
                         {checks.reduce((s, c) => s + c.computed, 0)}
                       </td>
-                      <td colSpan={2} />
+                      <td />
                     </tr>
                   </tfoot>
                 </table>
 
                 <button
                   onClick={addRow}
-                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 px-2.5 py-1.5 rounded transition"
+                  className="mt-3 ml-4 inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 hover:bg-blue-50 px-2.5 py-1.5 rounded transition"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Add a sample box
                 </button>
 
-                <p className="mt-2 text-[11px] text-gray-400">
+                <p className="mt-2 pl-4 text-[11px] text-gray-400">
                   One row per sample box opened. Several boxes of the same count are normal —
                   they are aggregated in the report, not merged here.
                 </p>
@@ -1119,7 +1193,7 @@ const RowCheckChip: React.FC<{ status: 'OK' | 'MISMATCH' | 'UNCHECKED'; delta: n
 }) => {
   if (status === 'OK') {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+      <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
         <Check className="w-3 h-3" /> Ties out
       </span>
     );
@@ -1127,7 +1201,7 @@ const RowCheckChip: React.FC<{ status: 'OK' | 'MISMATCH' | 'UNCHECKED'; delta: n
   if (status === 'MISMATCH') {
     return (
       <span
-        className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-100 border border-red-300 px-1.5 py-0.5 rounded"
+        className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-bold text-red-700 bg-red-100 border border-red-300 px-1.5 py-0.5 rounded"
         title="The cells and the written total disagree"
       >
         <AlertTriangle className="w-3 h-3" />
@@ -1137,7 +1211,7 @@ const RowCheckChip: React.FC<{ status: 'OK' | 'MISMATCH' | 'UNCHECKED'; delta: n
   }
   return (
     <span
-      className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded"
+      className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded"
       title="No total was written on this row, so there is nothing to check against"
     >
       <Minus className="w-3 h-3" /> No total
@@ -1152,18 +1226,26 @@ const StatusBar: React.FC<{
   blankCount: number;
   uncheckedCount: number;
   rowCount: number;
-}> = ({ extraction, mismatchCount, blankCount, uncheckedCount, rowCount }) => {
+  onRetry?: () => void;
+}> = ({ extraction, mismatchCount, blankCount, uncheckedCount, rowCount, onRetry }) => {
   const reader = extraction.reader;
 
+  // Nothing read is never green. The demo screen showed "All 0 rows checked"
+  // in green when the online reader was down and nothing had been read at all.
   const tone =
     mismatchCount > 0
       ? 'bg-red-50 border-red-200 text-red-900'
-      : blankCount > 0
+      : blankCount > 0 || rowCount === 0
       ? 'bg-amber-50 border-amber-200 text-amber-900'
       : 'bg-emerald-50 border-emerald-200 text-emerald-900';
 
   let headline: string;
-  if (extraction.extraction_status === 'NO_ENGINE') {
+  if (rowCount === 0 && reader?.cloud_error && extraction.filename !== 'Typed by hand') {
+    headline = `Nothing was read from this photo. ${reader.cloud_error}`;
+  } else if (rowCount === 0 && extraction.filename !== 'Typed by hand') {
+    headline =
+      'Nothing could be read from this photo. Press Change to try again, or use "Add a sample box" to type the rows in.';
+  } else if (extraction.extraction_status === 'NO_ENGINE') {
     headline =
       'No handwriting reader is installed on this server, so nothing was read from the photo. Type the figures in — the row checks still work.';
   } else if (extraction.extraction_status === 'NO_GRID') {
@@ -1184,7 +1266,15 @@ const StatusBar: React.FC<{
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <Info className="w-3.5 h-3.5 shrink-0" />
-          <span className="font-medium truncate">{headline}</span>
+          <span className="font-medium">{headline}</span>
+          {rowCount === 0 && onRetry && extraction.filename !== 'Typed by hand' && (
+            <button
+              onClick={onRetry}
+              className="shrink-0 ml-1 px-2.5 py-1 bg-white border border-amber-400 text-amber-900 rounded font-semibold hover:bg-amber-100"
+            >
+              Try again
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0 text-[11px]">
           {uncheckedCount > 0 && (
@@ -1202,7 +1292,7 @@ const StatusBar: React.FC<{
               Read on this server by {extraction.ocr_engine}
             </span>
           )}
-          {reader?.used === 'local' && reader.cloud_error && (
+          {reader?.used === 'local' && reader.cloud_error && rowCount > 0 && (
             <span
               className="bg-white/70 px-1.5 py-0.5 rounded border border-gray-200 text-gray-600 max-w-[280px] truncate"
               title={reader.cloud_error}
@@ -1223,13 +1313,17 @@ const UploadPane: React.FC<{
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFile: (f: File) => void;
   onStartBlank: () => void;
-}> = ({ caps, loading, fileInputRef, onFile, onStartBlank }) => {
+  sourceHint: 'any' | 'spreadsheet';
+  existingCount: number;
+  onEditExisting: () => void;
+}> = ({ caps, loading, fileInputRef, onFile, onStartBlank, sourceHint, existingCount, onEditExisting }) => {
+  const sheetOnly = sourceHint === 'spreadsheet';
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-9 h-9 text-blue-600 animate-spin" />
-        <p className="text-sm font-medium text-gray-700">Reading the sheet…</p>
-        <p className="text-xs text-gray-500">Finding the grid and the handwriting in each cell</p>
+        <p className="text-sm font-medium text-gray-700">Reading the file…</p>
+        <p className="text-xs text-gray-500">This can take up to a minute for a photo</p>
       </div>
     );
   }
@@ -1237,6 +1331,22 @@ const UploadPane: React.FC<{
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto space-y-4">
+        {existingCount > 0 && (
+          <button
+            onClick={onEditExisting}
+            className="w-full flex items-center justify-between gap-3 p-4 bg-emerald-50 border border-emerald-300 rounded-xl text-left hover:bg-emerald-100 transition"
+          >
+            <span>
+              <span className="block text-sm font-semibold text-emerald-900">
+                Edit the figures already in the report
+              </span>
+              <span className="block text-xs text-emerald-800 mt-0.5">
+                {existingCount} row{existingCount > 1 ? 's' : ''} saved. Open them, correct them, and save again.
+              </span>
+            </span>
+            <ArrowRight className="w-4 h-4 text-emerald-700 shrink-0" />
+          </button>
+        )}
         <div
           className="border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center hover:border-blue-500 hover:bg-blue-50/30 transition cursor-pointer"
           onClick={() => fileInputRef.current?.click()}
@@ -1251,15 +1361,17 @@ const UploadPane: React.FC<{
             <Upload className="w-7 h-7" />
           </div>
           <h3 className="text-base font-semibold text-gray-800">
-            Upload the tally sheet photo
+            {sheetOnly ? 'Upload the CSV or Excel file' : 'Upload the tally sheet — photo or Excel'}
           </h3>
           <p className="text-xs text-gray-500 mt-1">
-            The photo you took of the notebook page in the cold room. Drop it here or click to browse.
+            {sheetOnly
+              ? 'The spreadsheet from the cold store. Columns that do not match are shown for you to map.'
+              : 'The photo of the notebook page, or the CSV / Excel file from the cold store. Drop it here or click to browse.'}
           </p>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,.csv,.xlsx,.xlsm,.xls"
+            accept={sheetOnly ? '.csv,.xlsx,.xlsm,.xls' : 'image/*,.csv,.xlsx,.xlsm,.xls'}
             className="hidden"
             onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
           />

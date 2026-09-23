@@ -14,7 +14,7 @@ import {
   Eye,
   Edit3,
 } from 'lucide-react';
-import { ReportSummary, patchBlockState, getDownloadDocxUrl, getAuthHeaders } from '../api/client';
+import { ReportSummary, patchBlockState, getDownloadDocxUrl } from '../api/client';
 import { TableGrid } from '../components/tables/TableGrid';
 import { PhotoTray } from '../components/photos/PhotoTray';
 import { ReportPreview } from '../components/preview/ReportPreview';
@@ -30,9 +30,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
   const [blockState, setBlockState] = useState<any>(report.block_state || {});
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
-  const [csvModalBlockId, setCsvModalBlockId] = useState<string | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
+  // True while there are edits the server has not got yet.
+  const [dirty, setDirty] = useState(false);
 
   const [version, setVersion] = useState<number>(report.version || 1);
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
@@ -46,6 +45,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
       const updated = currentBlocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
       return { ...prev, blocks: updated };
     });
+    setDirty(true);
     setSavedMsg(false);
     setConflictMsg(null);
   };
@@ -60,76 +60,50 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
         assets: updatedAssets ? { ...(prev?.assets || {}), ...updatedAssets } : prev?.assets,
       };
     });
+    setDirty(true);
     setSavedMsg(false);
     setConflictMsg(null);
   };
 
-  const handleSave = async () => {
+  /** Returns true when the server now holds exactly what is on screen. */
+  const handleSave = async (): Promise<boolean> => {
     try {
       setSaving(true);
       setConflictMsg(null);
       const res = await patchBlockState(report.id, blockState, version);
       setVersion(res.new_version);
+      setDirty(false);
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 3000);
+      return true;
     } catch (err: any) {
       if (err.name === 'VersionConflictError') {
         setConflictMsg(err.message);
       } else {
         alert(err.message);
       }
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDownloadDocx = () => {
-    window.location.href = getDownloadDocxUrl(report.id);
+  /**
+   * Downloads are built from the server's copy, so unsaved edits are saved
+   * first. Without this a surveyor who corrected a figure and pressed Download
+   * got the report as it was before his correction.
+   */
+  const saveIfNeeded = async (): Promise<boolean> => (dirty ? handleSave() : true);
+
+  const handleDownloadDocx = async () => {
+    if (await saveIfNeeded()) window.location.href = getDownloadDocxUrl(report.id);
   };
 
-  const handleCsvImport = async (blockId: string) => {
-    if (!csvFile) return;
-    setImporting(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', csvFile);
-
-      const res = await fetch(`/api/reports/${report.id}/import/spreadsheet`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error('Spreadsheet parse failed');
-      const data = await res.json();
-
-      // Simple auto-mapping: match headers to categories
-      const targetBlock = blocks.find((b: any) => b.id === blockId);
-      if (targetBlock && data.sample_rows) {
-        const catKeys = targetBlock.categories.map((c: any) => c.key);
-        const mappedRows = data.sample_rows.map((sr: any, idx: number) => {
-          const vals: Record<string, any> = {};
-          catKeys.forEach((k: string) => {
-            vals[k] = sr[k] || sr[k.toLowerCase()] || 0;
-          });
-          return {
-            group: sr['group'] || sr['Sample'] || `Row ${idx + 1}`,
-            values: vals,
-          };
-        });
-
-        handleBlockChange({
-          ...targetBlock,
-          rows: mappedRows,
-        });
-      }
-      setCsvModalBlockId(null);
-      setCsvFile(null);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setImporting(false);
-    }
+  /** The workbench saved on the server: take its state and its new version. */
+  const handleWorkbenchSaved = (updatedBlockState: any, newVersion: number) => {
+    setBlockState(updatedBlockState);
+    if (newVersion) setVersion(newVersion);
+    setDirty(false);
   };
 
   return (
@@ -244,6 +218,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           onBlockChange={handleBlockChange}
           onBlockStateChange={setBlockState}
           editable={true}
+          beforeDownload={saveIfNeeded}
         />
       ) : (
         <>
@@ -426,8 +401,10 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                 reportId={report.id}
                 commodity={tableCommodity}
                 onChange={handleBlockChange}
-                onBlockStateChange={setBlockState}
-                onImportCsv={() => setCsvModalBlockId(block.id)}
+                onSaved={handleWorkbenchSaved}
+                onApply={handleSave}
+                dirty={dirty}
+                applying={saving}
               />
             );
           }
@@ -460,43 +437,6 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
       </>
       )}
 
-      {/* SPREADSHEET IMPORT MODAL */}
-      {csvModalBlockId && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="font-bold text-gray-900 text-lg">Import Spreadsheet / CSV</h3>
-            <p className="text-xs text-gray-500">
-              Select an .xlsx or .csv tally sheet. Live <code className="font-mono">=SUM()</code> formulas are read as computed values per Master Spec §10.4.
-            </p>
-
-            <input
-              type="file"
-              accept=".csv, .xlsx, .xls"
-              onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-              className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-
-            <div className="flex justify-end gap-2 pt-3 border-t">
-              <button
-                type="button"
-                onClick={() => setCsvModalBlockId(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!csvFile || importing}
-                onClick={() => handleCsvImport(csvModalBlockId)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
-              >
-                {importing && <Loader2 className="w-4 h-4 animate-spin" />}
-                Import Data
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

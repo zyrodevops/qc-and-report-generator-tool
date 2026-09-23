@@ -63,15 +63,25 @@ def available_engines() -> List[str]:
     """
     found: List[str] = []
     for module, name in (
+        ("rapidocr", "PaddleOCR (RapidOCR)"),
         ("paddleocr", "PaddleOCR"),
         ("easyocr", "EasyOCR"),
-        ("pytesseract", "Tesseract"),
     ):
         try:
             __import__(module)
             found.append(name)
         except Exception:
             continue
+
+    # pytesseract imports fine without the Tesseract program installed, which
+    # made the UI claim a reader was available when every call was failing.
+    # Only count it when the program itself answers.
+    try:
+        import pytesseract
+        pytesseract.get_tesseract_version()
+        found.append("Tesseract")
+    except Exception:
+        pass
     return found
 
 
@@ -372,9 +382,13 @@ class TallyPipeline:
                 continue
 
             # A column the sheet has and the fruit config does not know about.
-            # Surface it rather than silently dropping the surveyor's data.
+            # Surface it rather than silently dropping the surveyor's data —
+            # but only if it is a word. A figure read in the heading row means
+            # the heading row was misidentified; making "202" a defect column
+            # filled the grid with nonsense on the pear sheet.
+            letters = sum(ch.isalpha() for ch in rec.raw_text)
             extra_key = slug(rec.raw_text)
-            if extra_key and len(extra_key) >= 3:
+            if extra_key and letters >= 4:
                 if not any(c["key"] == extra_key for c in categories):
                     categories.append({
                         "key": extra_key,

@@ -57,11 +57,10 @@ _HEADER_FRACTION = 0.30
 # a smaller image is markedly faster.
 _MAX_EDGE = 2200
 
-# Busy and rate-limit responses are routine on the free tier and say nothing
-# about the sheet, so each model is given a few attempts with a widening gap
-# before moving on to the next one.
-_MAX_ATTEMPTS_PER_MODEL = 3
-_BACKOFF_SECONDS = 2.0
+# If every model in the pool is busy, ask the whole pool once more after a
+# short pause. The overall wait is capped by TALLY_CLOUD_TOTAL_BUDGET_SECONDS.
+_ROUNDS = 2
+_ROUND_PAUSE_SECONDS = 4.0
 
 
 @dataclass
@@ -248,35 +247,10 @@ async def read_sheet(
         },
     }
 
-    resp, model_used, transport_error = await _post_with_retries(body)
+    parsed, model_used, error = await _race_models(body)
 
-    if transport_error:
-        return CloudReadResult(configured=True, used=False, header_sent=header_sent,
-                               error=transport_error)
-
-    if resp is None:
-        return CloudReadResult(
-            configured=True, used=False, header_sent=header_sent,
-            error="Every reader was busy or rate-limited. Wait a minute and try again, "
-                  "or type the sheet in — the row checks work either way.",
-        )
-
-    if resp.status_code in (401, 403):
-        return CloudReadResult(configured=True, used=False, header_sent=header_sent,
-                               error="The API key was rejected. Check GEMINI_API_KEY.")
-    if resp.status_code >= 400:
-        logger.warning("Cloud reader HTTP %s: %s", resp.status_code, resp.text[:400])
-        return CloudReadResult(configured=True, used=False, header_sent=header_sent,
-                               error=f"The reader returned an error (HTTP {resp.status_code}).")
-
-    try:
-        payload = resp.json()
-        text = payload["candidates"][0]["content"]["parts"][0]["text"]
-        parsed = json.loads(text)
-    except Exception:
-        logger.warning("Cloud reader returned an unexpected payload.")
-        return CloudReadResult(configured=True, used=False, header_sent=header_sent,
-                               error="The reader's answer could not be understood.")
+    if parsed is None:
+        return CloudReadResult(configured=True, used=False, header_sent=header_sent, error=error)
 
     rows, discovered = _parse_rows(parsed, categories)
     return CloudReadResult(
@@ -290,68 +264,121 @@ async def read_sheet(
     )
 
 
-def _model_chain() -> List[str]:
+def _model_pool() -> List[str]:
     """
-    The configured model first, then alternates.
+    Every model worth asking, the configured one first.
 
-    The free tier returns 503 when a model is busy and 429 when the per-minute
-    allowance is spent, and both are common on the newest model at busy times.
-    Both are temporary and neither says anything about the sheet, so a second
-    model is tried rather than handing the surveyor an error he cannot act on.
+    On the free tier any single model is regularly "experiencing high demand"
+    (503) for minutes at a time, and which one is busy changes from hour to hour.
+    Measured on 23 Sep 2026: of eleven models, eight returned 503 or 429 while
+    three answered correctly — and it was not the newest ones that answered.
+    So the pool is wide, and GEMINI_FALLBACK_MODELS lets it be changed without
+    a code edit when Google retires or adds a model.
     """
-    chain = [settings.GEMINI_MODEL]
-    for alternate in ("gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash"):
-        if alternate not in chain:
-            chain.append(alternate)
-    return chain
+    extra = [m.strip() for m in settings.GEMINI_FALLBACK_MODELS.split(",") if m.strip()]
+    pool: List[str] = []
+    for m in [settings.GEMINI_MODEL, *extra]:
+        if m and m not in pool:
+            pool.append(m)
+    return pool
 
 
-async def _post_with_retries(
+# Busy, rate-limited or briefly broken. Worth asking again; says nothing about the sheet.
+_TRANSIENT = {429, 500, 502, 503, 504}
+
+
+async def _ask_one(
+    client: httpx.AsyncClient, model: str, body: Dict[str, Any],
+) -> Tuple[str, Optional[Dict[str, Any]], Optional[int]]:
+    """
+    One request to one model. Returns (model, parsed JSON or None, HTTP status).
+
+    Never raises: in a race a timeout or dropped connection on one model is just
+    that model losing, not a reason to stop the others.
+    """
+    try:
+        resp = await client.post(
+            _ENDPOINT.format(model=model),
+            params={"key": settings.GEMINI_API_KEY},
+            json=body, headers={"Content-Type": "application/json"},
+        )
+    except Exception as exc:
+        logger.info("[CloudReader] %s: %s", model, type(exc).__name__)
+        return model, None, None
+
+    if resp.status_code != 200:
+        logger.info("[CloudReader] %s returned %s", model, resp.status_code)
+        return model, None, resp.status_code
+
+    try:
+        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return model, json.loads(text), 200
+    except Exception:
+        # A 200 with an unusable body loses too, rather than ending the race.
+        logger.info("[CloudReader] %s answered but the reply could not be parsed", model)
+        return model, None, 200
+
+
+async def _race_models(
     body: Dict[str, Any],
-) -> Tuple[Optional[httpx.Response], Optional[str], Optional[str]]:
+) -> Tuple[Optional[Dict[str, Any]], Optional[str], Optional[str]]:
     """
-    Post to each model in turn, backing off on busy and rate-limit responses.
+    Ask every model in the pool at once and take the first usable answer.
 
-    Returns (response, model that answered, transport error). A response is
-    returned as soon as one is not a busy/rate-limit refusal, including a real
-    error, because those say something about the request rather than the load.
+    This replaced asking them one after another with back-off, which during a
+    client demo spent over two minutes on four busy models in turn before giving
+    up — while other models were answering in under four seconds. Asking in
+    parallel costs a few extra requests per sheet, which at five or six sheets a
+    day is nothing against the free allowance, and each model's quota is
+    separate.
+
+    If the whole pool is busy, one more round is tried after a short pause, and
+    the total wait is capped so the surveyor is never left watching a spinner.
+
+    Returns (parsed JSON, model that answered, error message for the surveyor).
     """
     import asyncio
+    import time
 
-    last: Optional[httpx.Response] = None
+    pool = _model_pool()
+    deadline = time.monotonic() + settings.TALLY_CLOUD_TOTAL_BUDGET_SECONDS
+    statuses: List[Optional[int]] = []
 
     async with httpx.AsyncClient(timeout=settings.TALLY_CLOUD_TIMEOUT_SECONDS) as client:
-        for model in _model_chain():
-            url = _ENDPOINT.format(model=model)
+        for round_no in range(_ROUNDS):
+            remaining = deadline - time.monotonic()
+            if remaining <= 5:
+                break
 
-            for attempt in range(_MAX_ATTEMPTS_PER_MODEL):
-                try:
-                    resp = await client.post(
-                        url, params={"key": settings.GEMINI_API_KEY},
-                        json=body, headers={"Content-Type": "application/json"},
-                    )
-                except httpx.TimeoutException:
-                    return None, None, ("The reader timed out. Try again, or enter the "
-                                        "figures by hand.")
-                except Exception as exc:
-                    logger.warning("Cloud reader call failed: %s", exc)
-                    return None, None, ("The reader could not be reached. Check the "
-                                        "internet connection.")
+            tasks = [asyncio.create_task(_ask_one(client, m, body)) for m in pool]
+            try:
+                for next_done in asyncio.as_completed(tasks, timeout=remaining):
+                    model, parsed, status = await next_done
+                    statuses.append(status)
+                    if parsed is not None:
+                        logger.info("[CloudReader] %s answered first (round %d)", model, round_no + 1)
+                        return parsed, model, None
+            except asyncio.TimeoutError:
+                logger.info("[CloudReader] round %d ran out of time", round_no + 1)
+            finally:
+                for t in tasks:
+                    if not t.done():
+                        t.cancel()
 
-                if resp.status_code not in (429, 500, 502, 503, 504):
-                    return resp, model, None
+            # A key problem will not fix itself by asking again.
+            if statuses and all(s in (401, 403) for s in statuses if s is not None):
+                return None, None, "The API key was rejected. Check GEMINI_API_KEY."
 
-                last = resp
-                wait = _BACKOFF_SECONDS * (2 ** attempt)
-                logger.info(
-                    "[CloudReader] %s returned %s; retrying in %.1fs (attempt %d/%d)",
-                    model, resp.status_code, wait, attempt + 1, _MAX_ATTEMPTS_PER_MODEL,
-                )
-                await asyncio.sleep(wait)
+            if round_no + 1 < _ROUNDS and deadline - time.monotonic() > _ROUND_PAUSE_SECONDS + 5:
+                await asyncio.sleep(_ROUND_PAUSE_SECONDS)
 
-            logger.info("[CloudReader] %s still unavailable; trying the next model.", model)
-
-    return (last if last is not None and last.status_code not in (429, 503) else None), None, None
+    if statuses and all(s == 429 for s in statuses if s is not None):
+        return None, None, ("Today's free reading allowance is used up. Type the figures in, "
+                            "or try again later.")
+    if not any(s is not None for s in statuses):
+        return None, None, "Could not reach the online reader. Check the internet connection."
+    return None, None, ("Google's reading service is overloaded right now. Wait a minute and "
+                        "press Change to try the same photo again, or type the figures in.")
 
 
 def _parse_rows(
