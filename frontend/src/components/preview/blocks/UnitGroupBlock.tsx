@@ -47,6 +47,7 @@ export const UnitGroupBlock: React.FC<UnitGroupBlockProps> = ({ block, reportId 
           </h2>
           <div className="space-y-4">
             {unit.blocks.map((b) => {
+              if ((b as any).included === false) return null;
               switch (b.type) {
                 case 'particulars':
                   return <ParticularsBlock key={b.id} block={b as any} />;

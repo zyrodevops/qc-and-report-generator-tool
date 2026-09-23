@@ -24,6 +24,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
+from app.render.inclusion import included_rows, is_included, shows_chart, shows_table_title
 from app.compute.arithmetic import compute
 
 
@@ -166,8 +167,8 @@ def render_narrative(doc: Document, block: Dict[str, Any]) -> None:
 
 
 def render_measurements(doc: Document, block: Dict[str, Any]) -> None:
-    """Render a measurements block as a table."""
-    rows = block.get("rows", [])
+    """Render a measurements block as a table (ticked rows only)."""
+    rows = included_rows(block)
     if not rows:
         return
 
@@ -201,7 +202,9 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     Computed cells are locked read-only in the DOCX (no editable field).
     """
     title = block.get("title", "")
-    if title:
+    # Grapes reports put the table straight under Our Survey with no heading
+    # of its own; the fruit setting picks the default, the surveyor decides.
+    if title and shows_table_title(block):
         doc.add_heading(title, level=2)
 
     from app.render.table_columns import visible_columns
@@ -342,7 +345,10 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     # Chart Generation (Master Spec §14 Day 3 / TEMPLATE-NOTES)
     # Generate high-resolution visual defect breakdown chart
     try:
-        chart_stream = _generate_defect_chart(categories, col_pcts, title or "Defect Analysis Breakdown")
+        chart_stream = (
+            _generate_defect_chart(categories, col_pcts, title or "Defect Analysis Breakdown")
+            if shows_chart(block) else None
+        )
         if chart_stream:
             chart_para = doc.add_paragraph()
             chart_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -656,6 +662,8 @@ def render_unit_group(
         heading = unit.get("heading") or f"CONTAINER {unit.get('identifier')}"
         doc.add_heading(heading, level=2)
         for ub in unit.get("blocks", []):
+            if not is_included(ub):
+                continue
             ubtype = ub.get("type")
             ub_comp = ub.get("_computed", {})
             if ubtype == "particulars":
@@ -742,6 +750,9 @@ def render_docx(
 
     # Step 3: render each block
     for block in blocks:
+        # Sections the surveyor has unticked are left out, not deleted.
+        if not is_included(block):
+            continue
         btype = block.get("type")
         block_computed = block.get("_computed", {})
 

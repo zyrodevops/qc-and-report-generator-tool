@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Table, Upload, Plus, Trash2, ScanLine, X, Check, Loader2 } from 'lucide-react';
 import { VerificationWorkbench } from './VerificationWorkbench';
 import { columnTitle } from '../../utils/labels';
+import { SectionToggle, isIncluded } from '../SectionToggle';
 
 interface Category {
   key: string;
@@ -25,6 +26,8 @@ interface TableBlockProps {
     grouping_label?: string;
     categories: Category[];
     rows: TableRow[];
+    show_title?: boolean;
+    show_chart?: boolean;
   };
   onChange: (updatedBlock: any) => void;
   reportId?: string;
@@ -243,6 +246,22 @@ export const TableGrid: React.FC<TableBlockProps> = ({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Starting ticks come from the fruit (grapes reports have no heading
+          over this table; most apple reports have no chart). Either can be
+          changed for any report. */}
+      <div className="flex items-center gap-6 -mt-1">
+        <SectionToggle
+          label={`Show the heading "${block.title || 'Condition found'}"`}
+          checked={isIncluded(block.show_title)}
+          onChange={(next) => onChange({ ...block, show_title: next })}
+        />
+        <SectionToggle
+          label="Include the defect chart"
+          checked={isIncluded(block.show_chart)}
+          onChange={(next) => onChange({ ...block, show_chart: next })}
+        />
       </div>
 
       <div className="overflow-x-auto">

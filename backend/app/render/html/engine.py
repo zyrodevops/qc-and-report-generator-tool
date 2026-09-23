@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.compute.arithmetic import compute
+from app.render.inclusion import included_rows, is_included, shows_chart, shows_table_title
 from app.render.docx.engine import _generate_defect_chart
 
 
@@ -324,8 +325,8 @@ def render_narrative_html(block: Dict[str, Any]) -> str:
 
 
 def render_measurements_html(block: Dict[str, Any]) -> str:
-    """Render measurements block as a 5-column table matching DOCX."""
-    rows = block.get("rows", [])
+    """Render measurements block as a 5-column table matching DOCX (ticked rows only)."""
+    rows = included_rows(block)
     if not rows:
         return ""
 
@@ -373,7 +374,7 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
     cat_labels = [c["label"] for _, c in shown]
 
     out = []
-    if title:
+    if title and shows_table_title(block):
         out.append(f'<h2 class="block-heading">{html.escape(title)}</h2>')
 
     out.append('<table class="report-table defect-table">')
@@ -475,7 +476,7 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
     try:
         chart_stream = _generate_defect_chart(
             categories, col_pcts, title or "Defect Analysis Breakdown"
-        )
+        ) if shows_chart(block) else None
         if chart_stream:
             b64_img = base64.b64encode(chart_stream.getvalue()).decode("utf-8")
             cap_title = html.escape(title or "Quality Analysis Breakdown")
@@ -710,6 +711,8 @@ def render_unit_group_html(
         heading = html.escape(unit.get("heading") or f"CONTAINER {unit.get('identifier')}")
         out.append(f'<h2 class="block-heading" style="color: #00387A; font-size: 11pt; margin-top: 20px; border-bottom: 2px solid #00387A;">{heading}</h2>')
         for ub in unit.get("blocks", []):
+            if not is_included(ub):
+                continue
             ubtype = ub.get("type")
             ub_comp = ub.get("_computed", {})
             if ubtype == "particulars":
@@ -743,6 +746,9 @@ def render_html(block_state: Dict[str, Any]) -> str:
     page2_blocks: List[str] = []
 
     for b in blocks:
+        # Sections the surveyor has unticked are left out, not deleted.
+        if not is_included(b):
+            continue
         btype = b.get("type")
         bcomp = b.get("_computed", {})
 

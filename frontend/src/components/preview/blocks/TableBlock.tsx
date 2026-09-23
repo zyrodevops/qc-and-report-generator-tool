@@ -112,6 +112,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
 
   return (
     <div className="table-block my-3">
+      {block?.show_title !== false && (
       <div className="flex justify-between items-center border-b border-slate-300 pb-1 mb-2">
         <h2 className="text-[12px] font-bold text-[#00387A] uppercase tracking-wider">
           {title}
@@ -120,6 +121,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
           Unit: {unit}
         </span>
       </div>
+      )}
 
       {isTwoTier ? (
         <table className="w-full border-collapse border border-slate-400 text-xs">
@@ -339,7 +341,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
       )}
 
       {/* Embedded Donut Chart */}
-      {chartItems.length > 0 && (
+      {block?.show_chart !== false && chartItems.length > 0 && (
         <div className="flex flex-col items-center justify-center my-4 p-3 bg-white rounded border border-slate-200">
           <div className="flex items-center gap-6">
             <svg width="160" height="160" viewBox="0 0 160 160" className="drop-shadow-xs">

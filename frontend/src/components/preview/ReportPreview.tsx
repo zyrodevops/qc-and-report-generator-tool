@@ -64,7 +64,8 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
     return computeBlockState(blockState);
   }, [blockState]);
 
-  const blocks: any[] = computedState?.blocks || [];
+  // Unticked sections are left out here exactly as they are in the Word/PDF.
+  const blocks: any[] = (computedState?.blocks || []).filter((b: any) => b?.included !== false);
   const metadata = computedState?.metadata || report?.block_state?.metadata || {};
   const repNum = reportNumber || report?.report_number || metadata?.number || 'QC-DRAFT';
   const assets = computedState?.assets || {};

@@ -12,7 +12,7 @@ export const MeasurementsBlock: React.FC<MeasurementsBlockProps> = ({
   editable = true,
 }) => {
   const rows: any[] = block?.rows || [];
-  if (rows.length === 0) return null;
+  if (!rows.some((r) => r?.included !== false)) return null;
 
   const updateRow = (rIdx: number, field: string, val: string) => {
     if (!onChange) return;
@@ -38,6 +38,7 @@ export const MeasurementsBlock: React.FC<MeasurementsBlockProps> = ({
         </thead>
         <tbody>
           {rows.map((row, idx) => {
+            if (row?.included === false) return null;
             const subj = row.subject || '';
             const qual = row.qualifier || '';
             const meth = row.method || '';

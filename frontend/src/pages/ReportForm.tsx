@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ReportSummary, patchBlockState, getDownloadDocxUrl } from '../api/client';
 import { TableGrid } from '../components/tables/TableGrid';
+import { SectionToggle, isIncluded } from '../components/SectionToggle';
 import { PhotoTray } from '../components/photos/PhotoTray';
 import { ReportPreview } from '../components/preview/ReportPreview';
 import { NarrativeBlock } from '../components/preview/blocks/NarrativeBlock';
@@ -318,16 +319,41 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
             const commodity = (blockState?.metadata?.commodity as string | undefined) ||
               (blockState?.report_title?.match(/APPLE|MANDARIN|ORANGE|GRAPE|KIWI|PEAR|BLUEBERRY|CHERRY|PLUM|DRAGON|AVOCADO/i)?.[0]?.toUpperCase()) ||
               'APPLE';
+            const included = isIncluded(block.included);
             return (
-              <div key={block.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div
+                key={block.id}
+                className={`relative rounded-xl shadow-sm border p-5 ${
+                  included ? 'bg-white border-gray-200' : 'bg-gray-50 border-dashed border-gray-300'
+                }`}
+              >
+                {/* Tick box in the corner: untick to leave this section out of
+                    the report. The text is kept and comes back when re-ticked. */}
+                <div className="absolute top-3 right-4 z-10">
+                  <SectionToggle
+                    checked={included}
+                    onChange={(next) => handleBlockChange({ ...block, included: next })}
+                  />
+                </div>
 
-                {/* NarrativeBlock handles auto-resize (useLayoutEffect) + ClauseLibraryPicker */}
-                <NarrativeBlock
-                  block={block}
-                  onChange={handleBlockChange}
-                  editable={true}
-                  commodity={commodity}
-                />
+                {included ? (
+                  /* NarrativeBlock handles auto-resize (useLayoutEffect) + ClauseLibraryPicker */
+                  <NarrativeBlock
+                    block={block}
+                    onChange={handleBlockChange}
+                    editable={true}
+                    commodity={commodity}
+                  />
+                ) : (
+                  <div className="pr-28">
+                    <div className="text-sm font-bold text-gray-400 uppercase tracking-wide line-through">
+                      {block.section || block.title || 'Section'}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Left out of the report. What you wrote is kept — tick the box to put it back.
+                    </p>
+                  </div>
+                )}
               </div>
             );
           }
@@ -343,6 +369,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 text-xs text-gray-500 uppercase border-b">
+                        <th className="py-2 px-3 text-left w-24">In report</th>
                         <th className="py-2 px-3 text-left">Subject</th>
                         <th className="py-2 px-3 text-left">Method</th>
                         <th className="py-2 px-3 text-left">Min / Value</th>
@@ -352,7 +379,19 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                     </thead>
                     <tbody className="divide-y">
                       {block.rows.map((row: any, rIdx: number) => (
-                        <tr key={rIdx}>
+                        <tr key={rIdx} className={isIncluded(row.included) ? '' : 'opacity-40'}>
+                          <td className="py-2 px-3">
+                            <SectionToggle
+                              compact
+                              label=""
+                              checked={isIncluded(row.included)}
+                              onChange={(next) => {
+                                const newRows = [...block.rows];
+                                newRows[rIdx] = { ...newRows[rIdx], included: next };
+                                handleBlockChange({ ...block, rows: newRows });
+                              }}
+                            />
+                          </td>
                           <td className="py-2 px-3 font-semibold text-gray-800">{row.subject}</td>
                           <td className="py-2 px-3 text-gray-600">{row.method}</td>
                           <td className="py-2 px-3">

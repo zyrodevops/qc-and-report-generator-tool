@@ -493,13 +493,28 @@ def _build_blocks_for_commodity(
     })
 
     # ── Block 5: On-site Measurements ─────────────────────────────────────
-    if supp.get("measurements"):
-        blocks.append({
-            "id": "b_measurements",
-            "type": "measurements",
-            "title": "On-Site Physical & Instrumental Measurements",
-            "rows": supp["measurements"],
-        })
+    #
+    # The client's 470 reports measure exactly three things: pulp temperature
+    # (445 reports), brix (345) and pressure by penetrometer (208). Rows like
+    # "Starch Iodine Index" and "Berry Firmness" that used to be seeded here
+    # appear in none of them, so they are gone. Brix and pressure start ticked
+    # or unticked by fruit, and the surveyor can change either.
+    from app.ingest.tally.categories import lookup_fruit
+
+    fruit = lookup_fruit(commodity_key) or {}
+    blocks.append({
+        "id": "b_measurements",
+        "type": "measurements",
+        "title": "On-Site Physical & Instrumental Measurements",
+        "rows": [
+            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer",
+             "min": "", "max": "", "unit": "°C", "included": True},
+            {"subject": "Brix", "method": "",
+             "min": "", "max": "", "unit": "%", "included": bool(fruit.get("show_brix", True))},
+            {"subject": "Fruit Pressure", "method": "Penetrometer",
+             "min": "", "max": "", "unit": "LBS", "included": bool(fruit.get("show_penetrometer", False))},
+        ],
+    })
 
     # ── Block 6: Defect condition table ───────────────────────────────────
     #
@@ -509,6 +524,9 @@ def _build_blocks_for_commodity(
     # percentaged like real figures, so a report could be finished and signed
     # with numbers that came from this file. The counts belong to the tally
     # sheet, and nowhere else.
+    # show_title / show_chart only set the starting ticks. Grapes reports put
+    # the table straight under Our Survey without a "Condition found of…"
+    # heading, and most apple reports have no chart — but either can be ticked.
     blocks.append({
         "id": "b_table",
         "type": "table",
@@ -517,6 +535,8 @@ def _build_blocks_for_commodity(
         "unit": unit,
         "categories": categories,
         "rows": [],
+        "show_title": bool(fruit.get("show_condition_found", True)),
+        "show_chart": bool(fruit.get("show_chart", False)),
     })
 
     # ── Block 7: Survey Photographs ───────────────────────────────────────
