@@ -409,3 +409,32 @@ async def test_apply_stores_checked_rows_as_surveyor_verified():
         assert table["rows"][0]["values"]["sound"] == "180"
         assert table["rows"][0]["stated_total"] == 185
         assert table["rows"][0]["provenance"] == "surveyor_verified"
+
+
+@pytest.mark.asyncio
+async def test_pressure_on_the_sheet_fills_the_fruit_pressure_row_and_only_then():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        hdr = await _login(ac)
+        created = await ac.post(
+            "/api/reports",
+            json={"family": "QC_REPORT", "commodity": "GRAPE", "template_id": CANONICAL_TEMPLATE},
+            headers=hdr,
+        )
+        report_id = created.json()["id"]
+        table = {"categories": build_categories("GRAPE"), "unit": "kg", "rows": []}
+
+        # No pressure on the sheet: the row stays empty and unticked for grapes.
+        res = await ac.post(f"/api/reports/{report_id}/import/tally-ocr/apply",
+                            json={"headers": {"pulp_temp_min": 0.6}, "table": table}, headers=hdr)
+        row = next(r for b in res.json()["block_state"]["blocks"] if b["type"] == "measurements"
+                   for r in b["rows"] if "pressure" in r["subject"].lower())
+        assert row["min"] == "" and row["max"] == "" and row["included"] is False
+
+        # Pressure written on the sheet: filled, and ticked so it is printed.
+        res = await ac.post(f"/api/reports/{report_id}/import/tally-ocr/apply",
+                            json={"headers": {"pressure_min": 16.88, "pressure_max": 17.59}, "table": table},
+                            headers=hdr)
+        row = next(r for b in res.json()["block_state"]["blocks"] if b["type"] == "measurements"
+                   for r in b["rows"] if "pressure" in r["subject"].lower())
+        assert (row["min"], row["max"], row["included"]) == ("16.88", "17.59", True)

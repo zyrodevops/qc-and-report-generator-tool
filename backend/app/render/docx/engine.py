@@ -160,8 +160,25 @@ def render_narrative(doc: Document, block: Dict[str, Any]) -> None:
 
     clause_text = block.get("additional_text") or ""
     if clause_text:
-        para = doc.add_paragraph(clause_text)
-        para.style = "Normal"
+        from docx.shared import Pt
+        from app.render.narrative_text import split_narrative
+
+        for kind, lines in split_narrative(clause_text):
+            if kind == "ul":
+                for item in lines:
+                    try:
+                        para = doc.add_paragraph(item, style="List Bullet")
+                    except KeyError:
+                        # The client's template may not define the list style.
+                        para = doc.add_paragraph("•\t" + item, style="Normal")
+                        para.paragraph_format.left_indent = Pt(18)
+                        para.paragraph_format.first_line_indent = Pt(-12)
+            else:
+                para = doc.add_paragraph(style="Normal")
+                for i, line in enumerate(lines):
+                    run = para.add_run(line)
+                    if i < len(lines) - 1:
+                        run.add_break()
 
     doc.add_paragraph()
 

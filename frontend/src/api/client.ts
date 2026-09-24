@@ -536,92 +536,51 @@ export async function applyTallyGrid(
   return res.json();
 }
 
-export interface Clause {
-  text: string;
-  count: number;
-  section: string;
-  is_template: boolean;
-}
-
-export async function fetchClauses(
-  commodity?: string,
-  section?: string,
-  limit = 10,
-): Promise<Clause[]> {
-  const params = new URLSearchParams();
-  if (commodity) params.set('commodity', commodity);
-  if (section) params.set('section', section);
-  params.set('limit', String(limit));
-
-  const res = await fetch(`/api/clauses?${params.toString()}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch clauses: ${res.statusText}`);
-  }
-  const data = await res.json();
-  return data.clauses as Clause[];
-}
-
 // ---------------------------------------------------------------------------
-// Clause Taxonomy — structured cause patterns and next-step actions
+// Standard wording — the client's own, with other reports' facts blanked
 // ---------------------------------------------------------------------------
 
-export interface CausePattern {
-  key: string;
+/** One idea a section carries; adding it inserts that idea's sentences. */
+export interface WordingTopic {
+  topic: string;
   label: string;
   description: string;
-  icon: string;
-  wording: string;
-  is_commodity_specific: boolean;
-}
-
-export interface NextStepAction {
-  key: string;
-  label: string;
+  /** A list item (a document name): shown as a small chip. */
+  compact: boolean;
+  /** The client's sentences, in his layout. Words in [BRACKETS] are blanks. */
   text: string;
-  is_applicable: boolean;
-  applies_to: string[];
+  blanks: string[];
 }
 
-export interface NarrativeScenario {
-  key: string;
-  label: string;
-  badge: string;
-  description: string;
-  template: string;
-}
-
-export interface ClauseTaxonomyScenarioResponse {
+export interface WordingPick {
   section: string;
-  commodity: string | null;
-  scenarios: NarrativeScenario[];
+  available: boolean;
+  topics: WordingTopic[];
 }
 
-export interface ClauseTaxonomyCauseResponse {
-  section: 'cause_of_loss';
-  commodity: string | null;
-  causes: CausePattern[];
+/** What the report already knows; the server fills matching blanks with it. */
+export interface ClauseContext {
+  commodity?: string;
+  /** SEA or AIR, from the report type. */
+  mode?: string;
+  values: Record<string, string>;
+  defects: string[];
 }
 
-export interface ClauseTaxonomyNextStepResponse {
-  section: 'next_step';
-  commodity: string | null;
-  actions: NextStepAction[];
-}
-
-export async function fetchClauseTaxonomy(
-  section: string,
-  commodity?: string,
-): Promise<ClauseTaxonomyCauseResponse | ClauseTaxonomyNextStepResponse | ClauseTaxonomyScenarioResponse> {
-  const params = new URLSearchParams({ section });
-  if (commodity) params.set('commodity', commodity);
-
-  const res = await fetch(`/api/clause-taxonomy?${params.toString()}`, {
-    headers: getAuthHeaders(),
+export async function pickClauses(section: string, ctx: ClauseContext): Promise<WordingPick> {
+  const res = await fetch('/api/clauses/pick', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({
+      section,
+      commodity: ctx.commodity || null,
+      mode: ctx.mode || null,
+      values: ctx.values,
+      defects: ctx.defects,
+    }),
   });
   if (!res.ok) {
-    throw new Error(`Failed to fetch clause taxonomy: ${res.statusText}`);
+    throw new Error(`Could not load the standard wording (${res.status}).`);
   }
   return res.json();
 }

@@ -33,8 +33,13 @@ def _load_archetypes() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Per-commodity supplementary data (measurements, narrative wording, sample rows)
-# These are written from domain knowledge + real report patterns found in the corpus.
+# Per-commodity labels.
+#
+# This used to carry a paragraph of narrative per section per fruit, written by
+# a model and presented as report wording — with figures in it ("pulp
+# temperature ... found in the range of 1.2°C to 2.0°C") that no surveyor had
+# measured. The narrative sections now start empty and are written from the
+# client's own clauses (app/seeds/clause_library.py) or typed.
 # ---------------------------------------------------------------------------
 
 _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
@@ -42,357 +47,72 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
     "APPLE": {
         "label": "Fresh Apple",
         "declared": "Fresh Apple Fruits — [quantity and packing from the invoice]",
-        "packing_note": "Each carton contains approx. 100–125 pcs packed in individual poly sleeves.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (11 mm tip)", "min": "", "max": "", "unit": "lbs/cm²"},
-            {"subject": "Starch Iodine Index", "method": "CTIFL Scale (1–8)", "min": "", "max": "", "unit": "Score"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors were appointed to conduct survey of the subject consignment. "
-            "We attended at the consignee's nominated cold storage facility upon container destuffing and "
-            "conducted a joint inspection in the presence of the consignee's representative and the CHA. "
-            "The container exterior, seal condition, and reefer temperature display were verified prior to door opening."
-        ),
-        "para2_text": (
-            "Upon opening the container doors, cargo stowage was found uniform on pallets. "
-            "No evidence of transit condensation, water ingress, or crushing to carton exteriors was noted. "
-            "Reefer set point was verified and pulp temperatures were spot-checked across top, middle, and bottom tiers."
-        ),
-        "survey_text": (
-            "Randomly selected cartons from different pallet tiers and locations were opened for detailed inspection. "
-            "Apple fruits inside the cartons were found with a mixture of sound, bruised, mechanically injured, and rotten condition "
-            "in varying degrees. The condition found of Apple fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• The pulp temperature of the fresh Apple fruits was checked by means of a digital probe thermometer inside the cold room "
-            "and was found in the range of 1.2°C to 2.0°C.\n"
-            "• The pressure of randomly selected Apple fruits was checked with a fruit pressure tester and recorded between 14.5 "
-            "and 17.0 lbs/cm².\n"
-            "• Upon cutting the sound apples, the pulp was found firm and white; bruised fruits showed brownish discoloration "
-            "below the epidermal layer."
-        ),
     },
 
     # ── GRAPE ──────────────────────────────────────────────────────────────
     "GRAPE": {
         "label": "Fresh Table Grapes",
         "declared": "Fresh Table Grapes — [quantity and packing from the invoice]",
-        "packing_note": "Each carton contains approx. 9 kg packed in punnet trays with SO₂ pads.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
-            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
-            "of the subject consignment of fresh table grapes upon destuffing. The cold room temperature was noted "
-            "from the display as per observations recorded below."
-        ),
-        "para2_text": (
-            "Container exterior was inspected; seal was found intact and verified in the presence of the attending parties. "
-            "Upon door opening, cargo was stacked on pallets in an orderly manner. No evidence of reefer malfunction or "
-            "carton collapse was noted. SO₂ pads were present and partially consumed, consistent with normal transit."
-        ),
-        "survey_text": (
-            "Cartons from multiple pallet tiers were selected for 100% net weight segregation of grape berries by condition. "
-            "The condition found of Fresh Table Grapes is presented in the table below in kilograms. (See Survey Photographs)\n\n"
-            "• Pulp temperature was checked using a digital probe thermometer and found in the range of 0.8°C to 1.6°C.\n"
-            "• Stems were predominantly green to slightly amber; bunch attachment was largely normal.\n"
-            "• Brix (soluble solids) was checked via digital refractometer and found between 16.00% and 18.50%.\n"
-            "• Soft and rotten grapes emitted a characteristic fermented odour; shatter berries were loose at carton base."
-        ),
     },
 
     # ── BLUEBERRY ──────────────────────────────────────────────────────────
     "BLUEBERRY": {
         "label": "Fresh Blueberry",
         "declared": "Fresh Blueberries — [quantity and packing from the invoice]",
-        "packing_note": "Packed in 125 g retail punnets; 8 punnets per master carton.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
-            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
-            "of the blueberry consignment. The cold room temperature was recorded from the display. "
-            "Representative cartons from different pallet positions and heights were selected for inspection."
-        ),
-        "para2_text": (
-            "Container exterior, door gaskets, and seal were checked and found intact. "
-            "Upon opening the container, blueberry cartons were stacked uniformly on pallets. "
-            "Some cartons at the base of pallets showed minor compression marks but no moisture damage."
-        ),
-        "survey_text": (
-            "Selected punnets were examined and weighed. Blueberries were segregated by condition — sound, soft, and rotten — "
-            "and net weights recorded in kilograms per sampled carton. (See Survey Photographs)\n\n"
-            "• Pulp temperature was found in the range of 0.5°C to 2.0°C.\n"
-            "• Soft berries were translucent, lacking firmness, and showed signs of early fungal activity on skin surface.\n"
-            "• Rotten berries were collapsed with visible mould colonisation.\n"
-            "• To mitigate further losses from the damaged blueberry fruits, we advised the Consignees to sell them immediately."
-        ),
     },
 
     # ── ORANGE ─────────────────────────────────────────────────────────────
     "ORANGE": {
         "label": "Fresh Orange",
         "declared": "Fresh Orange Fruits — [quantity and packing from the invoice]",
-        "packing_note": "Each carton contains approx. 72–100 pcs individually wrapped in tissue.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
-            {"subject": "Pulp Condition", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage facility to conduct a joint inspection "
-            "of the subject consignment of fresh oranges. The reefer display temperature was noted. "
-            "Cartons were randomly selected from different pallet positions for detailed examination."
-        ),
-        "para2_text": (
-            "Container exterior and customs bottle seal were checked and found intact in the presence of the attending parties. "
-            "Upon door opening, cartons were stacked on pallets in a uniform manner. "
-            "Minor carton surface softening was noted on the outer layer but no structural carton collapse."
-        ),
-        "survey_text": (
-            "Opened cartons were inspected fruit by fruit; oranges were sorted into sound, rotten, russet, and soft categories. "
-            "The condition found of Fresh Orange Fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature was found in the range of 4.2°C to 5.1°C.\n"
-            "• Upon cutting, pulp was found firm and juicy with normal internal coloration.\n"
-            "• Russet fruits showed superficial skin browning; internal quality was acceptable in most cases.\n"
-            "• Rotten fruits exhibited collapsed pulp with a fermented odour."
-        ),
     },
 
     # ── PEAR ───────────────────────────────────────────────────────────────
     "PEAR": {
         "label": "Fresh Pear",
         "declared": "Fresh Pear Fruits — [quantity and packing from the invoice]",
-        "packing_note": "Each carton approx. 18 kg; fruits packed in individual poly bags.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (8 mm tip)", "min": "", "max": "", "unit": "lbs"},
-            {"subject": "Internal Flesh Colour", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage to carry out a joint inspection "
-            "of the subject pear consignment upon container destuffing. Cartons were selected randomly across pallet tiers."
-        ),
-        "para2_text": (
-            "Container exterior, door seals, and customs seal were verified and found intact. "
-            "Upon door opening, cargo was stacked uniformly on wooden pallets. "
-            "Reefer temperature display and set point were verified and recorded."
-        ),
-        "survey_text": (
-            "Selected cartons were opened and pear fruits were inspected piece by piece, sorted by condition. "
-            "The condition found of Pear Fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature was found in the range of 0.5°C to 1.5°C.\n"
-            "• Pressure readings using a penetrometer were found between 4.0 and 7.0 lbs indicating softening in parts.\n"
-            "• Upon cutting, flesh of sound fruits was cream-coloured and firm; soft fruits showed brown discolouration progressing from core outward.\n"
-            "• Shrivelled fruits had lost significant moisture; skin was wrinkled and fruit weight was noticeably reduced."
-        ),
     },
 
     # ── KIWI ───────────────────────────────────────────────────────────────
     "KIWI": {
         "label": "Fresh Kiwi",
         "declared": "Fresh Kiwi Fruits — [quantity and packing from the invoice]",
-        "packing_note": "Each carton contains 36 or 42 pcs; fruits individually wrapped.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Fruit Pressure / Firmness", "method": "Penetrometer (8 mm tip)", "min": "", "max": "", "unit": "kg/cm²"},
-            {"subject": "Internal Flesh Colour", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
-            "of the kiwi consignment upon container destuffing. The container was shifted to the nominated CFS "
-            "for customs formalities and delivery prior to our inspection."
-        ),
-        "para2_text": (
-            "Container exterior and customs seal were verified and found intact. "
-            "Upon door opening, kiwi cartons were stacked uniformly on pallets. "
-            "The cold room temperature was noted from the display as per the records below."
-        ),
-        "survey_text": (
-            "Randomly selected cartons were opened for 100% piece-by-piece inspection. "
-            "The condition found of Kiwi Fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature of kiwi fruits was checked by means of a digital thermometer inside the cold room "
-            "and was found in the range of 0.0°C to 1.5°C.\n"
-            "• Upon cutting the soft/ripen kiwis, the pulp was found soft and juicy in varying degrees with pale yellow "
-            "colour. A strong foul odour, unpleasant smell was noticed in all the soft kiwis — a clear indicator that "
-            "the soft kiwis are no longer fit for human consumption.\n"
-            "• Sound fruits were firm with bright green flesh and no internal discolouration."
-        ),
     },
 
     # ── MANDARIN ───────────────────────────────────────────────────────────
     "MANDARIN": {
         "label": "Fresh Mandarin",
         "declared": "Fresh Mandarin Fruits — [quantity and packing from the invoice]",
-        "packing_note": "Each carton 9 kg net; packed with paper wrapping.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
-            {"subject": "Internal Flesh Quality", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the cold storage to conduct a joint survey upon container destuffing. "
-            "The containers carrying the subject cargo were shifted to the nominated CFS for customs formalities and delivery."
-        ),
-        "para2_text": (
-            "Container exterior and customs seal were verified. Seal was found intact and cut in the presence of all parties. "
-            "Reefer set point and temperature display were verified and recorded. "
-            "Cartons were stacked on pallets in an orderly manner with no evidence of collapse or structural damage."
-        ),
-        "survey_text": (
-            "Randomly selected cartons from different pallet locations were opened for detailed inspection. "
-            "Mandarin fruits inside the cartons were found with a mixture of sound, soft, russet, rotten spot, and rotten condition "
-            "in various degrees. The condition found of Mandarin Fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature was checked by means of a digital probe thermometer inside the cold room "
-            "and was found in the range of 4.0°C to 4.6°C.\n"
-            "• Brix was checked and found in the range of 10.00% to 12.00%.\n"
-            "• Upon cutting, the pulp was found soft and juicy; rotten spot fruits showed brown necrotic patches on the peel and flesh."
-        ),
     },
 
     # ── DRAGON ─────────────────────────────────────────────────────────────
     "DRAGON": {
         "label": "Fresh Dragon Fruit",
         "declared": "Fresh Dragon Fruits — [quantity and packing from the invoice]",
-        "packing_note": "Each carton contains approx. 10 kg; fruits packed individually in foam sleeves.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Pulp Colour", "method": "Visual Inspection", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
-            "of the dragon fruit consignment upon container destuffing."
-        ),
-        "para2_text": (
-            "Container exterior and customs seal were verified and found intact. "
-            "Upon door opening, cargo was stacked on pallets uniformly. "
-            "Reefer set point temperature was verified and recorded."
-        ),
-        "survey_text": (
-            "Randomly selected cartons were opened and dragon fruits inspected piece by piece. "
-            "The condition found of Dragon Fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature was checked inside the cold room and found in the range of 8.0°C to 10.0°C.\n"
-            "• Sound fruits were firm with bright pink skin and scales intact.\n"
-            "• Soft fruits showed indentation under light finger pressure; shrivelled fruits had lost moisture with wrinkled skin.\n"
-            "• To mitigate further losses from the damaged dragon fruits, we advised the Consignees to sell them immediately."
-        ),
     },
 
     # ── CHERRY ─────────────────────────────────────────────────────────────
     "CHERRY": {
         "label": "Fresh Cherry",
         "declared": "Fresh Cherries — [quantity and packing from the invoice]",
-        "packing_note": "Each carton approx. 5 kg; fruits packed in 250 g retail punnets.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Brix Content", "method": "Digital Refractometer", "min": "", "max": "", "unit": "%"},
-            {"subject": "Berry Firmness", "method": "Visual & Touch Assessment", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
-            "of the cherry consignment. Representative cartons from different pallet positions were selected."
-        ),
-        "para2_text": (
-            "Container exterior, door gaskets, and customs seal were checked and found intact. "
-            "Upon door opening, cherry cartons were stacked uniformly on pallets. "
-            "The reefer set point and temperature display were verified."
-        ),
-        "survey_text": (
-            "Selected cartons and punnets were examined. Cherries were sorted into sound, soft, pitting, and rotten categories "
-            "by piece count. The condition found of Cherry Fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature was found in the range of 0.0°C to 1.5°C.\n"
-            "• Brix was checked and found between 18.00% and 22.00%, indicating good sugar content in sound fruits.\n"
-            "• Soft cherries were translucent with slight indentation; pitting marks were surface-level circular depressions.\n"
-            "• Rotten cherries showed collapsed flesh with mould on the skin surface."
-        ),
     },
 
     # ── AVOCADO ────────────────────────────────────────────────────────────
     "AVOCADO": {
         "label": "Fresh Avocado",
         "declared": "Fresh Avocado — [quantity and packing from the invoice]",
-        "packing_note": "Each carton contains approx. 24 pcs in size 24; packed in ventilated cartons.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Fruit Firmness", "method": "Visual & Touch Assessment", "min": "", "max": "", "unit": "-"},
-            {"subject": "Pulp Colour (on cut)", "method": "Cutting Inspection", "min": "", "max": "", "unit": "-"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
-            "of the avocado consignment. The container was shifted to the CFS for customs formalities."
-        ),
-        "para2_text": (
-            "Container exterior and seal were verified and found intact. "
-            "Upon opening, avocado cartons were stacked uniformly on pallets. "
-            "Cold room temperature was noted and reefer set point verified."
-        ),
-        "survey_text": (
-            "Representative cartons were opened and avocados inspected piece by piece. "
-            "The condition found of Avocado Fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature was found in the range of 5.5°C to 7.0°C.\n"
-            "• Sound fruits were firm; soft fruits yielded under moderate finger pressure — consistent with partial ripening.\n"
-            "• Soft-over-ripe fruits had black-streaked pulp; black & rotten fruits showed putrefaction and offensive odour.\n"
-            "• Consignees are requested to sell sound and soft cargo immediately to mitigate further deterioration."
-        ),
     },
 
     # ── PLUM ───────────────────────────────────────────────────────────────
     "PLUM": {
         "label": "Fresh Plum",
         "declared": "Fresh Plum Fruits — [quantity and packing from the invoice]",
-        "packing_note": "Each carton approx. 5 kg; fruits packed in trays with paper wrapping.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Fruit Firmness", "method": "Penetrometer (8 mm tip)", "min": "", "max": "", "unit": "kg/cm²"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the consignee's cold storage to conduct a joint survey "
-            "of the subject plum consignment upon container destuffing."
-        ),
-        "para2_text": (
-            "Container seal was verified and found intact in the presence of all attending representatives. "
-            "Upon door opening, cargo was found stacked uniformly on pallets. "
-            "Cold room temperature and reefer set point were verified."
-        ),
-        "survey_text": (
-            "Selected cartons were opened and plum fruits inspected by piece. "
-            "The category-wise details are as follows. The condition found of Plum Fruits is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature was found in the range of 0.0°C to 2.0°C.\n"
-            "• Sound fruits were firm with normal skin colour; russet fruits showed surface skin browning without pulp damage.\n"
-            "• Soft fruits had lost firmness with internal browning; rotten fruits showed collapsed pulp and offensive odour.\n"
-            "• To reduce the losses, we advised the consignees to sell the damaged plum fruits immediately."
-        ),
     },
 
     # ── APRICOT ────────────────────────────────────────────────────────────
     "APRICOT": {
         "label": "Fresh Apricot",
         "declared": "Fresh Apricot, Peach & Nectarine — [quantity and packing from the invoice]",
-        "packing_note": "Mixed fruit consignment; each carton approx. 5 kg.",
-        "measurements": [
-            {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer", "min": "", "max": "", "unit": "°C"},
-            {"subject": "Fruit Firmness", "method": "Penetrometer (8 mm tip)", "min": "", "max": "", "unit": "kg/cm²"},
-        ],
-        "para1_text": (
-            "We the undersigned surveyors attended at the cold storage to conduct a joint survey of the subject mixed stone "
-            "fruit consignment upon container destuffing. The original pallets were dismantled prior to our visit."
-        ),
-        "para2_text": (
-            "Container seal and exterior were verified. Upon opening, fruits were found stacked on pallets in cardboard cartons "
-            "protected with cardboard sheets, stretched, wrapped, and fastened with nylon straps. "
-            "Cold room temperature and reefer set point were verified."
-        ),
-        "survey_text": (
-            "Selected cartons were opened and fruits inspected piece by piece, segregated by variety and condition. "
-            "The condition found of Apricot, Peach & Nectarine is detailed in the table below. (See Survey Photographs)\n\n"
-            "• Pulp temperature was found in the range of 1.0°C to 3.0°C.\n"
-            "• Sound apricots were firm with good skin colour; soft apricots showed early ripening softness.\n"
-            "• Rotten fruits showed collapsed flesh and offensive odour.\n"
-            "• Consignees are requested to pursue any claims related matter directly with the responsible parties."
-        ),
     },
 }
 
@@ -445,23 +165,32 @@ def _build_blocks_for_commodity(
             {"label": "Consignee", "value": ["[Consignee Name, City, India]"]},
             {"label": "Bill of Lading / AWB No.", "value": ["[B/L or AWB Number]"]},
             {"label": "Invoice No.", "value": ["[Invoice Number]"]},
-            {"label": "Container / Carriage Unit", "value": ["[Container No.] (40' HC Reefer)"]},
-            {"label": "Seal No.", "value": ["[Seal No.] (Found Intact)"]},
+            # Blanks, not guesses. These used to start as "(40' HC Reefer)",
+            # "(Found Intact)", "Nhava Sheva (JNPT)" and today's date, and
+            # printed as fact on any report where nobody changed them. The
+            # values come from the transport documents and the tally sheet.
+            {"label": "Container / Carriage Unit", "value": ["[Container No.]"]},
+            {"label": "Seal No.", "value": ["[Seal No.]"]},
             {"label": "Carrying Vessel / Flight", "value": ["[Vessel Name / Flight No.]"]},
             {"label": "Port of Loading", "value": ["[Port of Loading]"]},
-            {"label": "Port of Discharge", "value": ["Nhava Sheva (JNPT), India"]},
+            {"label": "Port of Discharge", "value": ["[Port of Discharge]"]},
             {"label": "Cargo Declared", "value": [declared]},
-            {"label": "Survey Date", "value": [today_str]},
+            {"label": "Survey Date", "value": ["[Survey Date]"]},
             {"label": "Survey Location", "value": ["[Cold Storage Name & Address]"]},
         ],
     })
+
+    # ── Narrative sections start empty ────────────────────────────────────
+    # Written from the client's own clauses (the picker on each section) or
+    # typed. Starting them with sample prose meant a report could be signed
+    # with paragraphs, and figures, that described nobody's shipment.
 
     # ── Block 2: PARAGRAPH 1 — APPLICATION ────────────────────────────────
     blocks.append({
         "id": "b_para1",
         "type": "narrative",
         "section": "PARAGRAPH 1: APPLICATION",
-        "additional_text": supp.get("para1_text", ""),
+        "additional_text": "",
     })
 
     # ── Block 3: PARAGRAPH 2 — CIRCUMSTANCES OF LOSS ──────────────────────
@@ -469,7 +198,7 @@ def _build_blocks_for_commodity(
         "id": "b_para2",
         "type": "narrative",
         "section": "PARAGRAPH 2: CIRCUMSTANCES OF LOSS",
-        "additional_text": supp.get("para2_text", ""),
+        "additional_text": "",
     })
 
     # ── Note block (Container & site condition) ───────────────────────────
@@ -477,11 +206,7 @@ def _build_blocks_for_commodity(
         "id": "b_note",
         "type": "narrative",
         "section": "NOTE:",
-        "additional_text": (
-            "NOTE: Upon our arrival, we observed that the container was no longer available on site. "
-            "The Consignees informed us that the container had been destuffed and released back to the shipping line "
-            "to avoid detention charges. As a result, container settings and initial door-opening stowage could not be physically verified."
-        ),
+        "additional_text": "",
     })
 
     # ── Block 4: PARAGRAPH 2.1 — OUR SURVEY ──────────────────────────────
@@ -489,7 +214,7 @@ def _build_blocks_for_commodity(
         "id": "b_para2_1",
         "type": "narrative",
         "section": "PARAGRAPH 2.1: OUR SURVEY",
-        "additional_text": supp.get("survey_text", ""),
+        "additional_text": "",
     })
 
     # ── Block 5: On-site Measurements ─────────────────────────────────────
@@ -560,12 +285,7 @@ def _build_blocks_for_commodity(
         "id": "b_cause",
         "type": "narrative",
         "section": "PARAGRAPH 3: CAUSE OF LOSS",
-        "additional_text": (
-            f"According to the Bill of Lading, the requested carrying temperature for this shipment of fresh {label} fruits was "
-            f"[SET POINT TEMP]. During our investigation, temperature recorder downloads were reviewed.\n\n"
-            f"Based on our physical survey findings and cargo condition, the observed deterioration is consistent with "
-            f"temperature variations and transit delays. Pressure bruising on sampled fruits points to harvesting and packing line sorting operations at origin."
-        ),
+        "additional_text": "",
     })
 
     # ── Block 9: PARAGRAPH 4 — NEXT STEP ──────────────────────────────────
@@ -573,11 +293,7 @@ def _build_blocks_for_commodity(
         "id": "b_next_step",
         "type": "narrative",
         "section": "PARAGRAPH 4: NEXT STEP",
-        "additional_text": (
-            f"1. To mitigate losses from the damaged {label} fruits cargo, we advised the Consignees to sell the consignment immediately at best realizable price to avoid further commercial deterioration.\n\n"
-            f"2. Consignees are requested to lodge a formal Notice of Claim against the Ocean Carrier / Shipping Line within statutory time limits, holding them liable for transit losses.\n\n"
-            f"3. We reserve the right to issue a Final Survey Report upon receipt and examination of complete temperature recorder downloads and salvage sale invoices."
-        ),
+        "additional_text": "",
     })
 
     # ── Block 10: PARAGRAPH 5 — DOCUMENTATION ──────────────────────────────
@@ -585,14 +301,7 @@ def _build_blocks_for_commodity(
         "id": "b_doc",
         "type": "narrative",
         "section": "PARAGRAPH 5: DOCUMENTATION",
-        "additional_text": (
-            "Documentation secured and reviewed during our enquiries and site attendance includes:\n"
-            "• Ocean Bill of Lading\n"
-            "• Commercial Invoice & Packing List\n"
-            "• Portable Temperature Recorder (Data Logger) Download Report\n"
-            "• Container Equipment Interchange Receipt (EIR) / CFS Gate Pass\n"
-            "• Survey Photographs (Photo Plates attached hereto)"
-        ),
+        "additional_text": "",
     })
 
     # ── Block 11: Formal closure ──────────────────────────────────────────
@@ -895,8 +604,8 @@ def _build_blocks_for_general_cargo(
             {"label": "Cargo Description", "value": cfg["cargo_desc"], "provenance": "user_declared"},
             {"label": "Declared B/L Gross Weight", "value": "[DECLARED GROSS WT (KG)]", "provenance": "user_declared"},
             {"label": "Port of Loading", "value": "[PORT OF LOADING]", "provenance": "user_declared"},
-            {"label": "Port of Discharge", "value": "Nhava Sheva (JNPT), India" if not is_air else "Mumbai Air Cargo Complex", "provenance": "user_declared"},
-            {"label": "Place & Date of Survey", "value": f"Consignee's CFS / Warehouse, {today_str}", "provenance": "user_declared"},
+            {"label": "Port of Discharge", "value": "[PORT OF DISCHARGE]", "provenance": "user_declared"},
+            {"label": "Place & Date of Survey", "value": "[PLACE & DATE OF SURVEY]", "provenance": "user_declared"},
         ],
     }))
 
@@ -1148,7 +857,7 @@ def get_default_block_state(
             "vessel": "[VESSEL NAME]" if mode == "SEA" else "[FLIGHT NO.]",
             "voyage": "[VOYAGE NO.]" if mode == "SEA" else "[AWB NO.]",
             "origin": "[Port of Loading / Origin]",
-            "destination": "Nhava Sheva, India" if mode == "SEA" else "Mumbai Airport, India",
+            "destination": "[Port of Discharge]",
             "document": {
                 "kind": "BILL_OF_LADING" if mode == "SEA" else "AIR_WAYBILL",
                 "number": "[B/L or AWB Number]",

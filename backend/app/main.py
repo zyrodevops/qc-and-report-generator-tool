@@ -99,6 +99,20 @@ async def lifespan(app: FastAPI):
             "Startup seeding skipped: %s: %s", type(exc).__name__, exc
         )
 
+    # 2b. Standard wording: the client's own, built from the archive named by
+    #     CORPUS_DIR (never from the repository).
+    try:
+        from app.seeds.clause_library import seed_library
+        async with async_session_factory() as db:
+            msg = await seed_library(db, settings.CORPUS_DIR)
+        import logging
+        logging.getLogger(__name__).info("Standard wording: %s", msg)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Standard wording not loaded: %s: %s", type(exc).__name__, exc
+        )
+
     # 3. Schema migrations — add new columns safely (idempotent)
     try:
         _run_schema_migrations()

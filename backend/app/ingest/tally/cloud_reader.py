@@ -154,7 +154,10 @@ def _build_prompt(categories: List[Dict[str, str]], commodity: Optional[str], he
             "HEADER: also read the printed fields at the top — party name, survey date, "
             "destuff date, container number, room number, room temperature, pulp temperature "
             "range, brix range, and pressure range if present. Dates as written. Ranges as "
-            "separate min and max. Anything absent or unreadable is null.\n"
+            "separate min and max. Pressure (penetrometer, LBS) is often written per count "
+            "near the foot of the sheet, e.g. '(120) 16.88 to 17.59': give the lowest and the "
+            "highest figure across all of them. Anything absent or unreadable is null — never "
+            "estimate a value that is not written.\n"
         )
 
     return "".join(parts)

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Download,
@@ -20,6 +20,7 @@ import { SectionToggle, isIncluded } from '../components/SectionToggle';
 import { PhotoTray } from '../components/photos/PhotoTray';
 import { ReportPreview } from '../components/preview/ReportPreview';
 import { NarrativeBlock } from '../components/preview/blocks/NarrativeBlock';
+import { clauseContextFrom, findBlanks } from '../utils/clauseContext';
 
 interface ReportFormProps {
   report: ReportSummary;
@@ -96,8 +97,29 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
    */
   const saveIfNeeded = async (): Promise<boolean> => (dirty ? handleSave() : true);
 
+  // For the clause pickers: the report as it stands on screen, saved or not.
+  const clauseContext = useMemo(() => clauseContextFrom(blockState), [blockState]);
+
+  /**
+   * Before a download: blanks left in the report ([DATE], [NAME], a starting
+   * placeholder like [Shipper Name, Country]) would print as they are. The
+   * surveyor is told where they are and chooses; nothing is filled for him.
+   */
+  const beforeDownload = async (): Promise<boolean> => {
+    const left = findBlanks(blockState);
+    if (left.length) {
+      const lines = left.slice(0, 12).map((l) => `• ${l.where}: ${l.blanks.join(' ')}`);
+      const more = left.length > 12 ? `\n…and ${left.length - 12} more` : '';
+      const ok = window.confirm(
+        `These blanks are still in the report and will print as they are:\n\n${lines.join('\n')}${more}\n\nDownload anyway?`,
+      );
+      if (!ok) return false;
+    }
+    return saveIfNeeded();
+  };
+
   const handleDownloadDocx = async () => {
-    if (await saveIfNeeded()) window.location.href = getDownloadDocxUrl(report.id);
+    if (await beforeDownload()) window.location.href = getDownloadDocxUrl(report.id);
   };
 
   /** The workbench saved on the server: take its state and its new version. */
@@ -219,7 +241,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           onBlockChange={handleBlockChange}
           onBlockStateChange={setBlockState}
           editable={true}
-          beforeDownload={saveIfNeeded}
+          beforeDownload={beforeDownload}
         />
       ) : (
         <>
@@ -316,9 +338,6 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           }
 
           if (block.type === 'narrative') {
-            const commodity = (blockState?.metadata?.commodity as string | undefined) ||
-              (blockState?.report_title?.match(/APPLE|MANDARIN|ORANGE|GRAPE|KIWI|PEAR|BLUEBERRY|CHERRY|PLUM|DRAGON|AVOCADO/i)?.[0]?.toUpperCase()) ||
-              'APPLE';
             const included = isIncluded(block.included);
             return (
               <div
@@ -337,12 +356,11 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                 </div>
 
                 {included ? (
-                  /* NarrativeBlock handles auto-resize (useLayoutEffect) + ClauseLibraryPicker */
                   <NarrativeBlock
                     block={block}
                     onChange={handleBlockChange}
                     editable={true}
-                    commodity={commodity}
+                    clauseContext={clauseContext}
                   />
                 ) : (
                   <div className="pr-28">

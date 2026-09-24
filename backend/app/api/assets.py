@@ -619,6 +619,17 @@ async def apply_tally_ocr(
                             row["min"] = str(headers["brix_min"])
                         if headers.get("brix_max") is not None:
                             row["max"] = str(headers["brix_max"])
+                        row["included"] = True
+                        row["provenance"] = "surveyor_verified"
+                    elif "pressure" in subj and (headers.get("pressure_min") is not None or headers.get("pressure_max") is not None):
+                        # Only when the sheet has it; otherwise the row stays empty.
+                        if headers.get("pressure_min") is not None:
+                            row["min"] = str(headers["pressure_min"])
+                        if headers.get("pressure_max") is not None:
+                            row["max"] = str(headers["pressure_max"])
+                        # A pressure written on the sheet was measured, so it goes
+                        # in the report even for a fruit that usually has none.
+                        row["included"] = True
                         row["provenance"] = "surveyor_verified"
                     elif ("ambient" in subj or "cold room" in subj or "storage" in subj) and headers.get("room_temp") is not None:
                         row["min"] = str(headers["room_temp"])

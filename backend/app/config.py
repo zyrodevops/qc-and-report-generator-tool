@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     TALLY_CLOUD_TIMEOUT_SECONDS: int = 60
     TALLY_CLOUD_TOTAL_BUDGET_SECONDS: int = int(os.getenv("TALLY_CLOUD_TOTAL_BUDGET_SECONDS", "75"))
 
+    # The client's report archive: textcache/ (the text of each signed report)
+    # and analysis/defect_to_cause_link.csv. The standard wording for the
+    # narrative sections is built from it at startup. It is the client's own
+    # wording, so it lives outside the repository. Empty means no pickers.
+    CORPUS_DIR: str = os.getenv("CORPUS_DIR", "")
+
     # CORS Allowed Origins
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

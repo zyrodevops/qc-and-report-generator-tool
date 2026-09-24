@@ -114,3 +114,10 @@ Thumbs.db
 /TEST_READY.md
 /TEST_INFRA.md
 /docs/
+
+# Mined wording from signed reports (client or third-party) and AI-written
+# clause files: never commit. The app builds its wording from CORPUS_DIR.
+**/sentence_frequency.csv
+**/fruit_clause_taxonomy.json
+**/fruit_scenarios.json
+backend/app/seeds/general_cargo_sentences.csv

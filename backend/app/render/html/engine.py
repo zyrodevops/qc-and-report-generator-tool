@@ -164,6 +164,10 @@ table.defect-table td:first-child, table.defect-table th:first-child {
     line-height: 1.5;
 }
 
+.narrative-block p { margin: 0 0 8px 0; }
+.narrative-block ul { margin: 0 0 8px 0; padding-left: 20px; }
+.narrative-block li { margin: 0 0 3px 0; }
+
 .photo-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -318,9 +322,15 @@ def render_narrative_html(block: Dict[str, Any]) -> str:
     if section:
         out.append(f'<h2 class="block-heading">{html.escape(section)}</h2>')
     if clause_text:
-        out.append(
-            f'<div class="narrative-block"><p>{html.escape(clause_text)}</p></div>'
-        )
+        from app.render.narrative_text import split_narrative
+
+        parts = []
+        for kind, lines in split_narrative(clause_text):
+            if kind == "ul":
+                parts.append("<ul>" + "".join(f"<li>{html.escape(i)}</li>" for i in lines) + "</ul>")
+            else:
+                parts.append("<p>" + "<br>".join(html.escape(l) for l in lines) + "</p>")
+        out.append(f'<div class="narrative-block">{"".join(parts)}</div>')
     return "\n".join(out)
 
 
