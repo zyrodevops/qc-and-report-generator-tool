@@ -168,6 +168,9 @@ class TallyPipeline:
         # Columns come from the fruit, not from a fixed list.
         categories = build_categories(commodity)
         unit = unit_for(commodity)
+        # Counts for pieces, three-decimal weights for kg (grapes, berries).
+        self.unit = unit
+        self.sheet_totals: Optional[Dict[str, Any]] = None
 
         pil_raw = Image.open(io.BytesIO(image_bytes))
         quality = self.quality_assessor.assess(pil_raw)
@@ -263,10 +266,26 @@ class TallyPipeline:
         rather than cell by cell. The workbench copes: it shows the photo and
         highlights nothing, instead of pointing at a box that does not exist.
         """
+        # The sheet's TOTAL column is the written total, not a defect. The model
+        # sometimes returns it as one more column; taken as a column it was added
+        # into every row, so each grapes box read as twice its weight.
+        total_keys = {"total"}
         for heading in cloud.discovered_columns:
             key = slug(heading)
-            if key and not any(c["key"] == key for c in categories):
+            if not key:
+                continue
+            if is_total_header(heading):
+                total_keys.add(key)
+                continue
+            if not any(c["key"] == key for c in categories):
                 categories.append({"key": key, "label": heading.strip().title(), "role": "extra"})
+        categories[:] = [c for c in categories if c["key"] not in total_keys]
+
+        def split_total(values: Dict[str, Any], stated: Any) -> Tuple[Dict[str, Any], Any]:
+            """Take the TOTAL column out of the cells; use it as the written total if none came."""
+            cells = {k: v for k, v in values.items() if k not in total_keys}
+            column_total = next((values[k] for k in values if k in total_keys), None)
+            return cells, stated if stated is not None else column_total
 
         pil = Image.open(io.BytesIO(image_bytes))
         if pil.mode != "RGB":
@@ -275,11 +294,35 @@ class TallyPipeline:
         display.thumbnail((1400, 1400), Image.Resampling.LANCZOS)
         quality = self.quality_assessor.assess(pil)
 
+        unit = unit_for(commodity)
+        self.unit = unit
+        self.sheet_totals = None
+
+        def as_figure(v: Any) -> Any:
+            """Count for pieces, 3-dp Decimal for kg; None when it is not a usable figure."""
+            if v is None:
+                return None
+            fig, _, ambiguous = self.normalizer.normalize_quantity(v, unit)
+            return None if ambiguous else fig
+
         rows: List[Dict[str, Any]] = []
         for idx, cr in enumerate(cloud.rows):
-            values: Dict[str, int] = {}
+            cells, row_stated = split_total(cr.values, cr.stated_total)
+
+            # The sheet's own "Total" line adds up the boxes above it. Importing
+            # it as a box would count the cargo twice; it is kept aside as a
+            # check on the column sums instead.
+            if cr.is_grand_total:
+                self.sheet_totals = {
+                    "values": {k: as_figure(v) for k, v in cells.items()},
+                    "stated_total": as_figure(row_stated),
+                }
+                continue
+
+            values: Dict[str, Any] = {}
             details: Dict[str, Any] = {}
-            for key, val in cr.values.items():
+            for key, raw_val in cells.items():
+                val = as_figure(raw_val)
                 if val is None:
                     # Read but not legible. Left empty and flagged, never zeroed.
                     details[key] = {
@@ -299,7 +342,8 @@ class TallyPipeline:
                     "source": "cloud_reader",
                 }
 
-            computed, check = self.validator.validate_row_total(values, cr.stated_total)
+            stated = as_figure(row_stated)
+            computed, check = self.validator.validate_row_total(values, stated)
             if check.status == "FAILED":
                 for k in details:
                     details[k]["review_status"] = "NEEDS_REVIEW"
@@ -310,9 +354,9 @@ class TallyPipeline:
                 "boxes_opened": 1,
                 "is_subtotal": cr.is_subtotal,
                 "values": values,
-                "stated_total": cr.stated_total,
+                "stated_total": stated,
                 "computed_total": computed,
-                "check": self._check_dict(check, computed, cr.stated_total),
+                "check": self._check_dict(check, computed, stated),
                 "cell_details": details,
                 "provenance": "ocr_extracted",
             })
@@ -326,7 +370,7 @@ class TallyPipeline:
             engine_used=cloud.model,
             quality=quality,
             categories=categories,
-            unit=unit_for(commodity),
+            unit=unit,
             commodity=commodity,
             rows=rows,
             headers=headers,
@@ -412,8 +456,15 @@ class TallyPipeline:
                 quality_score, proc_size,
             )
             engine_used = engine_used or row_engine
-            if row is not None:
-                rows.append(row)
+            if row is None:
+                continue
+            # The "Total" line at the foot of a sheet adds up the boxes above
+            # it. Importing it as a box would count the cargo twice, so it is
+            # kept aside and only used to check the column sums against.
+            if row.get("is_grand_total"):
+                self.sheet_totals = {"values": row["values"], "stated_total": row.get("stated_total")}
+                continue
+            rows.append(row)
 
         return categories, rows, engine_used
 
@@ -427,10 +478,11 @@ class TallyPipeline:
         quality_score: float,
         proc_size: Tuple[int, int],
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-        values: Dict[str, int] = {}
+        values: Dict[str, Any] = {}
         cell_details: Dict[str, Any] = {}
-        stated_total: Optional[int] = None
+        stated_total: Optional[Any] = None
         row_label = ""
+        raw_label = ""
         engine_used: Optional[str] = None
         read_any = False
 
@@ -439,6 +491,7 @@ class TallyPipeline:
 
             if col_idx == label_col:
                 rec = self.recognizer.recognize(cell["crop_bgr"], expected_type="text")
+                raw_label = rec.raw_text or ""
                 if rec.raw_text:
                     row_label = self.normalizer.normalize_caliber_label(
                         rec.raw_text, fallback_idx=r_idx
@@ -448,7 +501,7 @@ class TallyPipeline:
             if total_col is not None and col_idx == total_col:
                 rec = self.recognizer.recognize(cell["crop_bgr"], expected_type="number")
                 engine_used = engine_used or (rec.engine if rec.raw_text else None)
-                norm, _, _ = self.normalizer.normalize_integer(rec.raw_text)
+                norm, _, _ = self.normalizer.normalize_quantity(rec.raw_text, getattr(self, "unit", "pcs"))
                 if norm is not None:
                     stated_total = norm
                 continue
@@ -459,7 +512,9 @@ class TallyPipeline:
 
             rec = self.recognizer.recognize(cell["crop_bgr"], expected_type="number")
             engine_used = engine_used or (rec.engine if rec.raw_text else None)
-            norm, was_normalised, is_ambiguous = self.normalizer.normalize_integer(rec.raw_text)
+            norm, was_normalised, is_ambiguous = self.normalizer.normalize_quantity(
+                rec.raw_text, getattr(self, "unit", "pcs")
+            )
 
             # An unreadable cell stays empty and is flagged. It is never
             # silently turned into a zero, which would read as a real count of
@@ -522,9 +577,11 @@ class TallyPipeline:
                 cell_details[k]["review_status"] = "NEEDS_REVIEW"
                 cell_details[k]["validation"] = check.to_dict()
 
+        import re as _re
         return {
             "group": row_label or f"Row {r_idx + 1}",
             "boxes_opened": 1,
+            "is_grand_total": bool(_re.search(r"\b(grand\s*)?total\b", raw_label, _re.I)),
             "values": values,
             "stated_total": stated_total,
             "computed_total": computed_total,
@@ -622,6 +679,8 @@ class TallyPipeline:
                 "categories": categories,
                 "rows": rows,
                 "column_totals": self.validator.validate_column_totals(rows, category_keys),
+                # The sheet's own "Total" line, if it had one: a check, never data.
+                "sheet_totals": getattr(self, "sheet_totals", None),
             },
             "image": {
                 "preview": f"data:image/jpeg;base64,{preview}",

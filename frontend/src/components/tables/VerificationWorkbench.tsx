@@ -68,6 +68,23 @@ interface FocusedCell {
   catKey: string;
 }
 
+/**
+ * A figure from the server as a number. Weights arrive as text ("0.820") so
+ * they keep their three places over the wire; left as text they were skipped
+ * by every sum here, and each grapes row read as 0.000.
+ */
+const asNum = (v: any): number | null => {
+  if (v === null || v === undefined || String(v).trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const toRowState = (r: TallyRow): RowState => ({
+  ...r,
+  values: Object.fromEntries(Object.entries(r.values || {}).map(([k, v]) => [k, asNum(v)])),
+  stated_total: asNum(r.stated_total),
+});
+
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 6;
 
@@ -141,12 +158,7 @@ export const VerificationWorkbench: React.FC<Props> = ({
         setExtraction(result);
         setCategories(result.table.categories);
         setHeaders(result.headers || {});
-        setRows(
-          result.table.rows.map((r) => ({
-            ...r,
-            values: { ...r.values } as Record<string, number | null>,
-          })),
-        );
+        setRows(result.table.rows.map(toRowState));
       } catch (e: any) {
         setError(e.message || 'Could not read that file.');
       } finally {
@@ -157,6 +169,33 @@ export const VerificationWorkbench: React.FC<Props> = ({
   );
 
   // ------------------------------------------------------------------ live check
+  // Grapes, blueberries and cherries are weighed, not counted: 0.820 kg a box.
+  const unit = extraction?.table.unit || caps?.unit || 'pcs';
+  const isKg = unit.toLowerCase() === 'kg';
+  // Weights are added in whole grams. In plain JS 0.82 + 0.52 + 0.12 is
+  // 1.4599999999999997, which would mark a correct row as not tying out.
+  const scale = isKg ? 1000 : 1;
+  const toUnits = (v: number) => Math.round(v * scale);
+  const fmt = (v: number | null | undefined) =>
+    v === null || v === undefined ? '' : isKg ? v.toFixed(3) : String(v);
+
+  /**
+   * Columns that hold a figure in at least one row. A fruit's list has columns
+   * a given sheet never uses — the grapes sheet has no Decay or Blackish — and
+   * those cells are empty because the column is not on the sheet, not because
+   * the reader failed. Counting them made every row "could not be read". When
+   * nothing has been entered anywhere, every column counts, so a fresh grid
+   * still shows what is left to fill.
+   */
+  const activeKeys = useMemo(() => {
+    const used = new Set(
+      categories
+        .filter((c) => rows.some((r) => typeof r.values[c.key] === 'number'))
+        .map((c) => c.key),
+    );
+    return used.size ? used : new Set(categories.map((c) => c.key));
+  }, [rows, categories]);
+
   /**
    * Recomputed on every keystroke. Deliberately the same arithmetic the server
    * redoes on save, so what the surveyor signs off is what gets stored.
@@ -164,25 +203,29 @@ export const VerificationWorkbench: React.FC<Props> = ({
   const checks = useMemo(
     () =>
       rows.map((row) => {
-        const computed = categories.reduce((sum, cat) => {
+        const units = categories.reduce((sum, cat) => {
           const v = row.values[cat.key];
-          return sum + (typeof v === 'number' && !Number.isNaN(v) ? v : 0);
+          return sum + (typeof v === 'number' && !Number.isNaN(v) ? toUnits(v) : 0);
         }, 0);
+        const computed = units / scale;
         const hasBlank = categories.some(
-          (c) => row.values[c.key] === null || row.values[c.key] === undefined,
+          (c) =>
+            activeKeys.has(c.key) &&
+            (row.values[c.key] === null || row.values[c.key] === undefined),
         );
         if (row.stated_total === null || row.stated_total === undefined) {
           return { computed, status: 'UNCHECKED' as const, delta: null, hasBlank };
         }
-        const delta = computed - row.stated_total;
+        const deltaUnits = units - toUnits(row.stated_total);
         return {
           computed,
-          status: delta === 0 ? ('OK' as const) : ('MISMATCH' as const),
-          delta,
+          status: deltaUnits === 0 ? ('OK' as const) : ('MISMATCH' as const),
+          delta: deltaUnits / scale,
           hasBlank,
         };
       }),
-    [rows, categories],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, categories, scale, activeKeys],
   );
 
   const mismatchCount = checks.filter((c) => c.status === 'MISMATCH').length;
@@ -192,25 +235,48 @@ export const VerificationWorkbench: React.FC<Props> = ({
   const columnTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     categories.forEach((cat) => {
-      totals[cat.key] = rows.reduce((sum, r) => {
+      const units = rows.reduce((sum, r) => {
         const v = r.values[cat.key];
-        return sum + (typeof v === 'number' && !Number.isNaN(v) ? v : 0);
+        return sum + (typeof v === 'number' && !Number.isNaN(v) ? toUnits(v) : 0);
       }, 0);
+      totals[cat.key] = units / scale;
     });
     return totals;
-  }, [rows, categories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, categories, scale]);
+
+  const grandTotal = checks.reduce((s, c) => s + toUnits(c.computed), 0) / scale;
+  const rawSheetTotals = extraction?.table.sheet_totals;
+  const sheetTotals = rawSheetTotals
+    ? {
+        values: Object.fromEntries(
+          Object.entries(rawSheetTotals.values || {}).map(([k, v]) => [k, asNum(v)]),
+        ),
+        stated_total: asNum(rawSheetTotals.stated_total),
+      }
+    : null;
 
   // ------------------------------------------------------------------- mutations
+  /**
+   * What a typed cell holds. A weight keeps up to three places (0.820); a count
+   * has to be whole, and "2.5" in a count box is left empty for the surveyor
+   * rather than cut down to 2.
+   */
+  const parseFigure = (raw: string): number | null => {
+    const text = raw.trim().replace(',', '.');
+    if (text === '') return null;
+    const n = Number(text);
+    if (!Number.isFinite(n) || n < 0) return null;
+    if (isKg) return Math.round(n * 1000) / 1000;
+    return Number.isInteger(n) ? n : null;
+  };
+
   const setCell = (rowIdx: number, catKey: string, raw: string) => {
     setRows((prev) => {
       const next = [...prev];
-      const parsed = raw.trim() === '' ? null : Number.parseInt(raw, 10);
       next[rowIdx] = {
         ...next[rowIdx],
-        values: {
-          ...next[rowIdx].values,
-          [catKey]: parsed !== null && Number.isNaN(parsed) ? null : parsed,
-        },
+        values: { ...next[rowIdx].values, [catKey]: parseFigure(raw) },
       };
       return next;
     });
@@ -219,11 +285,7 @@ export const VerificationWorkbench: React.FC<Props> = ({
   const setStatedTotal = (rowIdx: number, raw: string) => {
     setRows((prev) => {
       const next = [...prev];
-      const parsed = raw.trim() === '' ? null : Number.parseInt(raw, 10);
-      next[rowIdx] = {
-        ...next[rowIdx],
-        stated_total: parsed !== null && Number.isNaN(parsed) ? null : parsed,
-      };
+      next[rowIdx] = { ...next[rowIdx], stated_total: parseFigure(raw) };
       return next;
     });
   };
@@ -301,12 +363,7 @@ export const VerificationWorkbench: React.FC<Props> = ({
       });
       setExtraction(result);
       setCategories(result.table.categories);
-      setRows(
-        result.table.rows.map((r) => ({
-          ...r,
-          values: { ...r.values } as Record<string, number | null>,
-        })),
-      );
+      setRows(result.table.rows.map(toRowState));
     } catch (e: any) {
       setError(e.message || 'Could not re-read the spreadsheet.');
     } finally {
@@ -693,6 +750,8 @@ export const VerificationWorkbench: React.FC<Props> = ({
                               <td key={cat.key} className="py-1 px-0.5 text-right relative">
                                 <input
                                   type="number"
+                                  min={0}
+                                  step={isKg ? 0.001 : 1}
                                   value={val ?? ''}
                                   placeholder="?"
                                   onFocus={() => setFocused({ rowIdx: rIdx, catKey: cat.key })}
@@ -726,6 +785,8 @@ export const VerificationWorkbench: React.FC<Props> = ({
                           <td className="py-1 px-0.5 bg-slate-50">
                             <input
                               type="number"
+                              min={0}
+                              step={isKg ? 0.001 : 1}
                               value={row.stated_total ?? ''}
                               placeholder="—"
                               onChange={(e) => setStatedTotal(rIdx, e.target.value)}
@@ -735,11 +796,11 @@ export const VerificationWorkbench: React.FC<Props> = ({
 
                           {/* Derived, never typed over */}
                           <td className="py-1 px-2 text-right font-mono font-bold text-blue-900 bg-blue-50/50 select-none">
-                            {chk.computed}
+                            {fmt(chk.computed)}
                           </td>
 
                           <td className="py-1 px-1">
-                            <RowCheckChip status={chk.status} delta={chk.delta} />
+                            <RowCheckChip status={chk.status} delta={chk.delta} fmt={fmt} />
                           </td>
 
                         </tr>
@@ -752,16 +813,56 @@ export const VerificationWorkbench: React.FC<Props> = ({
                       <td className="py-2 px-2 text-xs whitespace-nowrap sticky left-9 z-10 bg-gray-100">All boxes</td>
                       {categories.map((cat) => (
                         <td key={cat.key} className="py-2 px-1 text-right font-mono text-xs">
-                          {columnTotals[cat.key]}
+                          {fmt(columnTotals[cat.key])}
                         </td>
                       ))}
                       <td className="w-8" />
                       <td className="bg-slate-100" />
                       <td className="py-2 px-2 text-right font-mono text-xs bg-blue-100/60 text-blue-950">
-                        {checks.reduce((s, c) => s + c.computed, 0)}
+                        {fmt(grandTotal)}
                       </td>
                       <td />
                     </tr>
+                    {sheetTotals && (
+                      // The sheet's own "Total" line. Shown for comparison only;
+                      // it is not a sample box and is never saved as one.
+                      <tr className="text-gray-600 border-t border-gray-200">
+                        <td className="sticky left-0 z-10 bg-white" />
+                        <td
+                          className="py-1.5 px-2 text-[11px] whitespace-nowrap sticky left-9 z-10 bg-white italic"
+                          title="The Total line written at the foot of the sheet"
+                        >
+                          Written on sheet
+                        </td>
+                        {categories.map((cat) => {
+                          const w = sheetTotals.values?.[cat.key];
+                          const has = typeof w === 'number';
+                          const off = has && toUnits(w as number) !== toUnits(columnTotals[cat.key]);
+                          return (
+                            <td
+                              key={cat.key}
+                              className={`py-1.5 px-1 text-right font-mono text-[11px] ${off ? 'text-red-700 font-bold' : ''}`}
+                              title={off ? 'Does not match the column added up above' : undefined}
+                            >
+                              {has ? fmt(w as number) : ''}
+                            </td>
+                          );
+                        })}
+                        <td className="w-8" />
+                        <td className="bg-slate-50" />
+                        <td
+                          className={`py-1.5 px-2 text-right font-mono text-[11px] ${
+                            typeof sheetTotals.stated_total === 'number' &&
+                            toUnits(sheetTotals.stated_total) !== toUnits(grandTotal)
+                              ? 'text-red-700 font-bold'
+                              : ''
+                          }`}
+                        >
+                          {typeof sheetTotals.stated_total === 'number' ? fmt(sheetTotals.stated_total) : ''}
+                        </td>
+                        <td />
+                      </tr>
+                    )}
                   </tfoot>
                 </table>
 
@@ -1187,10 +1288,11 @@ const HeaderPanel: React.FC<{
 };
 
 /** Green / red / grey — three states, because unchecked is not the same as passed. */
-const RowCheckChip: React.FC<{ status: 'OK' | 'MISMATCH' | 'UNCHECKED'; delta: number | null }> = ({
-  status,
-  delta,
-}) => {
+const RowCheckChip: React.FC<{
+  status: 'OK' | 'MISMATCH' | 'UNCHECKED';
+  delta: number | null;
+  fmt?: (v: number) => string;
+}> = ({ status, delta, fmt = String }) => {
   if (status === 'OK') {
     return (
       <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
@@ -1205,7 +1307,7 @@ const RowCheckChip: React.FC<{ status: 'OK' | 'MISMATCH' | 'UNCHECKED'; delta: n
         title="The cells and the written total disagree"
       >
         <AlertTriangle className="w-3 h-3" />
-        {delta !== null && delta > 0 ? `+${delta}` : delta}
+        {delta !== null && (delta > 0 ? `+${fmt(delta)}` : fmt(delta))}
       </span>
     );
   }
@@ -1242,6 +1344,9 @@ const StatusBar: React.FC<{
   let headline: string;
   if (rowCount === 0 && reader?.cloud_error && extraction.filename !== 'Typed by hand') {
     headline = `Nothing was read from this photo. ${reader.cloud_error}`;
+  } else if (rowCount === 0 && extraction.spreadsheet) {
+    headline =
+      'No rows came through from this spreadsheet. Map the columns above, or use "Add a sample box" to type the rows in.';
   } else if (rowCount === 0 && extraction.filename !== 'Typed by hand') {
     headline =
       'Nothing could be read from this photo. Press Change to try again, or use "Add a sample box" to type the rows in.';

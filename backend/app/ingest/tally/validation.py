@@ -12,9 +12,17 @@ Never silently modifies values to force arithmetic to match.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from app.ingest.tally.models import CellValidation
+
+
+Number = Union[int, Decimal]
+
+
+def _is_count(v: Any) -> bool:
+    """A usable figure: a whole count (pcs) or a Decimal weight (kg). Never bool or float."""
+    return isinstance(v, (int, Decimal)) and not isinstance(v, bool) and v >= 0
 
 
 class ValidationEngine:
@@ -22,9 +30,9 @@ class ValidationEngine:
 
     @staticmethod
     def validate_row_total(
-        defect_values: Dict[str, int],
-        stated_total: Optional[int] = None,
-    ) -> Tuple[int, CellValidation]:
+        defect_values: Dict[str, Number],
+        stated_total: Optional[Number] = None,
+    ) -> Tuple[Number, CellValidation]:
         """
         Compare the sum of the cells read off the row against the total the
         surveyor wrote at the end of it.
@@ -38,8 +46,13 @@ class ValidationEngine:
         The third case used to return PASSED, which showed the surveyor a green
         tick on a row that had never been checked. An unchecked row has to look
         different from a verified one or the check is worse than not having it.
+
+        Works for counts and for kg weights alike. Weights are Decimals, so a row
+        of 0.820 + 0.520 + 0.120 sums to exactly 1.460 — as floats it would come
+        to 1.4600000000000002 and fail against the surveyor's own figure.
         """
-        computed_sum = sum(v for v in defect_values.values() if isinstance(v, int) and v >= 0)
+        figures = [v for v in defect_values.values() if _is_count(v)]
+        computed_sum: Number = sum(figures, Decimal(0)) if any(isinstance(v, Decimal) for v in figures) else sum(figures)
 
         if stated_total is None:
             return computed_sum, CellValidation(
@@ -50,7 +63,7 @@ class ValidationEngine:
                 message="No written total on this row — nothing to check the cells against.",
             )
 
-        if computed_sum == stated_total:
+        if Decimal(computed_sum) == Decimal(stated_total):
             return computed_sum, CellValidation(
                 status="PASSED",
                 rule="row_total",
@@ -60,7 +73,7 @@ class ValidationEngine:
             )
 
         # Mismatch detected: never silently guess or alter values.
-        delta = computed_sum - stated_total
+        delta = Decimal(computed_sum) - Decimal(stated_total)
         return computed_sum, CellValidation(
             status="FAILED",
             rule="row_total",
@@ -68,7 +81,7 @@ class ValidationEngine:
             actual=computed_sum,
             message=(
                 f"Cells add to {computed_sum} but the written total reads {stated_total} "
-                f"({delta:+d}). Check this row against the sheet."
+                f"({delta:+}). Check this row against the sheet."
             ),
         )
 
@@ -76,14 +89,14 @@ class ValidationEngine:
     def validate_column_totals(
         rows: List[Dict[str, Any]],
         category_keys: List[str],
-    ) -> Dict[str, int]:
+    ) -> Dict[str, Number]:
         """Column sums across every row, for the workbench footer."""
-        totals: Dict[str, int] = {k: 0 for k in category_keys}
+        totals: Dict[str, Number] = {k: 0 for k in category_keys}
         for row in rows:
             for k in category_keys:
                 v = row.get("values", {}).get(k)
-                if isinstance(v, int) and v >= 0:
-                    totals[k] += v
+                if _is_count(v):
+                    totals[k] = totals[k] + v
         return totals
 
     @staticmethod

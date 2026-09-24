@@ -51,6 +51,11 @@ class NumericNormalizer:
         if cleaned.lower() in cls._EXPLICIT_NIL:
             return 0, False, False
 
+        # A separator between digits in a count box ("0.820", "1,5") is not a
+        # count. Stripping it used to turn 0.820 into 820 without a word.
+        if re.search(r"[0-9OoIlSsBbGgZzDdQq][.,·][0-9OoIlSsBbGgZzDdQq]", cleaned):
+            return None, False, True
+
         if cleaned.isdigit():
             # Counts are per sampled box. A reading this long is far more likely
             # to be two adjacent cells run together than a real count, and
@@ -80,6 +85,61 @@ class NumericNormalizer:
             return None, False, True
 
         return int(digits_only), True, False
+
+    @classmethod
+    def normalize_weight(cls, raw_text: Any) -> Tuple[Optional[Decimal], bool, bool]:
+        """
+        Normalise a cell expected to hold a weight in kg, e.g. 0.820.
+
+        Returns (value, normalisation_applied, is_ambiguous); None means the
+        cell could not be read and must be typed in. Grapes, blueberries and
+        cherries are weighed per box to three decimal places, and a count
+        reader would either reject "0.820" or, worse, turn it into 820.
+
+        Handwritten decimals come back from OCR as "0.820", "0,820", "0·820",
+        "0-820" or "O.82O". Those are repaired. A reading with no decimal point
+        at all ("820") is not guessed at — it could be 0.820 or 8.20 — and is
+        flagged instead. More than three decimals, or over 50 kg for one box,
+        means a misread and is flagged too.
+        """
+        if raw_text is None:
+            return None, False, True
+        if isinstance(raw_text, (int, float, Decimal)) and not isinstance(raw_text, bool):
+            try:
+                d = Decimal(str(raw_text))
+            except InvalidOperation:
+                return None, False, True
+            return (d.quantize(Decimal("0.001")), False, False) if 0 <= d <= 50 else (None, False, True)
+
+        cleaned = str(raw_text).strip()
+        if not cleaned:
+            return None, False, True
+        if cleaned.lower() in cls._EXPLICIT_NIL:
+            return Decimal("0.000"), False, False
+
+        norm = cleaned.upper()
+        for a, b in (("O", "0"), ("D", "0"), ("I", "1"), ("L", "1"), ("|", "1"), ("S", "5"), ("B", "8")):
+            norm = norm.replace(a, b)
+        # decimal separators handwriting and OCR produce
+        norm = re.sub(r"(?<=\d)\s*[,·•\-]\s*(?=\d)", ".", norm)
+        norm = norm.replace(" ", "")
+        applied = norm != cleaned
+
+        if not re.fullmatch(r"\d{1,2}\.\d{1,3}", norm):
+            return None, False, True
+        d = Decimal(norm)
+        if d > 50:
+            return None, False, True
+        return d.quantize(Decimal("0.001")), applied, False
+
+    @classmethod
+    def normalize_quantity(cls, raw_text: Any, unit: str = "pcs") -> Tuple[Optional[Any], bool, bool]:
+        """Counts for pieces, weights for kg — whichever this fruit is measured in."""
+        if (unit or "pcs").lower() == "kg":
+            return cls.normalize_weight(raw_text)
+        if isinstance(raw_text, int) and not isinstance(raw_text, bool):
+            return raw_text, False, False
+        return cls.normalize_integer("" if raw_text is None else str(raw_text))
 
     @staticmethod
     def normalize_decimal(raw_text: str) -> Tuple[Optional[Decimal], bool, bool]:

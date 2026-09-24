@@ -80,20 +80,24 @@ async def create_report(
             ),
         )
 
-    # 1. Atomically allocate gapless sequential report number
-    report_number = await allocate_report_number_async(db, year=payload.year)
-
-    # 2. Populate default block_state if none provided
+    # 1. Build the starting sections before a number is taken, so a refused
+    #    commodity does not use up a report number.
     initial_block_state = payload.block_state
     report_state = (payload.state or "FINAL").upper()
     if not initial_block_state or not initial_block_state.get("blocks"):
-        from app.seeds.defaults import get_default_block_state
-        initial_block_state = get_default_block_state(
-            template_id=template.id,
-            commodity_key=payload.commodity,
-            state=report_state,
-            selected_sections=payload.selected_sections,
-        )
+        from app.seeds.defaults import UnknownCommodity, get_default_block_state
+        try:
+            initial_block_state = get_default_block_state(
+                template_id=template.id,
+                commodity_key=payload.commodity,
+                state=report_state,
+                selected_sections=payload.selected_sections,
+            )
+        except UnknownCommodity as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    # 2. Atomically allocate gapless sequential report number
+    report_number = await allocate_report_number_async(db, year=payload.year)
 
     # 3. Instantiate Report
     report = Report(

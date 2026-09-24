@@ -1041,6 +1041,39 @@ def _build_blocks_for_general_cargo(
 _GC_KEYS = {"STEEL_METALS", "MACHINERY_PARTS", "AUTOMOTIVE", "CHEMICALS_LIQUIDS", "PAPER_PACKAGING", "GENERAL_CARGO"}
 
 
+class UnknownCommodity(ValueError):
+    """The report was asked for with a fruit this module has no layout for."""
+
+
+def fruit_key(commodity: Optional[str]) -> str:
+    """
+    The key a fruit is filed under here, whichever way it was spelt.
+
+    The New Report screen lists fruits from FRUIT_CONFIG, which files some of
+    them plural (GRAPES, MANDARINS); this module files them singular. The
+    mismatch used to fall through to a silent default, so every grapes report
+    made from the screen was created as a Mandarin report — mandarin columns,
+    counted in pieces — and a grapes tally, weighed in kg, could not go into it.
+    An unknown or missing fruit is now refused rather than guessed.
+    """
+    raw = " ".join((commodity or "").strip().upper().replace("-", " ").split()).replace(" ", "_")
+    if not raw:
+        raise UnknownCommodity("No commodity was chosen for this report.")
+    candidates = [raw]
+    if raw.endswith("IES"):
+        candidates.append(raw[:-3] + "Y")   # CHERRIES -> CHERRY
+    if raw.endswith("S"):
+        candidates.append(raw[:-1])          # GRAPES -> GRAPE
+    candidates.append(raw + "S")
+    for c in candidates:
+        if c in _COMMODITY_SUPPLEMENT:
+            return c
+    raise UnknownCommodity(
+        f"'{commodity}' is not a fruit this app has a report layout for. "
+        f"Known: {', '.join(sorted(_COMMODITY_SUPPLEMENT))}."
+    )
+
+
 def get_default_block_state(
     template_id: str,
     commodity_key: Optional[str] = None,
@@ -1084,14 +1117,10 @@ def get_default_block_state(
             "state": "PRELIMINARY" if is_preliminary else "FINAL",
         }
     else:
-        key = (commodity_key or "APPLE").upper()
+        key = fruit_key(commodity_key)
         archetypes = _load_archetypes()
         archetype = archetypes.get(key, {})
-        supp = _COMMODITY_SUPPLEMENT.get(key)
-        if supp is None:
-            key = "MANDARIN"
-            supp = _COMMODITY_SUPPLEMENT["MANDARIN"]
-            archetype = archetypes.get("MANDARIN", {})
+        supp = _COMMODITY_SUPPLEMENT[key]
 
         label = supp.get("label", key.capitalize())
         blocks = _build_blocks_for_commodity(key, supp, archetype, today_str, is_qc)

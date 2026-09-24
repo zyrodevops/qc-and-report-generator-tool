@@ -20,6 +20,7 @@ handed to the surveyor to map or discard. Nothing becomes a zero on its own.
 from __future__ import annotations
 
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.ingest.spreadsheet import parse_spreadsheet
@@ -35,11 +36,15 @@ from app.ingest.tally.validation import ValidationEngine
 # Headers that identify the row rather than hold a count.
 _ROW_LABEL_HINTS = ("count", "size", "caliber", "calibre", "grade", "group",
                     "sample", "item", "variety", "sr", "sr.no", "srno", "s.no")
+# Weighed fruit is tallied one line per box, so the box number is the label.
+# Matched whole, so a "No. of Boxes" count column is not taken for it.
+_ROW_LABEL_EXACT = ("box", "box no", "box no.", "box #", "carton", "carton no", "carton no.")
 
 
-def _to_int(raw: Any) -> Optional[int]:
+def _to_figure(raw: Any, unit: str = "pcs") -> Optional[Any]:
     """
-    A cell's integer value, or None when it does not hold one.
+    A cell's value: a whole count for pieces, a 3-dp Decimal for kg.
+    None when the cell does not hold one.
 
     Blank stays None rather than becoming zero: the spreadsheet may simply not
     have that column filled in for that row, and guessing changes the totals.
@@ -50,7 +55,16 @@ def _to_int(raw: Any) -> Optional[int]:
     if not text:
         return None
     if text in ("-", "--", "—", "–") or text.lower() in ("nil", "none", "na", "n/a"):
-        return 0
+        return Decimal("0.000") if unit == "kg" else 0
+
+    if unit == "kg":
+        # Spreadsheet cells are clean numbers: 0.82, 1.932, 4.226.
+        try:
+            d = Decimal(text.replace(" ", ""))
+        except InvalidOperation:
+            return None
+        return d.quantize(Decimal("0.001")) if 0 <= d <= 1000 else None
+
     cleaned = text.replace(",", "").replace(" ", "")
     if re.fullmatch(r"\d+", cleaned):
         return int(cleaned)
@@ -60,11 +74,17 @@ def _to_int(raw: Any) -> Optional[int]:
     return None
 
 
+# Kept for callers that only ever deal in counts.
+def _to_int(raw: Any) -> Optional[int]:
+    v = _to_figure(raw, "pcs")
+    return v if isinstance(v, int) else None
+
+
 # Words a cold store uses to label a line it worked out rather than counted.
 _DERIVED_LABELS = ("percentage", "percent", "%", "total", "grand total", "sum", "average", "avg")
 
 
-def _is_derived_row(label: str, raw: Dict[str, Any]) -> bool:
+def _is_derived_row(label: str, raw: Dict[str, Any], unit: str = "pcs") -> bool:
     """
     True for a line the spreadsheet computed rather than counted.
 
@@ -91,6 +111,10 @@ def _is_derived_row(label: str, raw: Dict[str, Any]) -> bool:
             return False  # free text in the line: judge it by its label alone
 
     # Every figure below 1 and at least a couple of them: a proportion line.
+    # Not for kg sheets — a box of grapes genuinely weighs 0.820 kg, and this
+    # test would throw every one of those rows away.
+    if unit == "kg":
+        return False
     if len(numeric) >= 3 and all(0 <= n <= 1 for n in numeric) and any(0 < n < 1 for n in numeric):
         return True
     return False
@@ -128,7 +152,11 @@ def build_mapping(
             continue
 
         lowered = clean.lower()
-        if label_col is None and (is_label_header(clean) or any(h in lowered for h in _ROW_LABEL_HINTS)):
+        if label_col is None and (
+            is_label_header(clean)
+            or any(h in lowered for h in _ROW_LABEL_HINTS)
+            or lowered in _ROW_LABEL_EXACT
+        ):
             label_col = original
             continue
 
@@ -159,6 +187,7 @@ def read_spreadsheet_as_grid(
     raw_rows: List[Dict[str, Any]] = parsed["rows"]
 
     categories = build_categories(commodity)
+    unit = unit_for(commodity)
     auto_map, label_col, total_col, unmatched = build_mapping(headers, categories)
 
     if column_map:
@@ -182,12 +211,13 @@ def read_spreadsheet_as_grid(
 
     rows: List[Dict[str, Any]] = []
     for idx, raw in enumerate(raw_rows):
-        values: Dict[str, int] = {}
+        values: Dict[str, Any] = {}
         details: Dict[str, Any] = {}
 
         for header, key in auto_map.items():
-            val = _to_int(raw.get(header))
+            val = _to_figure(raw.get(header), unit)
             if val is None:
+                expected = "a weight in kg" if unit == "kg" else "a whole number"
                 details[key] = {
                     "normalized_value": None,
                     "review_status": "NEEDS_REVIEW",
@@ -195,7 +225,7 @@ def read_spreadsheet_as_grid(
                     "raw_text": str(raw.get(header, "")),
                     "validation": {
                         "status": "FAILED",
-                        "message": f"'{raw.get(header, '')}' in column {header!r} is not a whole number.",
+                        "message": f"'{raw.get(header, '')}' in column {header!r} is not {expected}.",
                     },
                 }
                 continue
@@ -215,10 +245,10 @@ def read_spreadsheet_as_grid(
         # Importing those as sample boxes would double the cargo and put
         # fractions in a count column. The app derives its own percentages and
         # totals from the counts, so these are dropped rather than shown.
-        if _is_derived_row(group_label := str(raw.get(label_col, "")) if label_col else "", raw):
+        if _is_derived_row(group_label := str(raw.get(label_col, "")) if label_col else "", raw, unit):
             continue
 
-        stated = _to_int(raw.get(total_col)) if total_col else None
+        stated = _to_figure(raw.get(total_col), unit) if total_col else None
         computed, check = ValidationEngine.validate_row_total(values, stated)
         status = {"PASSED": "OK", "FAILED": "MISMATCH", "SKIPPED": "UNCHECKED"}[check.status]
 

@@ -468,7 +468,35 @@ async def import_tally_ocr(
     )
 
 
-def _recheck_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _figure(v: Any, unit: str) -> Optional[Any]:
+    """
+    A cell value as the server stores it: an int count, or a 3-dp Decimal for kg.
+
+    This used to be int(v) for everything, so a grapes weight of 0.820 either
+    raised and was silently dropped (as text) or became 0 (as a float). Both
+    changed the report without anyone seeing it happen.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    if v is None or isinstance(v, bool) or str(v).strip() == "":
+        return None
+    if (unit or "pcs").lower() == "kg":
+        try:
+            d = Decimal(str(v).strip())
+        except InvalidOperation:
+            return None
+        return d.quantize(Decimal("0.001")) if d >= 0 else None
+    try:
+        d = Decimal(str(v).strip())
+    except InvalidOperation:
+        return None
+    # A count must be whole; 2.5 is a typo, not a count, so it is not rounded.
+    if d < 0 or d != d.to_integral_value():
+        return None
+    return int(d)
+
+
+def _recheck_rows(rows: List[Dict[str, Any]], unit: str = "pcs") -> List[Dict[str, Any]]:
     """
     Recompute every row's sum and its agreement with the written total.
 
@@ -480,20 +508,13 @@ def _recheck_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     checked: List[Dict[str, Any]] = []
     for row in rows:
-        values: Dict[str, int] = {}
+        values: Dict[str, Any] = {}
         for k, v in (row.get("values") or {}).items():
-            try:
-                iv = int(v)
-            except (TypeError, ValueError):
-                continue
-            if iv >= 0:
-                values[k] = iv
+            fv = _figure(v, unit)
+            if fv is not None:
+                values[k] = fv
 
-        stated = row.get("stated_total")
-        try:
-            stated_int = int(stated) if stated is not None and str(stated) != "" else None
-        except (TypeError, ValueError):
-            stated_int = None
+        stated_int = _figure(row.get("stated_total"), unit)
 
         computed, check = ValidationEngine.validate_row_total(values, stated_int)
         status = {"PASSED": "OK", "FAILED": "MISMATCH", "SKIPPED": "UNCHECKED"}[check.status]
@@ -536,10 +557,11 @@ async def apply_tally_ocr(
     target_block_id = payload.get("block_id")
 
     rows_in = table_data.get("rows") or []
-    rechecked = _recheck_rows(rows_in)
+    table_unit = str(table_data.get("unit") or "pcs")
+    rechecked = _recheck_rows(rows_in, table_unit)
 
     mismatched = [
-        f"{r.get('group') or f'row {i + 1}'} ({r['check']['delta']:+d})"
+        f"{r.get('group') or f'row {i + 1}'} ({r['check']['delta']:+})"
         for i, r in enumerate(rechecked)
         if r["check"]["status"] == "MISMATCH"
     ]
@@ -620,7 +642,13 @@ async def apply_tally_ocr(
                         "group": r.get("group") or f"Row {i + 1}",
                         "boxes_opened": r.get("boxes_opened", 1),
                         "values": {k: str(v) for k, v in r["values"].items()},
-                        "stated_total": r["stated_total"],
+                        # A kg total is a Decimal, which JSONB cannot hold; as
+                        # text it keeps its three places, as the cells do.
+                        "stated_total": (
+                            str(r["stated_total"])
+                            if r["stated_total"] is not None and not isinstance(r["stated_total"], int)
+                            else r["stated_total"]
+                        ),
                         "provenance": "surveyor_verified",
                     }
                     for i, r in enumerate(rechecked)

@@ -27,6 +27,7 @@ def test_batch_photo_upload_endpoint():
     create_payload = {
         "template_id": "perishable_qc_sea",
         "family": "QC_REPORT",
+        "commodity": "APPLE",  # a report without a fruit is refused, not defaulted
         "year": 2026,
         "block_state": {
             "metadata": {

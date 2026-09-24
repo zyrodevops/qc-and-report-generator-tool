@@ -67,9 +67,12 @@ _ROUND_PAUSE_SECONDS = 4.0
 class CloudRow:
     """One line off the sheet. A null cell is one the model could not read."""
     group: str
-    values: Dict[str, Optional[int]] = field(default_factory=dict)
-    stated_total: Optional[int] = None
+    # As read: whole numbers for counts, decimals for kg weights. The pipeline
+    # turns each into an int or a 3-dp Decimal, because it knows the unit.
+    values: Dict[str, Optional[Any]] = field(default_factory=dict)
+    stated_total: Optional[Any] = None
     is_subtotal: bool = False
+    is_grand_total: bool = False
 
 
 @dataclass
@@ -128,10 +131,15 @@ def _build_prompt(categories: List[Dict[str, str]], commodity: Optional[str], he
         "highlighter and it has no SR.NO. Its COUNT cell holds the TOTAL PIECES examined for "
         "that group, not a caliber. Return that line with is_subtotal true and put that figure "
         "in stated_total.\n"
-        "- Individual carton lines have no written total. Leave their stated_total null.\n",
+        "- If the sheet has a TOTAL column, put each line's written total in stated_total. "
+        "If it has none, leave stated_total null on carton lines.\n"
+        "- A line at the foot of the sheet labelled Total (or Grand Total) that adds up all "
+        "the lines above it is not a carton: return it with is_grand_total true.\n",
         "TRANSCRIPTION RULES:\n"
-        "- Report the digits written. Do not add up, correct, balance or infer anything.\n"
-        "- Leading zeros are normal: 09 is 9, 05 is 5.\n"
+        "- Report the figures written. Do not add up, correct, balance or infer anything.\n"
+        "- Leading zeros are normal in counts: 09 is 9, 05 is 5.\n"
+        "- Some sheets record weights in kg with decimals, e.g. 0.820. Report those as "
+        "decimal numbers exactly as written; never drop the decimal point.\n"
         "- A blank cell, or one you cannot read with confidence, must be null. Never guess a "
         "number to make a line add up. A wrong figure that looks plausible is worse than a gap, "
         "because the gap gets filled in and the wrong figure gets signed.\n"
@@ -187,10 +195,11 @@ _SCHEMA: Dict[str, Any] = {
                         "description": "Count or variety for this line, e.g. '120', '30 XF', 'TANGO 74'.",
                     },
                     "is_subtotal": {"type": "boolean"},
+                    "is_grand_total": {"type": "boolean"},
                     "stated_total": {
-                        "type": "integer",
+                        "type": "number",
                         "nullable": True,
-                        "description": "Subtotal lines only: total pieces from the COUNT cell.",
+                        "description": "The line's written total, if the sheet has one.",
                     },
                     "cells": {
                         "type": "array",
@@ -198,7 +207,7 @@ _SCHEMA: Dict[str, Any] = {
                             "type": "object",
                             "properties": {
                                 "column": {"type": "string"},
-                                "value": {"type": "integer", "nullable": True},
+                                "value": {"type": "number", "nullable": True},
                             },
                             "required": ["column"],
                         },
@@ -409,14 +418,16 @@ def _parse_rows(
                     discovered.append(heading)
 
             raw_val = cell.get("value")
-            values[key] = int(raw_val) if isinstance(raw_val, (int, float)) else None
+            # Kept as read; the pipeline turns it into a count or a 3-dp weight by unit.
+            values[key] = raw_val if isinstance(raw_val, (int, float)) and not isinstance(raw_val, bool) else None
 
         total = raw.get("stated_total")
         rows.append(CloudRow(
             group=str(raw.get("count_label", "")).strip(),
             values=values,
-            stated_total=int(total) if isinstance(total, (int, float)) else None,
+            stated_total=total if isinstance(total, (int, float)) and not isinstance(total, bool) else None,
             is_subtotal=bool(raw.get("is_subtotal")),
+            is_grand_total=bool(raw.get("is_grand_total")),
         ))
 
     return rows, discovered

@@ -350,7 +350,7 @@ export const TableGrid: React.FC<TableBlockProps> = ({
                       step={unit === 'kg' ? '0.001' : '1'}
                       value={row.values?.[cat.key] ?? ''}
                       onChange={(e) => handleCellChange(rIdx, cat.key, e.target.value)}
-                      className="w-16 text-right px-2 py-1 border border-gray-300 rounded text-gray-800 text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                      className={`${unit === 'kg' ? 'w-20' : 'w-16'} text-right px-2 py-1 border border-gray-300 rounded text-gray-800 text-sm focus:ring-1 focus:ring-blue-500 outline-none`}
                     />
                   </td>
                 ))}

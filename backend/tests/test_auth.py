@@ -150,6 +150,7 @@ async def test_audit_trail_insertion_on_report_creation(async_client, db_session
     report_payload = {
         "template_id": "perishable_qc_sea",
         "family": "marine_cargo",
+        "commodity": "APPLE",  # a report without a fruit is refused, not defaulted
         "year": 2026,
         "block_state": {"vessel": "MV Oceanic Star"},
     }

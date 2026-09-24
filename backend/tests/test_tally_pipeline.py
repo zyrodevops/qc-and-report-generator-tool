@@ -50,7 +50,13 @@ def test_numeric_normalizer():
     assert applied is False
     assert ambig is False
 
-    val, applied, ambig = normalizer.normalize_integer("O.52O")  # O's and dot in integer field
+    # A dot between digits in a count box is ambiguous — "0.520" is not 520 —
+    # so it is flagged for the surveyor rather than silently turned into a count.
+    val, applied, ambig = normalizer.normalize_integer("O.52O")
+    assert val is None
+    assert ambig is True
+
+    val, applied, ambig = normalizer.normalize_integer("52O")  # O read for 0
     assert val == 520
     assert applied is True
 

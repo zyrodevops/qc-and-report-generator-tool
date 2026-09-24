@@ -194,7 +194,9 @@ export async function createReport(params: CreateReportParams): Promise<ReportSu
       template_id: params.template_id,
       family: params.family || (params.template_id.includes('qc') ? 'QC_REPORT' : 'SURVEY_REPORT'),
       year: params.year || 2026,
-      commodity: params.commodity || 'mandarin',
+      // Sent as chosen. A missing fruit is refused by the server, not replaced
+      // here with one nobody picked.
+      commodity: params.commodity || null,
       state: params.state || 'FINAL',
       selected_sections: params.selected_sections,
       block_state: params.block_state || {},
@@ -202,8 +204,15 @@ export async function createReport(params: CreateReportParams): Promise<ReportSu
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Failed to create report: ${err}`);
+    const text = await res.text();
+    let msg = text;
+    try {
+      const d = JSON.parse(text).detail;
+      msg = typeof d === 'string' ? d : d?.message || text;
+    } catch {
+      /* not JSON: show as sent */
+    }
+    throw new Error(`Could not create the report. ${msg}`);
   }
   return res.json();
 }
@@ -400,6 +409,8 @@ export interface TallyExtraction {
     categories: TallyCategory[];
     rows: TallyRow[];
     column_totals: Record<string, number>;
+    /** The sheet's own foot "Total" line, kept aside so it is not counted as a box. */
+    sheet_totals?: { values: Record<string, number | null>; stated_total: number | null } | null;
   };
   image: { preview: string; width: number; height: number };
   filename: string;
