@@ -61,7 +61,11 @@ interface Props {
  * be null: that is an unread cell the surveyor still has to fill, and it has to
  * stay distinguishable from a genuine zero right up until he types something.
  */
-type RowState = Omit<TallyRow, 'values'> & { values: Record<string, number | null> };
+type RowState = Omit<TallyRow, 'values'> & {
+  values: Record<string, number | null>;
+  /** Kept when saved rows are reopened, so each stays with its container. */
+  container?: string;
+};
 
 interface FocusedCell {
   rowIdx: number;
@@ -425,6 +429,7 @@ export const VerificationWorkbench: React.FC<Props> = ({
             values,
             stated_total: toNum(r.stated_total),
             provenance: r.provenance || 'manual',
+            ...(r.container ? { container: String(r.container) } : {}),
           };
         })
       : [
@@ -476,6 +481,7 @@ export const VerificationWorkbench: React.FC<Props> = ({
                 .filter(([, v]) => typeof v === 'number'),
             ),
             stated_total: r.stated_total,
+            ...(r.container ? { container: r.container } : {}),
           })),
         },
         block_id: blockId,

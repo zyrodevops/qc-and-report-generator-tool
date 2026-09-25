@@ -319,6 +319,15 @@ def bind(template: str, values: Dict[str, Any]) -> str:
         if "brix" in low:
             s = _fill_range(s, _clean_value(values.get("brix_min")), _clean_value(values.get("brix_max")),
                             r"%|°\s*Brix", "%")
+        # The carrying temperature, from the B/L or air waybill — only in a
+        # sentence that says it is quoting that document. The consignee's own
+        # storage advice ("must be stored at …") is a different figure.
+        if "requested" in low and "temperature" in low and re.search(r"bill of lading|airway bill|air waybill|\bb/l\b|\bawb\b", low):
+            rt = values.get("requested_temp")
+            if isinstance(rt, (list, tuple)) and len(rt) == 2:
+                s = _fill_range(s, _clean_value(rt[0]), _clean_value(rt[1]), r"°\s*C", "°C")
+            elif rt not in (None, "", []):
+                s = _fill_range(s, _clean_value(rt if not isinstance(rt, (list, tuple)) else rt[0]), "", r"°\s*C", "°C")
         out.append(s)
     return "".join(out)
 

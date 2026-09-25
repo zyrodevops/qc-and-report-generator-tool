@@ -23,6 +23,17 @@ def _has_value(v: Any) -> bool:
     return v is not None and str(v).strip() != ""
 
 
+def shows_container(block: Dict[str, Any]) -> bool:
+    """
+    The Container column is printed when the surveyor ticked it and at least
+    one row names a container. A ticked column with no containers typed in
+    would only be an empty strip down the table.
+    """
+    if not block.get("show_container"):
+        return False
+    return any(_has_value(r.get("container")) for r in (block.get("rows") or []))
+
+
 def visible_columns(block: Dict[str, Any]) -> List[Tuple[int, Dict[str, Any]]]:
     """
     (original index, category) for each column worth printing.

@@ -8,6 +8,8 @@ export interface PageContainerProps {
   reportNumber?: string;
   children: React.ReactNode;
   className?: string;
+  /** Photo pages: the Word file's photo margins, so 8 photos fit as they do there. */
+  photoPage?: boolean;
 }
 
 export const PageContainer: React.FC<PageContainerProps> = ({
@@ -18,6 +20,7 @@ export const PageContainer: React.FC<PageContainerProps> = ({
   reportNumber,
   children,
   className = '',
+  photoPage = false,
 }) => {
   const formattedHeaderRight =
     headerRight ||
@@ -31,10 +34,12 @@ export const PageContainer: React.FC<PageContainerProps> = ({
       style={{
         width: '210mm',
         minHeight: '297mm',
-        paddingTop: '0.446in',
-        paddingBottom: '1.0in',
-        paddingLeft: '1.083in',
-        paddingRight: '1.0in',
+        // The photo table is 16.5 cm wide, a little wider than the text area,
+        // as in the client's reports; the running header and footer sit in
+        // the margins so four rows of photos fit.
+        ...(photoPage
+          ? { paddingTop: '0.35in', paddingBottom: '0.35in', paddingLeft: '2.0cm', paddingRight: '2.0cm' }
+          : { paddingTop: '0.446in', paddingBottom: '1.0in', paddingLeft: '1.083in', paddingRight: '1.0in' }),
       }}
     >
       {/* Running Header */}

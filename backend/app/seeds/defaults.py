@@ -121,6 +121,44 @@ _COMMODITY_SUPPLEMENT: Dict[str, Dict[str, Any]] = {
 # Helper: build blocks for a commodity from supplement data + archetype
 # ---------------------------------------------------------------------------
 
+def _table_block(commodity_key: str, archetype: Dict[str, Any], block_id: str) -> Dict[str, Any]:
+    """
+    The empty condition-found table for one fruit: its own columns, unit,
+    heading and starting ticks. A cargo of two fruits gets one of these each.
+
+    Columns come from the same place the Verification Workbench gets them, so
+    the grid on the form and the grid the tally sheet is read into are the
+    same shape. The heading is the fruit's "condition found" heading, not a
+    graph heading.
+    """
+    from app.ingest.tally.categories import build_categories, lookup_fruit, unit_for
+
+    fruit = lookup_fruit(commodity_key) or {}
+    _seq = archetype.get("heading_sequence", [])
+    heading = next(
+        (h for h in _seq if "condition" in h.lower() and "graph" not in h.lower()),
+        None,
+    ) or f"CONDITION FOUND OF {commodity_key} FRUITS:"
+    return {
+        "id": block_id,
+        "type": "table",
+        "commodity": commodity_key,
+        "title": heading,
+        "grouping_label": "Sample / Count",
+        "unit": unit_for(commodity_key) or archetype.get("unit", "pcs"),
+        "categories": [{"key": c["key"], "label": c["label"]} for c in build_categories(commodity_key)],
+        "rows": [],
+        "show_title": bool(fruit.get("show_condition_found", True)),
+        "show_chart": bool(fruit.get("show_chart", False)),
+    }
+
+
+def fruit_table_block(commodity: str, block_id: str) -> Dict[str, Any]:
+    """A condition-found table for another fruit in the same cargo."""
+    key = fruit_key(commodity)
+    return _table_block(key, _load_archetypes().get(key, {}), block_id)
+
+
 def _build_blocks_for_commodity(
     commodity_key: str,
     supp: Dict[str, Any],
@@ -129,28 +167,7 @@ def _build_blocks_for_commodity(
     is_qc: bool,
 ) -> List[Dict[str, Any]]:
     """Build the complete list of blocks for a given commodity."""
-
-    # Columns come from the same place the Verification Workbench gets them, so
-    # the grid on the form and the grid the tally sheet is read into are the
-    # same shape. They used to be taken from the keys of the sample rows below,
-    # which is why the form showed six columns while the workbench offered the
-    # eleven this fruit is actually graded on.
-    from app.ingest.tally.categories import build_categories, unit_for
-
-    categories = [{"key": c["key"], "label": c["label"]} for c in build_categories(commodity_key)]
-    unit = unit_for(commodity_key) or archetype.get("unit", "pcs")
     label = supp.get("label", commodity_key.capitalize())
-
-    # Determine heading label for the defect condition section
-    # Prefer headings with "condition" that are NOT about graphs/charts
-    _seq = archetype.get("heading_sequence", [])
-    condition_heading = next(
-        (h for h in _seq if "condition" in h.lower() and "graph" not in h.lower()),
-        None,
-    )
-    if not condition_heading:
-        # Fallback: the commodity label itself as heading
-        condition_heading = f"CONDITION FOUND OF {commodity_key} FRUITS:"
 
     blocks: List[Dict[str, Any]] = []
 
@@ -252,17 +269,7 @@ def _build_blocks_for_commodity(
     # show_title / show_chart only set the starting ticks. Grapes reports put
     # the table straight under Our Survey without a "Condition found of…"
     # heading, and most apple reports have no chart — but either can be ticked.
-    blocks.append({
-        "id": "b_table",
-        "type": "table",
-        "title": condition_heading,
-        "grouping_label": "Sample / Count",
-        "unit": unit,
-        "categories": categories,
-        "rows": [],
-        "show_title": bool(fruit.get("show_condition_found", True)),
-        "show_chart": bool(fruit.get("show_chart", False)),
-    })
+    blocks.append(_table_block(commodity_key, archetype, "b_table"))
 
     # ── Block 7: Survey Photographs ───────────────────────────────────────
     blocks.append({

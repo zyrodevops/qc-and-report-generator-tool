@@ -183,6 +183,43 @@ def render_narrative(doc: Document, block: Dict[str, Any]) -> None:
     doc.add_paragraph()
 
 
+def render_recorders(doc: Document, block: Dict[str, Any]) -> None:
+    """Temperature recorders: the devices' own summary, then a graph each (if ticked)."""
+    from docx.shared import Cm, Pt
+    from app.render.inclusion import shows_chart
+    from app.render.recorder_chart import COLUMNS, chart_for, summary_row, time_note
+
+    recs = [r for r in block.get("recorders") or [] if r.get("included", True) is not False]
+    if not recs:
+        return
+    doc.add_heading(block.get("title") or "TEMPERATURE RECORDER SUMMARY", level=2)
+    table = doc.add_table(rows=1 + len(recs), cols=len(COLUMNS))
+    table.style = "Table Grid"
+    for i, h in enumerate(COLUMNS):
+        cell = table.rows[0].cells[i]
+        cell.text = h
+        for run in cell.paragraphs[0].runs:
+            run.bold = True
+            run.font.size = Pt(7.5)
+    for ri, r in enumerate(recs, start=1):
+        for ci, v in enumerate(summary_row(r)):
+            cell = table.rows[ri].cells[ci]
+            cell.text = v
+            for run in cell.paragraphs[0].runs:
+                run.font.size = Pt(7.5)
+    note = time_note(recs)
+    if note:
+        p = doc.add_paragraph(note)
+        for run in p.runs:
+            run.font.size = Pt(7.5)
+    if shows_chart(block):
+        for r in recs:
+            png = chart_for(r, block.get("set_point_c"))
+            if png:
+                doc.add_picture(io.BytesIO(png), width=Cm(16))
+    doc.add_paragraph()
+
+
 def render_measurements(doc: Document, block: Dict[str, Any]) -> None:
     """Render a measurements block as a table (ticked rows only)."""
     rows = included_rows(block)
@@ -224,7 +261,7 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     if title and shows_table_title(block):
         doc.add_heading(title, level=2)
 
-    from app.render.table_columns import visible_columns
+    from app.render.table_columns import visible_columns, shows_container
 
     rows = block.get("rows", [])
     unit = block.get("unit", "pcs")
@@ -235,6 +272,10 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     categories = [c for _, c in shown]
     cat_keys = [c["key"] for c in categories]
     cat_labels = [c["label"] for c in categories]
+    # Optional Container column, straight after the count / sample column;
+    # the defect columns then start one cell further right (c0).
+    with_cont = shows_container(block)
+    c0 = 2 if with_cont else 1
 
     row_totals = computed.get("row_totals", [])
     row_pcts = computed.get("row_percentages", [])
@@ -246,15 +287,17 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     if is_two_tier:
         # Authentic Client Two-Tier Table Layout (Saanvi Fresh Fruit / RGS Exim Pro)
         # Each count has 2 rows: (1) Pieces, (2) Percentage row directly under
-        col_count = 1 + len(categories) + 1  # Group + Categories + Total
+        col_count = c0 + len(categories) + 1  # Group + Categories + Total
         table = doc.add_table(rows=1 + (len(rows) * 2) + 2, cols=col_count)
         table.style = "Table Grid"
 
         # Header
         hrow = table.rows[0].cells
         hrow[0].text = block.get("grouping_label", "Count / Box Sample")
+        if with_cont:
+            hrow[1].text = "Container"
         for i, label in enumerate(cat_labels):
-            hrow[1 + i].text = label
+            hrow[c0 + i].text = label
         hrow[-1].text = f"Total ({unit})"
         for cell in hrow:
             if cell.paragraphs[0].runs:
@@ -268,9 +311,11 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
             trow[0].text = str(row.get("group", ""))
             if trow[0].paragraphs[0].runs:
                 trow[0].paragraphs[0].runs[0].bold = True
+            if with_cont:
+                trow[1].text = str(row.get("container") or "")
             values = row.get("values", {})
             for j, key in enumerate(cat_keys):
-                trow[1 + j].text = str(values.get(key, ""))
+                trow[c0 + j].text = str(values.get(key, ""))
             if i < len(row_totals):
                 trow[-1].text = str(row_totals[i])
                 if trow[-1].paragraphs[0].runs:
@@ -283,7 +328,7 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
             pct_row = row_pcts[i] if i < len(row_pcts) else []
             for j, orig in enumerate(shown_idx):
                 p = pct_row[orig] if orig < len(pct_row) else ""
-                prow[1 + j].text = f"{p}%" if str(p) else ""
+                prow[c0 + j].text = f"{p}%" if str(p) else ""
             prow[-1].text = "100.00%"
             curr_row += 1
 
@@ -291,7 +336,7 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
         tot_row = table.rows[curr_row].cells
         tot_row[0].text = f"Total ({unit})"
         for j, key in enumerate(cat_keys):
-            tot_row[1 + j].text = str(col_totals.get(key, ""))
+            tot_row[c0 + j].text = str(col_totals.get(key, ""))
         tot_row[-1].text = str(grand_total)
         for c in tot_row:
             if c.paragraphs[0].runs:
@@ -302,7 +347,7 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
         pct_tot_row = table.rows[curr_row].cells
         pct_tot_row[0].text = "Percentage"
         for j, key in enumerate(cat_keys):
-            pct_tot_row[1 + j].text = f"{col_pcts.get(key, '')}%" if col_pcts.get(key) else ""
+            pct_tot_row[c0 + j].text = f"{col_pcts.get(key, '')}%" if col_pcts.get(key) else ""
         pct_tot_row[-1].text = "100.00%"
         for c in pct_tot_row:
             if c.paragraphs[0].runs:
@@ -311,15 +356,17 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     else:
         # Standard single-row layout. The joined "%" column is gone — see the
         # HTML engine for why; per-column percentages are in the foot row.
-        col_count = 1 + len(categories) + 1
+        col_count = c0 + len(categories) + 1
         table = doc.add_table(rows=1 + len(rows) + 2, cols=col_count)
         table.style = "Table Grid"
 
         # Header row
         hrow = table.rows[0].cells
         hrow[0].text = block.get("grouping_label", "Group")
+        if with_cont:
+            hrow[1].text = "Container"
         for i, label in enumerate(cat_labels):
-            hrow[1 + i].text = label
+            hrow[c0 + i].text = label
         hrow[-1].text = f"Total ({unit})"
         for cell in hrow:
             if cell.paragraphs[0].runs:
@@ -329,9 +376,11 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
         for i, row in enumerate(rows):
             trow = table.rows[1 + i].cells
             trow[0].text = str(row.get("group", ""))
+            if with_cont:
+                trow[1].text = str(row.get("container") or "")
             values = row.get("values", {})
             for j, key in enumerate(cat_keys):
-                trow[1 + j].text = str(values.get(key, ""))
+                trow[c0 + j].text = str(values.get(key, ""))
             if i < len(row_totals):
                 trow[-1].text = str(row_totals[i])
 
@@ -339,7 +388,7 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
         tot_row = table.rows[-2].cells
         tot_row[0].text = "Total"
         for j, key in enumerate(cat_keys):
-            tot_row[1 + j].text = str(col_totals.get(key, ""))
+            tot_row[c0 + j].text = str(col_totals.get(key, ""))
         tot_row[-1].text = str(grand_total)
 
         # Percentage row
@@ -347,7 +396,7 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
         pct_row_cells[0].text = "%"
         for j, key in enumerate(cat_keys):
             p = col_pcts.get(key, "")
-            pct_row_cells[1 + j].text = f"{p}%" if str(p) else ""
+            pct_row_cells[c0 + j].text = f"{p}%" if str(p) else ""
         pct_row_cells[-1].text = "100.00%"
 
     # A dozen columns only fit portrait A4 at a small size.
@@ -445,6 +494,95 @@ def _generate_defect_chart(
 
 
 
+def _set_cell_margins(cell, margins: Dict[str, int]) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    mar = OxmlElement("w:tcMar")
+    for side in ("top", "left", "bottom", "right"):
+        el = OxmlElement(f"w:{side}")
+        el.set(qn("w:w"), str(margins[side]))
+        el.set(qn("w:type"), "dxa")
+        mar.append(el)
+    tc_pr.append(mar)
+
+
+def _set_cell_borders(cell, color: Optional[str], size: int) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    borders = OxmlElement("w:tcBorders")
+    for side in ("top", "left", "bottom", "right"):
+        el = OxmlElement(f"w:{side}")
+        if color:
+            el.set(qn("w:val"), "single")
+            el.set(qn("w:sz"), str(size))
+            el.set(qn("w:color"), color)
+        else:
+            el.set(qn("w:val"), "nil")
+        borders.append(el)
+    tc_pr.append(borders)
+
+
+def _no_table_borders(table) -> None:
+    tbl_pr = table._tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        el = OxmlElement(f"w:{side}")
+        el.set(qn("w:val"), "nil")
+        borders.append(el)
+    # Word reads tblPr children in schema order; tblBorders goes before these.
+    later = [c for c in tbl_pr if c.tag in {qn(f"w:{n}") for n in ("shd", "tblLayout", "tblCellMar", "tblLook")}]
+    if later:
+        later[0].addprevious(borders)
+    else:
+        tbl_pr.append(borders)
+
+
+def _cant_split(row) -> None:
+    tr_pr = row._tr.get_or_add_trPr()
+    tr_pr.append(OxmlElement("w:cantSplit"))
+
+
+def _tight(para, spacing_twips: int, keep_with_next: bool = False) -> None:
+    from docx.enum.text import WD_LINE_SPACING
+    from docx.shared import Twips
+
+    pf = para.paragraph_format
+    pf.space_before = Twips(spacing_twips)
+    pf.space_after = Twips(spacing_twips)
+    pf.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    pf.keep_with_next = keep_with_next
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+
+_PAGE_SETUP = ("page_width", "page_height", "orientation", "left_margin", "right_margin",
+               "top_margin", "bottom_margin", "header_distance", "footer_distance")
+
+
+def _page_setup(section) -> Dict[str, Any]:
+    # Values, not the Section: python-docx's last Section is whichever section
+    # is last at the time, so a kept Section would change under us.
+    return {a: getattr(section, a) for a in _PAGE_SETUP}
+
+
+def _copy_page_setup(src: Dict[str, Any], dst) -> None:
+    for attr, value in src.items():
+        setattr(dst, attr, value)
+
+
+def _resume_body(doc: Document) -> None:
+    """
+    After the photo pages, go back to the report's own page setup. Done only
+    when something follows the photos, so a report that ends with them does
+    not get an empty last page.
+    """
+    saved = getattr(doc, "_mca_body_section", None)
+    if saved is None:
+        return
+    from docx.enum.section import WD_SECTION
+
+    sec = doc.add_section(WD_SECTION.NEW_PAGE)
+    _copy_page_setup(saved, sec)
+    doc._mca_body_section = None
+
+
 def render_photo_plate(
     doc: Document,
     block: Dict[str, Any],
@@ -453,62 +591,107 @@ def render_photo_plate(
     derived_key: str = "report",
 ) -> None:
     """
-    Render a photo_plate block as a 2-column table (image + caption per cell).
-    Uses derived report copies, never the originals.
+    The survey photographs, laid out as the client's photo tool lays them.
+
+    Two across in a table, every photo the same 8.2 x 5.6 cm, the caption in
+    its own row under each pair, no border unless one is chosen. The photos
+    start on a new A4 page with the tool's 2.54 cm margins, and each page holds
+    8 photos (or 6). A photo is never split from its caption across a page.
+    Photos go in from the original, the right way up, at the chosen quality.
     """
+    from docx.enum.section import WD_SECTION
+    from docx.shared import Cm, Emu, Twips
+
+    from app.config import settings
+    from app.ingest.photos import report_image
+    from app.render import photo_layout as pl
+
+    lay = pl.layout_of(block)
+    photos = pl.photos_of(block, computed, assets)
     label = block.get("label", "Survey Photos")
-    doc.add_heading(label, level=2)
 
-    groups = block.get("groups", [])
-    computed_groups = computed.get("groups", {})
-
-    all_photos: List[Dict[str, Any]] = []
-    for g in groups:
-        gid = g.get("id", "")
-        obs = g.get("observation", "")
-        asset_ids = g.get("asset_ids", [])
-        grp_computed = computed_groups.get(gid, {})
-        numbers = grp_computed.get("numbers", list(range(1, len(asset_ids) + 1)))
-
-        for aid, num in zip(asset_ids, numbers):
-            asset = assets.get(aid, {})
-            derived = asset.get("derived_paths", asset.get("derived", {}))
-            img_path = derived.get(derived_key) or derived.get("report") or asset.get("original_path")
-            all_photos.append({
-                "number": num,
-                "caption": f"Photo No. {num} — {obs}",
-                "image_path": img_path,
-            })
-
-    if not all_photos:
+    if not photos:
+        doc.add_heading(label, level=2)
         doc.add_paragraph("[No photos in this series]")
         return
 
-    # 2-column table
-    table = doc.add_table(rows=0, cols=2)
-    table.style = "Table Grid"
+    if getattr(doc, "_mca_body_section", None) is None:
+        doc._mca_body_section = _page_setup(doc.sections[-1])
+        sec = doc.add_section(WD_SECTION.NEW_PAGE)
+        sec.page_width, sec.page_height = Cm(21.0), Cm(29.7)
+        for side in ("left_margin", "right_margin", "top_margin", "bottom_margin"):
+            setattr(sec, side, Cm(2.54))
+    else:
+        # Two photo blocks in a row share the photo pages.
+        doc.add_paragraph().paragraph_format.page_break_before = True
 
-    for i in range(0, len(all_photos), 2):
-        row = table.add_row()
-        for j in range(2):
-            idx = i + j
-            if idx >= len(all_photos):
-                break
-            photo = all_photos[idx]
-            cell = row.cells[j]
-            para = cell.paragraphs[0]
+    if lay["show_heading"]:
+        doc.add_heading(label, level=2)
 
-            img_path = photo.get("image_path")
-            if img_path and Path(img_path).exists():
-                run = para.add_run()
-                run.add_picture(img_path, width=Inches(2.8))
-            else:
-                para.add_run("[Image not available]")
+    style = "border" if lay["border"] else "plain"
+    img_margin = pl.CELL_MARGIN[style]
+    border = lay["border_color"] if lay["border"] else None
+    qmax, qjpeg = pl.QUALITY[lay["quality"]]
+    cell_w = Twips(round(pl.IMAGE_W_PX * 15) + img_margin["left"] + img_margin["right"])
+    font_color = RGBColor.from_string(lay["caption_color"])
 
-            caption_para = cell.add_paragraph(photo["caption"])
-            caption_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for page_no, page in enumerate(pl.pages(photos, lay)):
+        if page_no:
+            # A tiny paragraph that starts the next page. "Page break before"
+            # does nothing when it already sits at the top of a page, so a full
+            # page is never followed by an empty one.
+            brk = doc.add_paragraph()
+            brk.paragraph_format.page_break_before = True
+            _tight(brk, 0)
+            # The paragraph mark sets the line height; at the body size it
+            # took 0.45 cm and pushed the fourth row onto the next page.
+            mark = OxmlElement("w:rPr")
+            sz = OxmlElement("w:sz")
+            sz.set(qn("w:val"), "2")
+            mark.append(sz)
+            brk._p.get_or_add_pPr().append(mark)
 
-    doc.add_paragraph()
+        table = doc.add_table(rows=0, cols=2)
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        table.autofit = False
+        _no_table_borders(table)
+        for col in table._tbl.tblGrid.gridCol_lst:
+            col.w = cell_w
+
+        for i in range(0, len(page), 2):
+            pair = page[i:i + 2]
+            img_row = table.add_row()
+            cap_row = table.add_row()
+            _cant_split(img_row)
+            _cant_split(cap_row)
+            for j in range(2):
+                ic, cc = img_row.cells[j], cap_row.cells[j]
+                ic.width = cc.width = cell_w
+                # tcBorders before tcMar: the order Word expects in tcPr.
+                edge = border if j < len(pair) else None
+                _set_cell_borders(ic, edge, pl.BORDER_SIZE)
+                _set_cell_borders(cc, edge, pl.BORDER_SIZE)
+                _set_cell_margins(ic, img_margin)
+                _set_cell_margins(cc, pl.CAPTION_MARGIN)
+                ip, cp = ic.paragraphs[0], cc.paragraphs[0]
+                _tight(ip, pl.PARA_SPACING[style], keep_with_next=True)
+                _tight(cp, 5)
+                if j >= len(pair):
+                    continue
+                photo = pair[j]
+                path = report_image(photo["asset"], settings.DERIVED_DIR, qmax, qjpeg, lay["quality"])
+                if path:
+                    ip.add_run().add_picture(
+                        path,
+                        width=Emu(pl.IMAGE_W_PX * pl.EMU_PER_PX),
+                        height=Emu(pl.IMAGE_H_PX * pl.EMU_PER_PX),
+                    )
+                else:
+                    ip.add_run("[Image not available]")
+                run = cp.add_run(photo["caption"])
+                run.font.name = lay["caption_font"]
+                run.font.size = Pt(lay["caption_size"])
+                run.font.color.rgb = font_color
 
 
 def render_parties(doc: Document, block: Dict[str, Any]) -> None:
@@ -677,12 +860,15 @@ def render_unit_group(
     units = computed.get("units", [])
     for unit in units:
         heading = unit.get("heading") or f"CONTAINER {unit.get('identifier')}"
+        _resume_body(doc)
         doc.add_heading(heading, level=2)
         for ub in unit.get("blocks", []):
             if not is_included(ub):
                 continue
             ubtype = ub.get("type")
             ub_comp = ub.get("_computed", {})
+            if ubtype != "photo_plate":
+                _resume_body(doc)
             if ubtype == "particulars":
                 render_particulars(doc, ub)
             elif ubtype == "table":
@@ -743,6 +929,11 @@ def render_docx(
 
     # Step 2: load template
     doc = _load_template(tmpl_name)
+    # The client's reports are all A4; the template was US Letter, which is
+    # also too short for his 8 photos to a page.
+    from docx.shared import Cm as _Cm
+    for s in doc.sections:
+        s.page_width, s.page_height = _Cm(21.0), _Cm(29.7)
 
     # Inject container/report number into running header if applicable
     container_no = state.get("transport", {}).get("container_no") or metadata.get("number", "")
@@ -772,6 +963,8 @@ def render_docx(
             continue
         btype = block.get("type")
         block_computed = block.get("_computed", {})
+        if btype != "photo_plate":
+            _resume_body(doc)
 
         if btype == "particulars":
             render_particulars(doc, block)
@@ -799,6 +992,8 @@ def render_docx(
             render_annexures_list(doc, block, block_computed)
         elif btype == "unit_group":
             render_unit_group(doc, block, block_computed, assets)
+        elif btype == "temperature_recorders":
+            render_recorders(doc, block)
 
     # Step 4: return bytes
     buf = io.BytesIO()

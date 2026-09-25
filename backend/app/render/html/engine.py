@@ -164,35 +164,35 @@ table.defect-table td:first-child, table.defect-table th:first-child {
     line-height: 1.5;
 }
 
+.recorder-table td, .recorder-table th { font-size: 7.5pt; }
+.recorder-note { font-size: 7.5pt; color: #555; margin: 2px 0 8px 0; }
+.recorder-chart { margin: 6px 0 12px 0; page-break-inside: avoid; }
+.recorder-chart img { width: 100%; }
+
 .narrative-block p { margin: 0 0 8px 0; }
 .narrative-block ul { margin: 0 0 8px 0; padding-left: 20px; }
 .narrative-block li { margin: 0 0 3px 0; }
 
-.photo-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-    margin: 14px 0;
+.photo-table {
+    border-collapse: collapse;
+    margin: 0 auto 10px auto;
 }
 
-.photo-card {
-    border: 1px solid #d1d5db;
-    padding: 8px;
+.photo-table td {
     text-align: center;
-    background: #ffffff;
-    border-radius: 2px;
+    vertical-align: middle;
 }
 
-.photo-img {
-    width: 100%;
-    height: 180px;
-    object-fit: cover;
-    border-radius: 2px;
+.photo-cell img {
+    display: block;
+    margin: 0 auto;
+}
+
+.photo-caption-cell {
+    padding: 0.009cm 0.035cm;
 }
 
 .photo-placeholder {
-    width: 100%;
-    height: 180px;
     background-color: #f8fafc;
     display: flex;
     align-items: center;
@@ -200,16 +200,10 @@ table.defect-table td:first-child, table.defect-table th:first-child {
     color: #94a3b8;
     font-size: 9pt;
     border: 1px dashed #cbd5e1;
-    border-radius: 2px;
 }
 
 .photo-caption {
-    font-size: 8.5pt;
-    font-style: italic;
-    color: #374151;
-    margin-top: 6px;
-    margin-bottom: 0;
-    font-weight: 500;
+    margin: 0;
 }
 
 .chart-container {
@@ -334,6 +328,33 @@ def render_narrative_html(block: Dict[str, Any]) -> str:
     return "\n".join(out)
 
 
+def render_recorders_html(block: Dict[str, Any]) -> str:
+    """Temperature recorders: the devices' own summary, then a graph each (if ticked)."""
+    import base64
+    from app.render.inclusion import shows_chart
+    from app.render.recorder_chart import COLUMNS, chart_for, summary_row, time_note
+
+    recs = [r for r in block.get("recorders") or [] if r.get("included", True) is not False]
+    if not recs:
+        return ""
+    out = [f'<h2 class="block-heading">{html.escape(block.get("title") or "TEMPERATURE RECORDER SUMMARY")}</h2>']
+    out.append('<table class="report-table recorder-table"><thead><tr>'
+               + "".join(f"<th>{html.escape(c)}</th>" for c in COLUMNS) + "</tr></thead><tbody>")
+    for r in recs:
+        out.append("<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in summary_row(r)) + "</tr>")
+    out.append("</tbody></table>")
+    note = time_note(recs)
+    if note:
+        out.append(f'<p class="recorder-note">{html.escape(note)}</p>')
+    if shows_chart(block):
+        for r in recs:
+            png = chart_for(r, block.get("set_point_c"))
+            if png:
+                out.append('<div class="recorder-chart"><img alt="Temperature graph" src="data:image/png;base64,'
+                           + base64.b64encode(png).decode() + '"></div>')
+    return "\n".join(out)
+
+
 def render_measurements_html(block: Dict[str, Any]) -> str:
     """Render measurements block as a 5-column table matching DOCX (ticked rows only)."""
     rows = included_rows(block)
@@ -371,7 +392,7 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
     Render defect analysis table with locked computed totals/percentages.
     Matches Word cell-for-cell bit-exact.
     """
-    from app.render.table_columns import visible_columns
+    from app.render.table_columns import visible_columns, shows_container
 
     title = block.get("title", "")
     categories = block.get("categories", [])
@@ -382,6 +403,13 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
     shown_idx = [i for i, _ in shown]
     cat_keys = [c["key"] for _, c in shown]
     cat_labels = [c["label"] for _, c in shown]
+    # Optional Container column, straight after the count / sample column.
+    with_cont = shows_container(block)
+    cont_th = '<th>Container</th>' if with_cont else ''
+    blank_td = '<td></td>' if with_cont else ''
+
+    def cont_td(r: Dict[str, Any]) -> str:
+        return f"<td>{html.escape(str(r.get('container') or ''))}</td>" if with_cont else ''
 
     out = []
     if title and shows_table_title(block):
@@ -399,7 +427,7 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
     if is_two_tier:
         # Authentic Client Two-Tier Table Layout (Saanvi Fresh Fruit / RGS Exim Pro)
         group_col = html.escape(block.get("grouping_label", "Count / Box Sample"))
-        headers = [f'<th>{group_col}</th>']
+        headers = [f'<th>{group_col}</th>' + cont_th]
         for lab in cat_labels:
             headers.append(f'<th>{html.escape(lab)}</th>')
         headers.append(f'<th>Total ({html.escape(unit)})</th>')
@@ -408,7 +436,7 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
         out.append('<tbody>')
         for i, r in enumerate(rows):
             # Row 1: Pieces count
-            cells = [f"<td><strong>{html.escape(str(r.get('group', '')))}</strong></td>"]
+            cells = [f"<td><strong>{html.escape(str(r.get('group', '')))}</strong></td>" + cont_td(r)]
             values = r.get("values", {})
             for key in cat_keys:
                 cells.append(f"<td>{html.escape(str(values.get(key, '')))}</td>")
@@ -417,7 +445,7 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
             out.append(f"<tr>{''.join(cells)}</tr>")
 
             # Row 2: Percentage row
-            p_cells = ["<td><em>Percentage</em></td>"]
+            p_cells = ["<td><em>Percentage</em></td>" + blank_td]
             pct_row = row_pcts[i] if i < len(row_pcts) else []
             for j in shown_idx:
                 p = pct_row[j] if j < len(pct_row) else ""
@@ -427,14 +455,14 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
             out.append(f"<tr class='percentages-row'>{''.join(p_cells)}</tr>")
 
         # Summary Row 1: Total Pieces
-        tot_cells = [f"<td><strong>Total ({html.escape(unit)})</strong></td>"]
+        tot_cells = [f"<td><strong>Total ({html.escape(unit)})</strong></td>" + blank_td]
         for key in cat_keys:
             tot_cells.append(f"<td><strong>{html.escape(str(col_totals.get(key, '')))}</strong></td>")
         tot_cells.append(f"<td><strong>{html.escape(str(grand_total))}</strong></td>")
         out.append(f'<tr class="totals-row">{"".join(tot_cells)}</tr>')
 
         # Summary Row 2: Total Percentage
-        pct_cells = ["<td><strong>Percentage</strong></td>"]
+        pct_cells = ["<td><strong>Percentage</strong></td>" + blank_td]
         for key in cat_keys:
             p_str = f"{col_pcts.get(key, '')}%" if col_pcts.get(key) else ""
             pct_cells.append(f"<td><strong>{html.escape(p_str)}</strong></td>")
@@ -451,7 +479,7 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
         # times its height. Per-column percentages are in the "%" row at the
         # foot of the table, which is where the client's reports carry them.
         group_col = html.escape(block.get("grouping_label", "Group"))
-        headers = [f'<th>{group_col}</th>']
+        headers = [f'<th>{group_col}</th>' + cont_th]
         for lab in cat_labels:
             headers.append(f'<th>{html.escape(lab)}</th>')
         headers.append(f'<th>Total ({html.escape(unit)})</th>')
@@ -459,7 +487,7 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
 
         out.append('<tbody>')
         for i, r in enumerate(rows):
-            cells = [f"<td>{html.escape(str(r.get('group', '')))}</td>"]
+            cells = [f"<td>{html.escape(str(r.get('group', '')))}</td>" + cont_td(r)]
             values = r.get("values", {})
             for key in cat_keys:
                 cells.append(f"<td>{html.escape(str(values.get(key, '')))}</td>")
@@ -467,13 +495,13 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
             cells.append(f"<td>{html.escape(tot)}</td>")
             out.append(f"<tr>{''.join(cells)}</tr>")
 
-        tot_cells = ["<td>Total</td>"]
+        tot_cells = ["<td>Total</td>" + blank_td]
         for key in cat_keys:
             tot_cells.append(f"<td>{html.escape(str(col_totals.get(key, '')))}</td>")
         tot_cells.append(f"<td>{html.escape(str(grand_total))}</td>")
         out.append(f'<tr class="totals-row">{"".join(tot_cells)}</tr>')
 
-        pct_cells = ["<td>%</td>"]
+        pct_cells = ["<td>%</td>" + blank_td]
         for key in cat_keys:
             p = col_pcts.get(key, "")
             pct_cells.append(f"<td>{html.escape(f'{p}%' if str(p) else '')}</td>")
@@ -508,64 +536,69 @@ def render_photo_plate_html(
     assets: Dict[str, Any],
     derived_key: str = "report",
 ) -> str:
-    """Render photo_plate block with captions matching DOCX engine."""
+    """
+    The survey photographs laid out as in the Word file (see photo_layout.py):
+    two across, 8.2 x 5.6 cm each, caption under each pair, the chosen number
+    of photos to a page.
+    """
+    from app.config import settings
+    from app.ingest.photos import report_image
+    from app.render import photo_layout as pl
+
+    lay = pl.layout_of(block)
+    photos = pl.photos_of(block, computed, assets)
     label = block.get("label", "Survey Photos")
-    groups = block.get("groups", [])
-    computed_groups = computed.get("groups", {})
 
-    out = [f'<h2 class="block-heading">{html.escape(label)}</h2>']
-    all_photos: List[Dict[str, Any]] = []
-
-    for g in groups:
-        gid = g.get("id", "")
-        obs = g.get("observation", "")
-        asset_ids = g.get("asset_ids", [])
-        grp_computed = computed_groups.get(gid, {})
-        numbers = grp_computed.get("numbers", list(range(1, len(asset_ids) + 1)))
-
-        for aid, num in zip(asset_ids, numbers):
-            asset = assets.get(aid, {})
-            derived = asset.get("derived_paths", asset.get("derived", {}))
-            img_path = (
-                derived.get(derived_key)
-                or derived.get("report")
-                or asset.get("original_path")
-            )
-            caption = f"Photo No. {num} — {obs}"
-            all_photos.append({
-                "number": num,
-                "caption": caption,
-                "image_path": img_path,
-            })
-
-    if not all_photos:
-        out.append(
+    if not photos:
+        return (
+            f'<h2 class="block-heading">{html.escape(label)}</h2>\n'
             '<p style="font-style: italic; color: #6b7280;">[No photos in this series]</p>'
         )
-        return "\n".join(out)
 
-    out.append('<div class="photo-grid">')
-    for p in all_photos:
-        cap_esc = html.escape(p["caption"])
-        img_p = p.get("image_path")
-        img_html = ""
-        if img_p and Path(img_p).exists():
-            try:
-                with open(img_p, "rb") as f:
-                    b64_data = base64.b64encode(f.read()).decode("utf-8")
-                img_html = f'<img src="data:image/jpeg;base64,{b64_data}" class="photo-img" alt="{cap_esc}" />'
-            except Exception:
-                img_html = '<div class="photo-placeholder">[Image Placeholder]</div>'
+    w_cm = pl.IMAGE_W_PX * pl.CM_PER_PX
+    h_cm = pl.IMAGE_H_PX * pl.CM_PER_PX
+    style = "border" if lay["border"] else "plain"
+    m = pl.CELL_MARGIN[style]
+    tw = 2.54 / 1440  # cm per twip
+    pad = f"{m['top'] * tw:.3f}cm {m['right'] * tw:.3f}cm {m['bottom'] * tw:.3f}cm {m['left'] * tw:.3f}cm"
+    edge = f"1.5pt solid #{lay['border_color']}" if lay["border"] else "none"
+    cap_style = (
+        f"font-family: '{lay['caption_font']}', sans-serif; font-size: {lay['caption_size']}pt; "
+        f"color: #{lay['caption_color']};"
+    )
+    qmax, qjpeg = pl.QUALITY["display"]
+
+    def img_cell(photo) -> str:
+        if photo is None:
+            return '<td class="photo-cell"></td>'
+        path = report_image(photo["asset"], settings.DERIVED_DIR, qmax, qjpeg, "display")
+        cap = html.escape(photo["caption"])
+        if path and Path(path).exists():
+            b64 = base64.b64encode(Path(path).read_bytes()).decode("utf-8")
+            inner = (f'<img src="data:image/jpeg;base64,{b64}" alt="{cap}" '
+                     f'style="width: {w_cm:.3f}cm; height: {h_cm:.3f}cm;" />')
         else:
-            img_html = '<div class="photo-placeholder">[Image Placeholder]</div>'
+            inner = (f'<div class="photo-placeholder" style="width: {w_cm:.3f}cm; height: {h_cm:.3f}cm;">'
+                     '[Image not available]</div>')
+        return f'<td class="photo-cell" style="padding: {pad}; border: {edge};">{inner}</td>'
 
-        out.append(
-            f'<div class="photo-card">'
-            f'{img_html}'
-            f'<p class="photo-caption">{cap_esc}</p>'
-            f'</div>'
-        )
-    out.append('</div>')
+    def cap_cell(photo) -> str:
+        if photo is None:
+            return '<td class="photo-caption-cell"></td>'
+        return (f'<td class="photo-caption-cell" style="border: {edge};">'
+                f'<p class="photo-caption" style="{cap_style}">{html.escape(photo["caption"])}</p></td>')
+
+    out = []
+    if lay["show_heading"]:
+        out.append(f'<h2 class="block-heading">{html.escape(label)}</h2>')
+    for n, page in enumerate(pl.pages(photos, lay)):
+        brk = ' style="page-break-before: always;"' if n else ""
+        out.append(f'<table class="photo-table"{brk}><tbody>')
+        for i in range(0, len(page), 2):
+            pair = list(page[i:i + 2]) + [None] * (2 - len(page[i:i + 2]))
+            out.append("<tr>" + "".join(img_cell(ph) for ph in pair) + "</tr>")
+            out.append("<tr>" + "".join(cap_cell(ph) for ph in pair) + "</tr>")
+        out.append("</tbody></table>")
     return "\n".join(out)
 
 
@@ -789,6 +822,8 @@ def render_html(block_state: Dict[str, Any]) -> str:
             rendered = render_annexures_html(b, bcomp)
         elif btype == "unit_group":
             rendered = render_unit_group_html(b, bcomp, assets)
+        elif btype == "temperature_recorders":
+            rendered = render_recorders_html(b)
 
         if not rendered:
             continue

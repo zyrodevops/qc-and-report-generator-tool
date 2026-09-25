@@ -16,6 +16,7 @@ interface TableRow {
   values: Record<string, number | string>;
   stated_total?: number | null;
   provenance?: string;
+  container?: string;
 }
 
 interface TableBlockProps {
@@ -28,6 +29,10 @@ interface TableBlockProps {
     rows: TableRow[];
     show_title?: boolean;
     show_chart?: boolean;
+    /** Print a Container column after the count column. */
+    show_container?: boolean;
+    /** The fruit this table counts, when the cargo has more than one. */
+    commodity?: string;
   };
   onChange: (updatedBlock: any) => void;
   reportId?: string;
@@ -39,6 +44,10 @@ interface TableBlockProps {
   applying?: boolean;
   /** Decides which defect columns the tally grid offers. */
   commodity?: string;
+  /** Container numbers from the shipping documents, offered in the Container column. */
+  containers?: string[];
+  /** Shown on a second fruit's table: takes the table out of the report. */
+  onRemove?: () => void;
 }
 
 /** A cell's number, or null when nothing has been entered. */
@@ -72,6 +81,8 @@ export const TableGrid: React.FC<TableBlockProps> = ({
   dirty = false,
   applying = false,
   commodity,
+  containers = [],
+  onRemove,
 }) => {
   const [workbench, setWorkbench] = useState<null | 'any' | 'spreadsheet'>(null);
   const [addingColumn, setAddingColumn] = useState(false);
@@ -124,6 +135,17 @@ export const TableGrid: React.FC<TableBlockProps> = ({
     newRows[rowIndex] = { ...newRows[rowIndex], values };
     onChange({ ...block, rows: newRows });
   };
+
+  const handleContainerChange = (rowIndex: number, raw: string) => {
+    const newRows = [...rows];
+    const next = { ...newRows[rowIndex] };
+    if (raw.trim() === '') delete next.container;
+    else next.container = raw.toUpperCase();
+    newRows[rowIndex] = next;
+    onChange({ ...block, rows: newRows });
+  };
+  const withCont = Boolean(block.show_container);
+  const listId = `containers-${block.id}`;
 
   const handleGroupChange = (rowIndex: number, groupStr: string) => {
     const newRows = [...rows];
@@ -245,6 +267,17 @@ export const TableGrid: React.FC<TableBlockProps> = ({
               {dirty ? 'Apply changes' : 'Saved'}
             </button>
           )}
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="flex items-center gap-1 text-sm text-red-600 hover:bg-red-50 font-medium px-2 py-1.5 rounded transition border border-red-200"
+              title="Take this fruit's table out of the report"
+            >
+              <Trash2 className="w-4 h-4" />
+              Remove table
+            </button>
+          )}
         </div>
       </div>
 
@@ -262,7 +295,22 @@ export const TableGrid: React.FC<TableBlockProps> = ({
           checked={isIncluded(block.show_chart)}
           onChange={(next) => onChange({ ...block, show_chart: next })}
         />
+        {/* For a cargo of several containers of one fruit: each sheet's rows
+            carry their container, and a sheet read later replaces only its
+            own container's rows. */}
+        <SectionToggle
+          label="Container column"
+          checked={withCont}
+          onChange={(next) => onChange({ ...block, show_container: next })}
+        />
       </div>
+      {withCont && containers.length > 0 && (
+        <datalist id={listId}>
+          {containers.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+      )}
 
       <div className="overflow-x-auto">
         <table className="text-sm text-left border-collapse">
@@ -271,6 +319,7 @@ export const TableGrid: React.FC<TableBlockProps> = ({
               {/* The bin and the count stay pinned while the table scrolls sideways. */}
               <th className="w-9 min-w-9 sticky left-0 z-10 bg-gray-50" />
               <th className={`${headingCls} text-left sticky left-9 z-10 bg-gray-50`}>{columnTitle(grouping_label)}</th>
+              {withCont && <th className={`${headingCls} text-left`}>Container</th>}
               {categories.map((cat) => (
                 <th key={cat.key} className={`${headingCls} text-right`}>
                   <span className="inline-flex items-center justify-end gap-1">
@@ -343,6 +392,19 @@ export const TableGrid: React.FC<TableBlockProps> = ({
                     className="w-24 px-2 py-1 border border-gray-300 rounded font-medium text-gray-800 text-sm focus:ring-1 focus:ring-blue-500 outline-none"
                   />
                 </td>
+                {withCont && (
+                  <td className="py-1 px-1">
+                    <input
+                      type="text"
+                      value={row.container ?? ''}
+                      list={containers.length ? listId : undefined}
+                      placeholder="Container no."
+                      aria-label={`Container for row ${rIdx + 1}`}
+                      onChange={(e) => handleContainerChange(rIdx, e.target.value)}
+                      className="w-32 px-2 py-1 border border-gray-300 rounded font-mono text-gray-800 text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </td>
+                )}
                 {categories.map((cat) => (
                   <td key={cat.key} className="py-1 px-1 text-right">
                     <input
@@ -365,6 +427,7 @@ export const TableGrid: React.FC<TableBlockProps> = ({
             <tr className="bg-gray-100 font-bold border-t-2 border-gray-300 text-gray-900">
               <td className="sticky left-0 z-10 bg-gray-100" />
               <td className="py-2 px-2 whitespace-nowrap sticky left-9 z-10 bg-gray-100">Total</td>
+              {withCont && <td />}
               {categories.map((cat) => (
                 <td key={cat.key} className="py-2 px-2 text-right font-mono whitespace-nowrap">
                   {computed.colHasData[cat.key] ? fmt(computed.colTotals[cat.key]) : ''}
@@ -378,6 +441,7 @@ export const TableGrid: React.FC<TableBlockProps> = ({
             <tr className="bg-gray-50 text-xs text-gray-600 font-mono font-medium">
               <td className="sticky left-0 z-10 bg-gray-50" />
               <td className="py-1.5 px-2 font-semibold sticky left-9 z-10 bg-gray-50">%</td>
+              {withCont && <td />}
               {categories.map((cat) => (
                 <td key={cat.key} className="py-1.5 px-2 text-right whitespace-nowrap">
                   {computed.colPcts[cat.key] ? `${computed.colPcts[cat.key]}%` : ''}

@@ -520,7 +520,7 @@ def test_adversarial_photo_list_single_photo():
     docx_data = extract_docx_data(docx_bytes)
     html_data = extract_html_data(html_content)
 
-    expected_caption = ["Photo No. 1 — Container front bulkhead"]
+    expected_caption = ["Survey Photo No. 1 — Container front bulkhead"]
     assert docx_data["photo_captions"] == expected_caption
     assert html_data["photo_captions"] == expected_caption
     assert docx_data["photo_ranges"] == ["(Photo No. 1)"]
@@ -652,9 +652,9 @@ def test_adversarial_photo_list_100_plus_photos_stress():
     assert docx_data["photo_captions"] == html_data["photo_captions"]
 
     # Verify first, middle, and last captions
-    assert docx_data["photo_captions"][0] == "Photo No. 1 — Exterior container seals"
-    assert docx_data["photo_captions"][75] == "Photo No. 76 — Packaging label compliance"
-    assert docx_data["photo_captions"][-1] == "Photo No. 120 — Final post-restow inspection"
+    assert docx_data["photo_captions"][0] == "Survey Photo No. 1 — Exterior container seals"
+    assert docx_data["photo_captions"][75] == "Survey Photo No. 76 — Packaging label compliance"
+    assert docx_data["photo_captions"][-1] == "Survey Photo No. 120 — Final post-restow inspection"
 
     # Verify all 10 range references matched in narrative
     assert len(docx_data["photo_ranges"]) == 10
@@ -701,10 +701,10 @@ def test_adversarial_multiple_photo_plates_contiguous_numbering():
 
     docx_data = extract_docx_data(docx_bytes)
     assert len(docx_data["photo_captions"]) == 25
-    assert docx_data["photo_captions"][0] == "Photo No. 1 — Container arrival"
-    assert docx_data["photo_captions"][9] == "Photo No. 10 — Container arrival"
-    assert docx_data["photo_captions"][10] == "Photo No. 11 — Cold store sorting"
-    assert docx_data["photo_captions"][24] == "Photo No. 25 — Cold store sorting"
+    assert docx_data["photo_captions"][0] == "Survey Photo No. 1 — Container arrival"
+    assert docx_data["photo_captions"][9] == "Survey Photo No. 10 — Container arrival"
+    assert docx_data["photo_captions"][10] == "Survey Photo No. 11 — Cold store sorting"
+    assert docx_data["photo_captions"][24] == "Survey Photo No. 25 — Cold store sorting"
 
 
 # ===========================================================================
@@ -758,8 +758,8 @@ def test_adversarial_special_characters_and_markup_resilience():
     docx_data = extract_docx_data(docx_bytes)
     html_data = extract_html_data(html_content)
 
-    assert "Photo No. 1 — Fruit cut & internal core <mold>" in docx_data["photo_captions"]
-    assert "Photo No. 1 — Fruit cut & internal core <mold>" in html_data["photo_captions"]
+    assert "Survey Photo No. 1 — Fruit cut & internal core <mold>" in docx_data["photo_captions"]
+    assert "Survey Photo No. 1 — Fruit cut & internal core <mold>" in html_data["photo_captions"]
     assert docx_data["defect_tables"][0]["full_grid"] == html_data["defect_tables"][0]["full_grid"]
 
 

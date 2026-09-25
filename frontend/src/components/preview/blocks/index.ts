@@ -11,3 +11,4 @@ export * from './ReconciliationBlock';
 export * from './InventoryBlock';
 export * from './AnnexuresBlock';
 export * from './UnitGroupBlock';
+export * from './RecordersBlock';

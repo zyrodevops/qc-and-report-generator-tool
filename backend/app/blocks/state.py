@@ -193,6 +193,7 @@ class TableRow(BaseModel):
     group: str
     boxes_opened: Optional[int] = None
     values: Dict[str, Any]                 # category_key -> numeric (stored as-is; Decimal at compute time)
+    container: Optional[str] = None        # printed only when the table's Container column is on
 
 
 class TableSource(BaseModel):
@@ -208,6 +209,8 @@ class TableBlock(BaseModel):
     title: Optional[str] = None
     unit: str = "pcs"                      # pcs | kg | mt
     grouping_label: Optional[str] = None
+    commodity: Optional[str] = None        # the fruit this table counts; one table per fruit
+    show_container: bool = False           # print a Container column after the count column
     source: TableSource = Field(default_factory=TableSource)
     categories: List[TableCategory] = Field(default_factory=list)
     rows: List[TableRow] = Field(default_factory=list)

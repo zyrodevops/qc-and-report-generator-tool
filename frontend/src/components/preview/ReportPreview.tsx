@@ -26,8 +26,11 @@ import {
   InventoryBlock,
   AnnexuresBlock,
   UnitGroupBlock,
+  RecordersBlock,
 } from './blocks';
 import { getDownloadDocxUrl, getDownloadPdfUrl, getPreviewHtmlUrl } from '../../api/client';
+import { previewPhotos, PreviewPhoto } from './blocks/PhotoPlateBlock';
+import { layoutOf, photoPages as photoPages_ } from '../../utils/photoLayout';
 
 export interface ReportPreviewProps {
   report?: any;
@@ -74,58 +77,21 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
   // Page 1: Overview & Survey Data
   // Page 2+: Evidence (photos), Documentation (annexures), Legal (fixed_text)
   const page1Blocks = blocks.filter((b) =>
-    ['parties', 'attendance', 'particulars', 'timeline', 'narrative', 'measurements', 'table', 'reconciliation', 'inventory', 'unit_group'].includes(b.type)
+    ['parties', 'attendance', 'particulars', 'timeline', 'narrative', 'measurements', 'table', 'reconciliation', 'inventory', 'unit_group', 'temperature_recorders'].includes(b.type)
   );
   const photoBlocks = blocks.filter((b) => b.type === 'photo_plate');
   const fixedTextBlocks = blocks.filter((b) => b.type === 'fixed_text');
   const annexureBlocks = blocks.filter((b) => b.type === 'annexures');
 
-  // Flatten all photos for pagination
-  const allPhotos: Array<{
-    number: number;
-    caption: string;
-    assetId?: string;
-    imagePath?: string;
-  }> = [];
-
+  // Photo pages, as many photos to a page as the photo section is set to
+  // (8 or 6), the same split the Word file makes.
+  const photoPages: Array<{ block: any; slice: PreviewPhoto[]; first: boolean }> = [];
   photoBlocks.forEach((pb) => {
-    const computedGroups = pb._computed?.groups || {};
-    (pb.groups || []).forEach((g: any) => {
-      const gid = g.id || '';
-      const obs = g.observation || '';
-      const assetIds: string[] = g.asset_ids || [];
-      const grpComputed = computedGroups[gid] || {};
-      const numbers: number[] =
-        grpComputed.numbers || assetIds.map((_, i) => i + 1);
-
-      assetIds.forEach((aid, idx) => {
-        const num = numbers[idx] || idx + 1;
-        const asset = assets[aid] || {};
-        const derived = asset.derived_paths || asset.derived || {};
-        const repId = report?.id || blockState?.id;
-        const imgPath =
-          asset.url ||
-          (aid && repId ? `/api/reports/${repId}/assets/${aid}/image` : '') ||
-          (typeof derived.display === 'string' && derived.display.startsWith('/api') ? derived.display : '') ||
-          (typeof asset.original_path === 'string' && asset.original_path.startsWith('/api') ? asset.original_path : '');
-
-        allPhotos.push({
-          number: num,
-          caption: `Photo No. ${num} \u2014 ${obs}`,
-          assetId: aid,
-          imagePath: imgPath,
-        });
-      });
-    });
+    const lay = layoutOf(pb);
+    photoPages_(previewPhotos(pb, assets, report?.id || blockState?.id), lay).forEach((slice, i) =>
+      photoPages.push({ block: pb, slice, first: i === 0 }),
+    );
   });
-
-  // Chunk photos 4 per page
-  const photoPages: Array<typeof allPhotos> = [];
-  if (allPhotos.length > 0) {
-    for (let i = 0; i < allPhotos.length; i += 4) {
-      photoPages.push(allPhotos.slice(i, i + 4));
-    }
-  }
 
   // Calculate total pages
   let totalPages = 1; // Page 1
@@ -425,6 +391,9 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
               if (b.type === 'unit_group') {
                 return <UnitGroupBlock key={b.id} block={b} reportId={report?.id} />;
               }
+              if (b.type === 'temperature_recorders') {
+                return <RecordersBlock key={b.id} block={b} reportId={report?.id} />;
+              }
               return null;
             })}
 
@@ -442,8 +411,8 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
           </PageContainer>
         )}
 
-        {/* PHOTO PAGES (Chunked 4 per page) */}
-        {photoPages.map((slice, pageIdx) => {
+        {/* PHOTO PAGES (8 or 6 to a page, as set on the photo section) */}
+        {photoPages.map(({ block: pb, slice, first }, pageIdx) => {
           const pageNum = 2 + pageIdx;
           const isLast = pageNum === totalPages;
 
@@ -457,12 +426,14 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
               pageNumber={pageNum}
               totalPages={totalPages}
               reportNumber={repNum}
+              photoPage
             >
               <PhotoPlateBlock
-                block={photoBlocks[0] || { label: 'Survey Photographs' }}
+                block={pb}
                 photoSlice={slice}
                 assets={assets}
                 reportId={report?.id}
+                showHeading={first && layoutOf(pb).show_heading}
               />
 
               {/* Annexures and Fixed text on the final page */}

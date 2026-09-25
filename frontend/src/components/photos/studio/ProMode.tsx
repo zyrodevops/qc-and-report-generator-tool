@@ -20,7 +20,8 @@ import { formatAutoCaption, stripPhotoPrefix } from '../../../utils/captionUtils
 import { Download, Settings, Upload, X, ArrowRight, RotateCcw } from 'lucide-react';
 
 interface ProModeProps {
-  onSendToReport?: (photos: ImageData[]) => Promise<void>;
+  /** The chosen options go too, and become how the report prints the photos. */
+  onSendToReport?: (photos: ImageData[], options?: ProModeOptions) => Promise<void>;
   reportId?: string;
 }
 
@@ -229,7 +230,7 @@ export const ProMode: React.FC<ProModeProps> = ({ onSendToReport, reportId }) =>
 
     setIsSending(true);
     try {
-      await onSendToReport(validImages);
+      await onSendToReport(validImages, proOptions);
     } catch (err: any) {
       alert(`Failed to save to report: ${err?.message || err}`);
     } finally {

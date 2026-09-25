@@ -14,14 +14,16 @@ import {
   Check,
   Layers,
   Zap,
-  Settings,
+  RotateCcw,
+  RotateCw,
 } from 'lucide-react';
-import { getAuthHeaders } from '../../api/client';
+import { getAuthHeaders, rotatePhoto } from '../../api/client';
 import { generateNormalModeDocx } from '../../utils/docxGenerator';
-import { ImageData } from '../../types/photoStudio';
+import { ImageData, ProModeOptions } from '../../types/photoStudio';
 import BulkMode from './studio/BulkMode';
 import ProMode from './studio/ProMode';
-import { formatAutoCaption, stripPhotoPrefix, AutoNumberOptions } from '../../utils/captionUtils';
+import { layoutOf, photoCaption, photoUrl, PhotoLayout, stripNumber } from '../../utils/photoLayout';
+import { PhotoLayoutPanel } from './PhotoLayoutPanel';
 
 interface PhotoGroup {
   id: string;
@@ -36,6 +38,8 @@ interface PhotoPlateBlockProps {
     series_id?: string;
     provenance?: string;
     groups: PhotoGroup[];
+    /** How the photos are laid out in the report; see utils/photoLayout.ts. */
+    layout?: Partial<PhotoLayout>;
   };
   reportId?: string;
   assets?: Record<string, any>;
@@ -54,8 +58,6 @@ const COMMON_PRESETS = [
   'Defect / decay fruit observed',
   'Packaging & labeling details',
 ];
-
-const AUTO_NUMBER_KEYWORDS = ['Photo', 'Photo No.', 'Survey Photo No.', 'QC Inspection Photo No.', 'Observation'];
 
 // ── Tab Types ───────────────────────────────────────────────────────────────
 type PhotoTab = 'manage' | 'bulk' | 'pro';
@@ -98,18 +100,16 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [exportingDocx, setExportingDocx] = useState(false);
 
-  // Auto-Number Configuration State (always visible in manage tab)
-  const [autoKeyword, setAutoKeyword] = useState('Photo');
-  const [customKeyword, setCustomKeyword] = useState('');
-  const [autoStartNum, setAutoStartNum] = useState(1);
-  const [autoSeparator, setAutoSeparator] = useState(': ');
-  const [autoMode, setAutoMode] = useState<'prefix' | 'number_only' | 'strip'>('prefix');
+  const [turning, setTurning] = useState<string | null>(null);
 
-  const effectiveKeyword = autoKeyword === 'custom' ? (customKeyword || 'Photo') : autoKeyword;
+  // Numbers and caption wording come from the photo section's layout; they
+  // are worked out, never typed into the caption text.
+  const layout = layoutOf(block);
+  const setLayout = (next: PhotoLayout) => onChange({ ...block, layout: next });
 
   // Flatten groups into a clean ordered list of photos (computed fresh per Rule #1)
   const flatPhotos = useMemo(() => {
-    let currentNum = 1;
+    let currentNum = layout.number_from;
     const list: Array<{
       aid: string;
       groupId: string;
@@ -129,13 +129,13 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
           groupId: g.id,
           photoNumber: currentNum++,
           observation: g.observation || '',
-          url: `/api/reports/${reportId}/assets/${aid}/image`,
+          url: photoUrl(reportId, aid, asset),
           exifDate: exifDate ? String(exifDate) : undefined,
         });
       });
     });
     return list;
-  }, [groups, assets, reportId]);
+  }, [groups, assets, reportId, layout.number_from]);
 
   // Reconstruct block groups from flat list
   const syncPhotosToBlock = (
@@ -176,6 +176,7 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
       files.forEach((f) => formData.append('files', f));
       formData.append('series_id', block.series_id || 'survey');
       formData.append('provenance', block.provenance || 'own_survey');
+      formData.append('landscape', layout.landscape ? 'true' : 'false');
 
       const headers = getAuthHeaders();
       const res = await fetch(`/api/reports/${reportId}/assets/photos/batch`, {
@@ -264,66 +265,31 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
     const temp = list[index];
     list[index] = list[target];
     list[target] = temp;
-
-    const hadNumbering = list.some((p) =>
-      /^\(?\s*(?:survey\s+)?(?:photo|image|pic|img)\s*(?:no\.?)?\s*\d+/i.test(p.observation || '')
-    );
-
-    const updatedPhotos = list.map((p, idx) => ({
-      aid: p.aid,
-      groupId: p.groupId,
-      observation: hadNumbering
-        ? formatAutoCaption(p.observation, idx, {
-            keyword: effectiveKeyword,
-            startNum: autoStartNum,
-            separator: autoSeparator,
-            mode: autoMode,
-          })
-        : p.observation,
-    }));
-
-    syncPhotosToBlock(updatedPhotos);
+    syncPhotosToBlock(list.map((p) => ({ aid: p.aid, groupId: p.groupId, observation: p.observation })));
   };
 
   const handleDeletePhoto = (index: number) => {
     const remaining = flatPhotos.filter((_, idx) => idx !== index);
-    const hadNumbering = remaining.some((p) =>
-      /^\(?\s*(?:survey\s+)?(?:photo|image|pic|img)\s*(?:no\.?)?\s*\d+/i.test(p.observation || '')
-    );
-
-    const updatedPhotos = remaining.map((p, idx) => ({
-      aid: p.aid,
-      groupId: p.groupId,
-      observation: hadNumbering
-        ? formatAutoCaption(p.observation, idx, {
-            keyword: effectiveKeyword,
-            startNum: autoStartNum,
-            separator: autoSeparator,
-            mode: autoMode,
-          })
-        : p.observation,
-    }));
-
-    syncPhotosToBlock(updatedPhotos);
+    syncPhotosToBlock(remaining.map((p) => ({ aid: p.aid, groupId: p.groupId, observation: p.observation })));
 
     if (lightboxIndex !== null) {
       setLightboxIndex(null);
     }
   };
 
-  const handleApplyAutoNumbering = (forcedMode?: 'prefix' | 'number_only' | 'strip') => {
-    const targetMode = forcedMode || autoMode;
-    const next = flatPhotos.map((p, idx) => ({
-      aid: p.aid,
-      groupId: p.groupId,
-      observation: formatAutoCaption(p.observation, idx, {
-        keyword: effectiveKeyword,
-        separator: autoSeparator,
-        startNum: autoStartNum,
-        mode: targetMode,
-      }),
-    }));
-    syncPhotosToBlock(next);
+  // A quarter turn, made on the server from the original (which is never changed).
+  const handleRotate = async (aid: string, turns: 1 | -1) => {
+    if (!reportId) return;
+    setTurning(aid);
+    try {
+      const entry = await rotatePhoto(reportId, aid, turns);
+      const nextAssets = { ...assets, [aid]: { ...(assets[aid] || {}), ...entry } };
+      if (onUpdateBlockAndAssets) onUpdateBlockAndAssets(block, nextAssets);
+    } catch (err: any) {
+      alert(err.message || 'Could not turn the photo.');
+    } finally {
+      setTurning(null);
+    }
   };
 
   const handleExportDocx = async () => {
@@ -341,7 +307,7 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
             id: p.aid,
             file: new File([blob], `photo_${p.photoNumber}.jpg`, { type: blob.type }),
             preview: p.url,
-            description: p.observation ? `Photo No. ${p.photoNumber} — ${p.observation}` : `Photo No. ${p.photoNumber}`,
+            description: photoCaption(layout, p.photoNumber, p.observation),
             processedBlob: blob,
           };
         })
@@ -356,7 +322,7 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
   };
 
   // Called from Bulk/Pro modes to send photos to this report block
-  const handleSendToReport = async (photos: ImageData[]) => {
+  const handleSendToReport = async (photos: ImageData[], options?: ProModeOptions) => {
     if (!reportId) {
       alert('No active report selected.');
       return;
@@ -396,11 +362,12 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
       nextAssets[a.id] = a;
     });
 
-    // Each photo gets its own group with its description as the observation
+    // Each photo gets its own group with its description as the observation;
+    // a number the studio typed into it is dropped, the report numbers them.
     const newEntries = uploadedAssets.map((a: any, i: number) => ({
       aid: a.id,
       groupId: `pg_${a.id}`,
-      observation: photos[i]?.description || '',
+      observation: stripNumber(photos[i]?.description || ''),
     }));
 
     const existingEntries = flatPhotos.map((p) => ({
@@ -409,6 +376,24 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
       observation: p.observation,
     }));
 
+    if (options) {
+      // Pro Studio's choices carry over to how the report prints the photos.
+      const kw = options.isCustomKeyword ? options.customKeyword || layout.caption_keyword : options.autoNumberKeyword;
+      block = {
+        ...block,
+        layout: {
+          ...layout,
+          border: options.addBorder,
+          border_color: options.boxColor,
+          caption_keyword: kw,
+          number_from: options.useCustomNumberStart ? options.numberStartFrom || 1 : layout.number_from,
+          caption_font: options.fontType,
+          caption_size: options.fontSize,
+          caption_color: options.fontColor,
+          quality: options.compressionEnabled ? options.compressionPreset : 'original',
+        },
+      };
+    }
     syncPhotosToBlock([...existingEntries, ...newEntries], nextAssets);
 
     // Switch back to manage tab to see the uploaded photos
@@ -433,7 +418,7 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              2-column layout · Auto-numbered at render time · SHA-256 stored originals
+              {layout.per_page} to a page · Numbered in the report · Originals kept unchanged
             </p>
           </div>
         </div>
@@ -547,95 +532,8 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
                   <span>{isDragActive ? 'Drop photos now...' : 'Drag more photos here, or click to browse'}</span>
                 </div>
 
-                {/* ── Auto-Numbering Panel (always visible) ── */}
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Sparkles className="w-4 h-4 text-indigo-600" />
-                    <span className="text-xs font-bold text-gray-800">Auto-Number Captions</span>
-                    <span className="text-[11px] text-gray-500">— applies sequential numbers to all {flatPhotos.length} photos</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                    {/* Keyword */}
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">Prefix Keyword</label>
-                      <select
-                        value={autoKeyword}
-                        onChange={(e) => setAutoKeyword(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-indigo-500 outline-hidden"
-                      >
-                        {AUTO_NUMBER_KEYWORDS.map((k) => (
-                          <option key={k} value={k}>{k}</option>
-                        ))}
-                        <option value="custom">Custom...</option>
-                      </select>
-                      {autoKeyword === 'custom' && (
-                        <input
-                          type="text"
-                          value={customKeyword}
-                          onChange={(e) => setCustomKeyword(e.target.value)}
-                          placeholder="e.g. Inspection Photo"
-                          className="w-full mt-1.5 px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs outline-hidden"
-                        />
-                      )}
-                    </div>
-
-                    {/* Start number */}
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">Start From</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={autoStartNum}
-                        onChange={(e) => setAutoStartNum(parseInt(e.target.value, 10) || 1)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-indigo-500 outline-hidden"
-                      />
-                    </div>
-
-                    {/* Mode */}
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">Mode</label>
-                      <select
-                        value={autoMode}
-                        onChange={(e) => setAutoMode(e.target.value as any)}
-                        className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-indigo-500 outline-hidden"
-                      >
-                        <option value="prefix">Prefix + Description</option>
-                        <option value="number_only">Number Only</option>
-                        <option value="strip">Strip Numbers</option>
-                      </select>
-                    </div>
-
-                    {/* Apply buttons */}
-                    <div className="flex flex-col justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleApplyAutoNumbering()}
-                        className="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer shadow-xs"
-                      >
-                        Apply to All
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleApplyAutoNumbering('strip')}
-                        className="w-full px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-medium transition cursor-pointer"
-                      >
-                        Strip Numbers
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Live preview */}
-                  <div className="text-[11px] text-gray-500 font-mono bg-white border border-gray-200 px-3 py-1.5 rounded-lg">
-                    Preview: <span className="text-indigo-700 font-semibold">
-                      {formatAutoCaption('Container exterior inspection', 0, {
-                        keyword: effectiveKeyword,
-                        startNum: autoStartNum,
-                        mode: autoMode,
-                      })}
-                    </span>
-                  </div>
-                </div>
+                {/* ── How the photos look in the report (the photo tool's options) ── */}
+                <PhotoLayoutPanel layout={layout} onChange={setLayout} />
 
                 {/* ── 2-Column Photo Grid ── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -648,13 +546,33 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
                       <div className="px-4 py-2.5 bg-slate-50 border-b border-gray-100 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-lg shadow-xs">
-                            Photo {photo.photoNumber}
+                            {layout.caption_keyword} {photo.photoNumber}
                           </span>
                           {photo.exifDate && (
                             <span className="text-[10px] text-gray-400 font-mono">{photo.exifDate}</span>
                           )}
                         </div>
                         <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleRotate(photo.aid, 1)}
+                            disabled={turning !== null}
+                            className="p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-30 transition cursor-pointer"
+                            title="Turn left"
+                            aria-label={`Turn photo ${photo.photoNumber} left`}
+                          >
+                            {turning === photo.aid ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRotate(photo.aid, -1)}
+                            disabled={turning !== null}
+                            className="p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-30 transition cursor-pointer mr-1"
+                            title="Turn right"
+                            aria-label={`Turn photo ${photo.photoNumber} right`}
+                          >
+                            <RotateCw className="w-4 h-4" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleMovePhoto(index, 'left')}
@@ -708,13 +626,13 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
                       <div className="p-4 space-y-2 bg-white flex-1 flex flex-col justify-between">
                         <div>
                           <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">
-                            Observation Caption
+                            Text after the number (optional)
                           </label>
                           <input
                             type="text"
                             value={photo.observation}
                             onChange={(e) => handleUpdateCaption(index, e.target.value)}
-                            placeholder="Describe what is shown in this photograph..."
+                            placeholder={`Prints as "${photoCaption(layout, photo.photoNumber)}"`}
                             className="w-full px-3 py-2 bg-slate-50 border border-gray-200 rounded-xl text-xs text-gray-800 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden transition"
                           />
                         </div>

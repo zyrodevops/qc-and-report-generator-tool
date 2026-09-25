@@ -58,14 +58,14 @@ def extract_docx_data(docx_bytes: bytes) -> Dict[str, Any]:
 
     photo_captions = []
     for p in doc.paragraphs:
-        m = re.match(r"^Photo No\. \d+ — .*", p.text.strip())
+        m = re.match(r"^Survey Photo No\. \d+(?: — .*)?$",p.text.strip())
         if m:
             photo_captions.append(m.group(0))
     for t in doc.tables:
         for r in t.rows:
             for c in r.cells:
                 for p in c.paragraphs:
-                    m = re.match(r"^Photo No\. \d+ — .*", p.text.strip())
+                    m = re.match(r"^Survey Photo No\. \d+(?: — .*)?$",p.text.strip())
                     if m:
                         photo_captions.append(m.group(0))
 
@@ -134,7 +134,7 @@ def extract_html_data(html_content: str) -> Dict[str, Any]:
 
     photo_captions = []
     for text in soup.stripped_strings:
-        m = re.match(r"^Photo No\. \d+ — .*", text)
+        m = re.match(r"^Survey Photo No\. \d+(?: — .*)?$",text)
         if m:
             photo_captions.append(m.group(0))
 

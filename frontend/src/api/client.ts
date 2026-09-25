@@ -476,6 +476,33 @@ export interface TallyCapabilities {
   reader: 'cloud' | 'local' | 'none';
 }
 
+/** Turn a photo a quarter turn (1 = anticlockwise, -1 = clockwise). The original is never changed. */
+export async function rotatePhoto(reportId: string, assetId: string, turns: 1 | -1): Promise<any> {
+  const res = await fetch(`/api/reports/${reportId}/assets/${assetId}/rotate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ turns }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `Could not turn the photo: ${res.statusText}`);
+  }
+  return (await res.json()).asset;
+}
+
+/** An empty condition-found table laid out for another fruit in the cargo. Not saved. */
+export async function newFruitTable(reportId: string, commodity: string): Promise<any> {
+  const res = await fetch(
+    `/api/reports/${reportId}/tables/new?commodity=${encodeURIComponent(commodity)}`,
+    { headers: getAuthHeaders() },
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `Could not add the table: ${res.statusText}`);
+  }
+  return (await res.json()).block;
+}
+
 export async function fetchTallyCapabilities(
   reportId: string,
   commodity?: string,
@@ -563,7 +590,7 @@ export interface ClauseContext {
   commodity?: string;
   /** SEA or AIR, from the report type. */
   mode?: string;
-  values: Record<string, string>;
+  values: Record<string, any>;
   defects: string[];
 }
 
@@ -585,3 +612,63 @@ export async function pickClauses(section: string, ctx: ClauseContext): Promise<
   return res.json();
 }
 
+
+// ---------------------------------------------------------------------------
+// Shipment documents — B/L / waybill, invoice, packing lists, recorder files
+// ---------------------------------------------------------------------------
+
+export interface ShipmentDocumentRead {
+  asset_id?: string;
+  filename: string;
+  kind: string;
+  kind_label: string;
+  status?: string;
+  fields?: Record<string, any>;
+  summary?: Record<string, any>;
+  readings?: number;
+}
+
+export interface ParticularsProposal {
+  label: string;
+  value: string;
+  source?: string;
+}
+
+export interface DocumentsReadResult {
+  documents: ShipmentDocumentRead[];
+  shipment: Record<string, any>;
+  particulars: ParticularsProposal[];
+  conflicts: { field: string; values: { value: string; from?: string }[] }[];
+  notes: string[];
+}
+
+export async function readShipmentDocuments(reportId: string, files: File[]): Promise<DocumentsReadResult> {
+  const form = new FormData();
+  files.forEach((f) => form.append('files', f));
+  const res = await fetch(`/api/reports/${reportId}/documents/read`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: form,
+  });
+  if (!res.ok) throw new Error(`Could not read the documents (${res.status}).`);
+  return res.json();
+}
+
+export async function applyShipmentDocuments(
+  reportId: string,
+  payload: { particulars: ParticularsProposal[]; shipment: Record<string, any> },
+): Promise<{ block_state: any; version: number }> {
+  const res = await fetch(`/api/reports/${reportId}/documents/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Could not fill the report (${res.status}).`);
+  return res.json();
+}
+
+/** One recorder's temperature graph (an <img> cannot send the login header). */
+export function getRecorderChartUrl(reportId: string, assetId: string): string {
+  const token = getStoredToken();
+  return `/api/reports/${reportId}/recorders/${assetId}/chart.png${token ? `?auth_token=${encodeURIComponent(token)}` : ''}`;
+}

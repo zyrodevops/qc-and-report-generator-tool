@@ -16,11 +16,14 @@ import {
 } from 'lucide-react';
 import { ReportSummary, patchBlockState, getDownloadDocxUrl } from '../api/client';
 import { TableGrid } from '../components/tables/TableGrid';
+import { AddFruitTable } from '../components/tables/AddFruitTable';
 import { SectionToggle, isIncluded } from '../components/SectionToggle';
 import { PhotoTray } from '../components/photos/PhotoTray';
 import { ReportPreview } from '../components/preview/ReportPreview';
 import { NarrativeBlock } from '../components/preview/blocks/NarrativeBlock';
+import { RecordersBlock } from '../components/preview/blocks/RecordersBlock';
 import { clauseContextFrom, findBlanks } from '../utils/clauseContext';
+import { ShipmentDocuments } from '../components/documents/ShipmentDocuments';
 
 interface ReportFormProps {
   report: ReportSummary;
@@ -52,7 +55,40 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
     setConflictMsg(null);
   };
 
-  const handlePhotoBlockUpdate = (updatedBlock: any, updatedAssets?: Record<string, any>) => {
+  // One condition-found table per fruit in the cargo.
+  const tableBlocks = blocks.filter((b: any) => b.type === 'table');
+  const shipmentContainers: string[] = (blockState?.metadata?.shipment?.containers || [])
+    .map((c: any) => c?.container)
+    .filter(Boolean);
+
+  const addTableAfter = (afterId: string, newBlock: any) => {
+    setBlockState((prev: any) => {
+      const list = [...(prev?.blocks || [])];
+      const at = list.findIndex((b: any) => b.id === afterId);
+      list.splice(at < 0 ? list.length : at + 1, 0, newBlock);
+      return { ...prev, blocks: list };
+    });
+    setDirty(true);
+    setSavedMsg(false);
+  };
+
+  const removeTable = (block: any) => {
+    const filled = (block.rows || []).length;
+    if (
+      filled > 0 &&
+      !window.confirm(`Remove the table "${block.title || 'Condition found'}"? Its ${filled} row${filled > 1 ? 's' : ''} will be deleted.`)
+    ) {
+      return;
+    }
+    setBlockState((prev: any) => ({
+      ...prev,
+      blocks: (prev?.blocks || []).filter((b: any) => b.id !== block.id),
+    }));
+    setDirty(true);
+    setSavedMsg(false);
+  };
+
+  const handlePhotoBlockUpdate =(updatedBlock: any, updatedAssets?: Record<string, any>) => {
     setBlockState((prev: any) => {
       const currentBlocks = prev?.blocks || [];
       const updated = currentBlocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
@@ -245,6 +281,9 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
         />
       ) : (
         <>
+          {/* SHIPMENT DOCUMENTS: read the B/L, invoice, packing lists and recorders */}
+          <ShipmentDocuments reportId={report.id} blockState={blockState} onApplied={handleWorkbenchSaved} />
+
           {/* TRANSPORT METADATA CARD */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
         <div className="flex items-center gap-2 pb-2 border-b border-gray-100 font-bold text-gray-800">
@@ -376,6 +415,29 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
             );
           }
 
+          if (block.type === 'temperature_recorders') {
+            const included = isIncluded(block.included);
+            return (
+              <div
+                key={block.id}
+                className={`relative rounded-xl shadow-sm border p-5 ${
+                  included ? 'bg-white border-gray-200' : 'bg-gray-50 border-dashed border-gray-300'
+                }`}
+              >
+                <div className="absolute top-3 right-4 z-10">
+                  <SectionToggle checked={included} onChange={(next) => handleBlockChange({ ...block, included: next })} />
+                </div>
+                {included ? (
+                  <RecordersBlock block={block} reportId={report.id} onChange={handleBlockChange} />
+                ) : (
+                  <div className="text-sm font-bold text-gray-400 uppercase tracking-wide line-through">
+                    {block.title || 'Temperature recorder summary'}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           if (block.type === 'measurements') {
             return (
               <div key={block.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
@@ -450,19 +512,32 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
             // No fallback commodity here. Guessing one would hand the surveyor
             // another fruit's defect columns, and he would have to notice that
             // the grid is wrong before he starts typing counts into it.
-            const tableCommodity = blockState?.metadata?.commodity as string | undefined;
+            // A second fruit's table carries its own fruit; the first one
+            // is the report's.
+            const tableCommodity = (block.commodity || blockState?.metadata?.commodity) as string | undefined;
+            const isLastTable = block.id === tableBlocks[tableBlocks.length - 1]?.id;
             return (
-              <TableGrid
-                key={block.id}
-                block={block}
-                reportId={report.id}
-                commodity={tableCommodity}
-                onChange={handleBlockChange}
-                onSaved={handleWorkbenchSaved}
-                onApply={handleSave}
-                dirty={dirty}
-                applying={saving}
-              />
+              <React.Fragment key={block.id}>
+                <TableGrid
+                  block={block}
+                  reportId={report.id}
+                  commodity={tableCommodity}
+                  containers={shipmentContainers}
+                  onChange={handleBlockChange}
+                  onSaved={handleWorkbenchSaved}
+                  onApply={handleSave}
+                  dirty={dirty}
+                  applying={saving}
+                  onRemove={tableBlocks[0]?.id === block.id ? undefined : () => removeTable(block)}
+                />
+                {isLastTable && (
+                  <AddFruitTable
+                    reportId={report.id}
+                    taken={tableBlocks.map((t: any) => t.commodity || blockState?.metadata?.commodity).filter(Boolean)}
+                    onAdd={(nb) => addTableAfter(block.id, nb)}
+                  />
+                )}
+              </React.Fragment>
             );
           }
 

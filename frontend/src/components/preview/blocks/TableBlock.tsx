@@ -33,6 +33,15 @@ export const TableBlock: React.FC<TableBlockProps> = ({
   const unit = block?.unit || 'pcs';
   const title = block?.title || 'DEFECT ANALYSIS BREAKDOWN';
   const groupLabel = block?.grouping_label || 'Group';
+  // Optional Container column, same rule as table_columns.shows_container:
+  // ticked, and at least one row names a container.
+  const withCont = Boolean(block?.show_container) && rows.some((r) => hasValue(r?.container));
+  const contTh = (cls: string) =>
+    withCont ? <th className={`border border-slate-400 ${cls} text-left`}>Container</th> : null;
+  const contTd = (cls: string, row?: any) =>
+    withCont ? (
+      <td className={`border border-slate-400 ${cls} font-mono whitespace-nowrap`}>{row?.container ?? ''}</td>
+    ) : null;
 
   const handleGroupChange = (rIdx: number, val: string) => {
     if (!onChange) return;
@@ -128,6 +137,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
           <thead>
             <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-400">
               <th className="border border-slate-400 px-2.5 py-1.5 text-left">{columnTitle(groupLabel)}</th>
+              {contTh('px-2.5 py-1.5')}
               {categories.map((c) => (
                 <th key={c.key} className="border border-slate-400 px-2 py-1.5 text-right">
                   {columnTitle(c.label)}
@@ -159,6 +169,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
                         <div className="px-2.5 py-1.5">{row.group}</div>
                       )}
                     </td>
+                    {contTd('px-2.5 py-1.5', row)}
                     {categories.map((c) => (
                       <td
                         key={c.key}
@@ -186,6 +197,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
                     <td className="border border-slate-400 px-2.5 py-1 text-slate-500 italic text-[11px]">
                       Percentage
                     </td>
+                    {contTd('px-2.5 py-1')}
                     {categories.map((c, cIdx) => (
                       <td
                         key={c.key}
@@ -205,6 +217,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
             {/* Total Pieces Row */}
             <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
               <td className="border border-slate-400 px-2.5 py-1.5 font-bold">Total ({unit})</td>
+              {contTd('px-2.5 py-1.5')}
               {categories.map((c) => (
                 <td
                   key={c.key}
@@ -221,6 +234,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
             {/* Total Percentage Row */}
             <tr className="bg-slate-50 font-bold text-slate-800 border-b border-slate-400">
               <td className="border border-slate-400 px-2.5 py-1.5 font-bold">Percentage</td>
+              {contTd('px-2.5 py-1.5')}
               {categories.map((c) => (
                 <td
                   key={c.key}
@@ -247,6 +261,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
               <th className="border border-slate-400 px-1 py-1 text-left align-bottom leading-tight">
                 {columnTitle(groupLabel)}
               </th>
+              {contTh('px-1 py-1 align-bottom leading-tight')}
               {categories.map((c) => (
                 <th
                   key={c.key}
@@ -280,6 +295,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
                       <div className="px-1 py-1">{row.group}</div>
                     )}
                   </td>
+                  {contTd('px-1 py-1', row)}
                   {categories.map((c) => (
                     <td
                       key={c.key}
@@ -308,6 +324,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
             {/* Column Totals Row */}
             <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
               <td className="border border-slate-400 px-1 py-1 font-bold">Total</td>
+              {contTd('px-1 py-1')}
               {categories.map((c) => (
                 <td
                   key={c.key}
@@ -324,6 +341,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
             {/* Column Percentages Row */}
             <tr className="bg-slate-50 font-semibold text-slate-800">
               <td className="border border-slate-400 px-1 py-1 font-bold">%</td>
+              {contTd('px-1 py-1')}
               {categories.map((c) => (
                 <td
                   key={c.key}

@@ -30,6 +30,12 @@ export function clauseContextFrom(blockState: any): ClauseContext {
     if (real(row.max)) values[`${key}_max`] = real(row.max);
   }
 
+  // The carrying temperature from the B/L / air waybill, once the documents are applied.
+  const requested = blockState?.metadata?.shipment?.requested_temperature_c;
+  if (Array.isArray(requested) ? requested.length : requested !== undefined && requested !== null && requested !== '') {
+    (values as any).requested_temp = requested;
+  }
+
   // Defects actually counted: columns with a figure above zero in any row.
   const defects: string[] = [];
   for (const table of blocks.filter((b) => b.type === 'table')) {

@@ -43,6 +43,7 @@ async def upload_photo(
     file: UploadFile = File(...),
     series_id: str = Form(default="survey"),
     provenance: str = Form(default="own_survey"),
+    landscape: bool = Form(default=False),
     db: AsyncSession = Depends(get_db),
     actor: str = Depends(get_current_actor),
 ) -> Dict[str, Any]:
@@ -64,6 +65,7 @@ async def upload_photo(
         upload_dir=settings.UPLOAD_DIR,
         derived_dir=settings.DERIVED_DIR,
         report_id=report_id,
+        landscape=landscape,
     )
 
     # Persist to assets table
@@ -83,12 +85,13 @@ async def upload_photo(
     if "assets" not in current_state or not isinstance(current_state["assets"], dict):
         current_state["assets"] = {}
     
-    asset_url = f"/api/reports/{report_id}/assets/{asset_record['id']}/image"
+    asset_url = _image_url(report_id, asset_record["id"], asset_record["rotation"])
     current_state["assets"][asset_record["id"]] = {
         "id": asset_record["id"],
         "sha256": asset_record["sha256"],
         "original_path": asset_record["original_path"],
         "derived_paths": asset_record["derived_paths"],
+        "rotation": asset_record["rotation"],
         "url": asset_url,
     }
     report.block_state = current_state
@@ -113,6 +116,7 @@ async def upload_photo(
         "provenance": provenance,
         "original_path": asset_record["original_path"],
         "derived_paths": asset_record["derived_paths"],
+        "rotation": asset_record["rotation"],
         "url": asset_url,
         "exif_integrity": "INTACT",
     }
@@ -124,6 +128,7 @@ async def upload_photos_batch(
     files: List[UploadFile] = File(...),
     series_id: str = Form(default="survey"),
     provenance: str = Form(default="own_survey"),
+    landscape: bool = Form(default=False),
     db: AsyncSession = Depends(get_db),
     actor: str = Depends(get_current_actor),
 ) -> Dict[str, Any]:
@@ -152,6 +157,7 @@ async def upload_photos_batch(
             upload_dir=settings.UPLOAD_DIR,
             derived_dir=settings.DERIVED_DIR,
             report_id=report_id,
+            landscape=landscape,
         )
 
         db_asset = Asset(
@@ -165,12 +171,13 @@ async def upload_photos_batch(
         )
         db.add(db_asset)
 
-        asset_url = f"/api/reports/{report_id}/assets/{asset_record['id']}/image"
+        asset_url = _image_url(report_id, asset_record["id"], asset_record["rotation"])
         current_state["assets"][asset_record["id"]] = {
             "id": asset_record["id"],
             "sha256": asset_record["sha256"],
             "original_path": asset_record["original_path"],
             "derived_paths": asset_record["derived_paths"],
+            "rotation": asset_record["rotation"],
             "url": asset_url,
         }
 
@@ -191,6 +198,7 @@ async def upload_photos_batch(
             "provenance": provenance,
             "original_path": asset_record["original_path"],
             "derived_paths": asset_record["derived_paths"],
+            "rotation": asset_record["rotation"],
             "url": asset_url,
             "exif_integrity": "INTACT",
         })
@@ -203,6 +211,83 @@ async def upload_photos_batch(
         "count": len(results),
         "assets": results,
     }
+
+
+def _image_url(report_id: str, asset_id: str, rotation: int = 0) -> str:
+    """The photo's address; it changes when the photo is turned so no browser shows a stale copy."""
+    base = f"/api/reports/{report_id}/assets/{asset_id}/image"
+    return f"{base}?v=r{rotation}" if rotation else base
+
+
+@router.post("/{report_id}/assets/{asset_id}/rotate")
+async def rotate_photo(
+    report_id: str,
+    asset_id: str,
+    payload: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    actor: str = Depends(get_current_actor),
+) -> Dict[str, Any]:
+    """
+    Turn a photo a quarter turn: anticlockwise for turns=1 (the photo tool's
+    rotate button), clockwise for turns=-1.
+
+    Only the derived copies are made again. The original stays exactly as it
+    was uploaded; the turn is recorded and applied whenever the photo is used.
+    """
+    from app.ingest.photos import generate_derived_copies
+
+    report = await _get_report_or_404(report_id, db)
+    try:
+        turns = int(payload.get("turns", 1))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="turns must be 1 or -1")
+    if turns not in (1, -1):
+        raise HTTPException(status_code=400, detail="turns must be 1 or -1")
+
+    res = await db.execute(
+        select(Asset).where(Asset.id == str(asset_id), Asset.report_id == report.id)
+    )
+    asset = res.scalars().first()
+    if not asset or asset.kind != "photo":
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    state = dict(report.block_state) if report.block_state else {}
+    assets_state = dict(state.get("assets") or {})
+    entry = dict(assets_state.get(asset_id) or {})
+    before = int(entry.get("rotation") or 0) % 360
+    rotation = (before + 90 * turns) % 360
+
+    original = Path(asset.original_path)
+    if not original.exists():
+        raise HTTPException(status_code=409, detail="The original of this photo is missing on the server.")
+    base_name = original.stem[: -len("_original")] if original.stem.endswith("_original") else original.stem
+    derived = generate_derived_copies(original.read_bytes(), base_name, settings.DERIVED_DIR, rotation)
+
+    entry.update({
+        "id": asset_id,
+        "sha256": asset.sha256,
+        "original_path": asset.original_path,
+        "derived_paths": derived,
+        "rotation": rotation,
+        "url": _image_url(report_id, asset_id, rotation),
+    })
+    assets_state[asset_id] = entry
+    state["assets"] = assets_state
+    report.block_state = state
+    flag_modified(report, "block_state")
+    asset.derived_paths = derived
+
+    await AuditService.record_async(
+        session=db,
+        actor=actor,
+        action="ASSET_ROTATE",
+        report_id=report.id,
+        path=f"assets.{asset_id}.rotation",
+        before={"rotation": before},
+        after={"rotation": rotation},
+    )
+    await db.commit()
+    return {"asset": entry}
 
 
 @router.get("/{report_id}/assets/{asset_id}/verify")
@@ -352,6 +437,34 @@ def _report_commodity(report: Report) -> Optional[str]:
     meta = state.get("metadata") or {}
     val = meta.get("commodity")
     return str(val) if val else None
+
+
+@router.get("/{report_id}/tables/new")
+async def new_fruit_table(
+    report_id: str,
+    commodity: str,
+    db: AsyncSession = Depends(get_db),
+    actor: str = Depends(get_current_actor),
+) -> Dict[str, Any]:
+    """
+    An empty condition-found table for another fruit in this cargo, laid out
+    for that fruit. Nothing is saved here: the form puts the block in place and
+    saves it with the rest of the report.
+    """
+    from app.seeds.defaults import UnknownCommodity, fruit_table_block
+
+    report = await _get_report_or_404(report_id, db)
+    taken = {b.get("id") for b in ((report.block_state or {}).get("blocks") or [])}
+    try:
+        block = fruit_table_block(commodity, "b_table_tmp")
+    except UnknownCommodity as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    base = f"b_table_{block['commodity'].lower()}"
+    block_id, n = base, 2
+    while block_id in taken:
+        block_id, n = f"{base}_{n}", n + 1
+    block["id"] = block_id
+    return {"block": block}
 
 
 @router.get("/{report_id}/import/tally/capabilities")
@@ -588,8 +701,11 @@ async def apply_tally_ocr(
                 for row in rows:
                     lbl = str(row.get("label", "")).lower()
                     if "container" in lbl and headers.get("container_number"):
-                        row["value"] = headers["container_number"]
-                        row["provenance"] = "surveyor_verified"
+                        # A row filled from the shipping documents lists every
+                        # container; one sheet's number must not replace it.
+                        if row.get("provenance") != "document_verified":
+                            row["value"] = headers["container_number"]
+                            row["provenance"] = "surveyor_verified"
                     elif ("consignee" in lbl or "party" in lbl or "applicant" in lbl) and headers.get("party_name"):
                         row["value"] = headers["party_name"]
                         row["provenance"] = "surveyor_verified"
@@ -640,17 +756,54 @@ async def apply_tally_ocr(
     if rechecked:
         for b in blocks:
             if b.get("type") == "table" and (not target_block_id or b.get("id") == target_block_id):
+                # With the Container column on, a sheet that names its
+                # container replaces only that container's rows, so one table
+                # can gather the sheets of several containers of one fruit.
+                container = str(headers.get("container_number") or "").strip() if b.get("show_container") else ""
+                old_rows = list(b.get("rows") or []) if container else []
+                same = [
+                    i for i, r in enumerate(old_rows)
+                    if str(r.get("container") or "").strip().upper() == container.upper()
+                ]
+                kept = [r for i, r in enumerate(old_rows) if i not in same]
+                # A re-read sheet goes back where its rows were; a new one at the end.
+                at = (same[0] if same else len(old_rows))
+                at -= sum(1 for i in same if i < at)
+                if kept and table_data.get("unit") and str(b.get("unit") or "pcs") != table_unit:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "message": (
+                                f"This table is counted in {b.get('unit') or 'pcs'} and the sheet "
+                                f"in {table_unit}. One table cannot mix the two."
+                            ),
+                        },
+                    )
                 if table_data.get("categories"):
-                    b["categories"] = table_data["categories"]
+                    if kept:
+                        # Keep the other containers' columns; add the new ones.
+                        cats = list(b.get("categories") or [])
+                        have = {c.get("key") for c in cats}
+                        cats += [c for c in table_data["categories"] if c.get("key") not in have]
+                        b["categories"] = cats
+                    else:
+                        b["categories"] = table_data["categories"]
                 if table_data.get("unit"):
                     b["unit"] = table_data["unit"]
 
                 # Values are stored as strings because the renderer converts
                 # them with Decimal; going via float would reintroduce the
                 # rounding the report is supposed to be free of.
-                b["rows"] = [
+                new_rows = [
                     {
                         "group": r.get("group") or f"Row {i + 1}",
+                        # The sheet's container; else the row's own, when saved
+                        # rows were reopened and saved again.
+                        **(
+                            {"container": container or str(r.get("container")).strip()}
+                            if container or str(r.get("container") or "").strip()
+                            else {}
+                        ),
                         "boxes_opened": r.get("boxes_opened", 1),
                         "values": {k: str(v) for k, v in r["values"].items()},
                         # A kg total is a Decimal, which JSONB cannot hold; as
@@ -664,6 +817,7 @@ async def apply_tally_ocr(
                     }
                     for i, r in enumerate(rechecked)
                 ]
+                b["rows"] = kept[:at] + new_rows + kept[at:]
                 b["provenance"] = "surveyor_verified"
                 break
 
