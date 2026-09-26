@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Optional
 
 from app.compute.arithmetic import compute
 from app.render.inclusion import included_rows, is_included, shows_chart, shows_table_title
-from app.render.docx.engine import _generate_defect_chart
 
 
 A4_CSS = """
@@ -510,22 +509,29 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
 
         out.append('</tbody></table>')
 
-    # 5. Embedded Defect Donut Chart (identical to DOCX engine)
-    try:
-        chart_stream = _generate_defect_chart(
-            categories, col_pcts, title or "Defect Analysis Breakdown"
-        ) if shows_chart(block) else None
-        if chart_stream:
-            b64_img = base64.b64encode(chart_stream.getvalue()).decode("utf-8")
-            cap_title = html.escape(title or "Quality Analysis Breakdown")
-            out.append(
-                f'<div class="chart-container">'
-                f'<img src="data:image/png;base64,{b64_img}" alt="Chart: {cap_title}" />'
-                f'<p class="chart-caption">Chart: {cap_title}</p>'
-                f'</div>'
-            )
-    except Exception:
-        pass
+    from app.render import findings
+
+    # 5. FINAL SUMMARY: each group's totals, then the table's (as the DOCX engine).
+    summ = findings.summary_rows(block, computed)
+    if summ:
+        out.append(f'<p class="summary-heading"><strong><u>{html.escape(summ["title"])}</u></strong></p>')
+        out.append('<table class="report-table defect-table summary-table">')
+        out.append("<thead><tr>" + "".join(f"<th>{html.escape(h)}</th>" for h in summ["header"]) + "</tr></thead><tbody>")
+        for row in summ["rows"]:
+            cls = {"pct": "percentages-row", "total": "totals-row", "pct_total": "percentages-row"}.get(row["kind"], "")
+            out.append(f'<tr class="{cls}">' + "".join(f"<td>{html.escape(c)}</td>" for c in row["cells"]) + "</tr>")
+        out.append("</tbody></table>")
+
+    # 6. The graph, as the client draws it (identical to the DOCX engine).
+    png = findings.chart_png(block, computed) if shows_chart(block) else None
+    if png:
+        b64_img = base64.b64encode(png).decode("utf-8")
+        cap_title = html.escape(findings.chart_title(block))
+        out.append(
+            f'<div class="chart-container">'
+            f'<img src="data:image/png;base64,{b64_img}" alt="{cap_title}" />'
+            f'</div>'
+        )
 
     return "\n".join(out)
 

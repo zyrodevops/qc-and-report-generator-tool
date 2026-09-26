@@ -3,6 +3,7 @@ import { Table, Upload, Plus, Trash2, ScanLine, X, Check, Loader2 } from 'lucide
 import { VerificationWorkbench } from './VerificationWorkbench';
 import { columnTitle } from '../../utils/labels';
 import { SectionToggle, isIncluded } from '../SectionToggle';
+import { chartTitle } from '../../utils/findings';
 
 interface Category {
   key: string;
@@ -31,6 +32,10 @@ interface TableBlockProps {
     show_chart?: boolean;
     /** Print a Container column after the count column. */
     show_container?: boolean;
+    /** Title printed under the graph; empty means the client's usual one. */
+    chart_title?: string;
+    /** FINAL SUMMARY under the table: shown, and grouped by container or by count. */
+    summary?: { show?: boolean; by?: 'container' | 'group' | string; title?: string };
     /** The fruit this table counts, when the cargo has more than one. */
     commodity?: string;
   };
@@ -291,10 +296,33 @@ export const TableGrid: React.FC<TableBlockProps> = ({
           onChange={(next) => onChange({ ...block, show_title: next })}
         />
         <SectionToggle
-          label="Include the defect chart"
+          label="Include the graph"
           checked={isIncluded(block.show_chart)}
           onChange={(next) => onChange({ ...block, show_chart: next })}
         />
+        {/* The client's FINAL SUMMARY: each container's (or count's) totals
+            and percentages, then the whole table's. */}
+        <SectionToggle
+          label="Final summary"
+          checked={Boolean(block.summary?.show)}
+          onChange={(next) =>
+            onChange({
+              ...block,
+              summary: { ...(block.summary || {}), show: next, by: block.summary?.by || (withCont ? 'container' : 'group') },
+            })
+          }
+        />
+        {block.summary?.show && (
+          <select
+            aria-label="Final summary grouped by"
+            value={block.summary?.by === 'container' ? 'container' : 'group'}
+            onChange={(e) => onChange({ ...block, summary: { ...(block.summary || {}), by: e.target.value } })}
+            className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+          >
+            <option value="container">by container</option>
+            <option value="group">by {columnTitle(grouping_label).toLowerCase()}</option>
+          </select>
+        )}
         {/* For a cargo of several containers of one fruit: each sheet's rows
             carry their container, and a sheet read later replaces only its
             own container's rows. */}
@@ -304,6 +332,18 @@ export const TableGrid: React.FC<TableBlockProps> = ({
           onChange={(next) => onChange({ ...block, show_container: next })}
         />
       </div>
+      {isIncluded(block.show_chart) && (
+        <label className="flex items-center gap-2 text-xs text-gray-600 -mt-2">
+          Graph title
+          <input
+            aria-label="Graph title"
+            value={block.chart_title ?? ''}
+            placeholder={chartTitle(block)}
+            onChange={(e) => onChange({ ...block, chart_title: e.target.value })}
+            className="w-72 px-2 py-1 border border-gray-300 rounded text-xs uppercase outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </label>
+      )}
       {withCont && containers.length > 0 && (
         <datalist id={listId}>
           {containers.map((c) => (

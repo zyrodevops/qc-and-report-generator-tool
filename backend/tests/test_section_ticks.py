@@ -74,11 +74,11 @@ def test_table_heading_and_chart_follow_their_ticks():
 
     t["show_title"], t["show_chart"] = True, True
     html = render_html(st)
-    assert t["title"] in html and "Chart:" in html
+    assert t["title"] in html and "SURVEY FINDINGS IN GRAPH" in html
 
     t["show_title"], t["show_chart"] = False, False
     html = render_html(st)
-    assert t["title"] not in html and "Chart:" not in html
+    assert t["title"] not in html and "SURVEY FINDINGS IN GRAPH" not in html
     # the table itself always stays
     assert "Total (pcs)" in html
 

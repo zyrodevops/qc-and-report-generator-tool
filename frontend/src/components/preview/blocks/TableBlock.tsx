@@ -1,6 +1,8 @@
 import React from 'react';
-import { computeTable } from '../compute';
+import { computeTable, computeTableSummary } from '../compute';
 import { columnTitle } from '../../../utils/labels';
+import { chartBars, chartTitle } from '../../../utils/findings';
+import { FindingsChart } from './FindingsChart';
 
 export interface TableBlockProps {
   block: any;
@@ -67,55 +69,12 @@ export const TableBlock: React.FC<TableBlockProps> = ({
   const grandTotal = calc?.grand_total || '';
   const colPcts = calc?.column_percentages || {};
 
-  // Donut chart slices calculation
-  const colors = ['#2563eb', '#f59e0b', '#ef4444', '#8b5cf6', '#10b981', '#64748b'];
-  const chartItems: { label: string; pct: number; color: string }[] = [];
-  allCategories.forEach((cat, idx) => {
-    const p = parseFloat(String(colPcts[cat.key] || 0));
-    if (p > 0) {
-      chartItems.push({
-        label: cat.label.replace(/\(.*\)/, '').trim(),
-        pct: p,
-        color: colors[idx % colors.length],
-      });
-    }
-  });
-
-  // Calculate SVG donut paths
-  let cumulativeAngle = 0;
-  const radius = 60;
-  const innerRadius = 36;
-  const cx = 80;
-  const cy = 80;
-
-  const slices = chartItems.map((item) => {
-    const angle = (item.pct / 100) * 360;
-    const startAngle = cumulativeAngle;
-    const endAngle = cumulativeAngle + angle;
-    cumulativeAngle += angle;
-
-    const startRad = ((startAngle - 90) * Math.PI) / 180;
-    const endRad = ((endAngle - 90) * Math.PI) / 180;
-
-    const x1 = cx + radius * Math.cos(startRad);
-    const y1 = cy + radius * Math.sin(startRad);
-    const x2 = cx + radius * Math.cos(endRad);
-    const y2 = cy + radius * Math.sin(endRad);
-
-    const x3 = cx + innerRadius * Math.cos(endRad);
-    const y3 = cy + innerRadius * Math.sin(endRad);
-    const x4 = cx + innerRadius * Math.cos(startRad);
-    const y4 = cy + innerRadius * Math.sin(startRad);
-
-    const largeArc = angle > 180 ? 1 : 0;
-
-    const pathData = `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`;
-
-    return {
-      ...item,
-      path: pathData,
-    };
-  });
+  // The graph (see utils/findings.ts) and the FINAL SUMMARY, as the Word file.
+  const bars = chartBars(block, calc, categories.map((c) => c.key));
+  const summary = calc?.summary || computeTableSummary(block);
+  const showSummary = Boolean(summary && summary.groups.length >= 2);
+  const pctText = (v: any) => (String(v ?? '') !== '' ? `${v}%` : '');
+  const boxes = (n: number) => (n === 1 ? '1 Box' : `${n} Boxes`);
 
   const isTwoTier = block?.layout === 'two_tier' && rowPcts.length > 0;
 
@@ -358,66 +317,62 @@ export const TableBlock: React.FC<TableBlockProps> = ({
         </table>
       )}
 
-      {/* Embedded Donut Chart */}
-      {block?.show_chart !== false && chartItems.length > 0 && (
-        <div className="flex flex-col items-center justify-center my-4 p-3 bg-white rounded border border-slate-200">
-          <div className="flex items-center gap-6">
-            <svg width="160" height="160" viewBox="0 0 160 160" className="drop-shadow-xs">
-              {slices.map((s, i) => (
-                <path
-                  key={i}
-                  d={s.path}
-                  fill={s.color}
-                  stroke="#ffffff"
-                  strokeWidth="1.5"
-                />
+      {/* FINAL SUMMARY: each group's totals, then the table's */}
+      {showSummary && summary && (
+        <div className="my-3">
+          <p className="text-[11px] font-bold underline mb-1">{block?.summary?.title || 'FINAL SUMMARY'}</p>
+          <table className="w-full border-collapse border border-slate-400 text-[9px] summary-table">
+            <thead>
+              <tr className="bg-slate-100 font-bold">
+                <th className="border border-slate-400 px-1 py-1 text-left">
+                  {summary.by === 'container' ? 'Container' : columnTitle(groupLabel)}
+                </th>
+                {categories.map((c) => (
+                  <th key={c.key} className="border border-slate-400 px-1 py-1 text-center">{columnTitle(c.label)}</th>
+                ))}
+                <th className="border border-slate-400 px-1 py-1 text-center">Total ({unit})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.groups.map((g: any, i: number) => (
+                <React.Fragment key={i}>
+                  <tr>
+                    <td className="border border-slate-400 px-1 py-1">{g.key ? `${g.key} (${boxes(g.boxes)})` : `(${boxes(g.boxes)})`}</td>
+                    {categories.map((c) => (
+                      <td key={c.key} className="border border-slate-400 px-1 py-1 text-right font-mono">{g.column_totals[c.key] ?? ''}</td>
+                    ))}
+                    <td className="border border-slate-400 px-1 py-1 text-right font-mono">{g.grand_total}</td>
+                  </tr>
+                  <tr className="bg-slate-50 text-slate-700">
+                    <td className="border border-slate-400 px-1 py-1 italic">Percentage</td>
+                    {categories.map((c) => (
+                      <td key={c.key} className="border border-slate-400 px-1 py-1 text-right font-mono">{pctText(g.column_percentages[c.key])}</td>
+                    ))}
+                    <td className="border border-slate-400 px-1 py-1 text-right font-mono">100.00%</td>
+                  </tr>
+                </React.Fragment>
               ))}
-              <circle cx={cx} cy={cy} r={innerRadius} fill="#ffffff" />
-              <text
-                x={cx}
-                y={cy - 4}
-                textAnchor="middle"
-                fontSize="11"
-                fontWeight="bold"
-                fill="#00387A"
-              >
-                {grandTotal}
-              </text>
-              <text
-                x={cx}
-                y={cy + 10}
-                textAnchor="middle"
-                fontSize="8"
-                fill="#64748b"
-                fontWeight="500"
-              >
-                {unit.toUpperCase()}
-              </text>
-            </svg>
-
-            {/* Legend */}
-            <div className="grid grid-cols-1 gap-1 text-xs">
-              {slices.map((s, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
-                    style={{ backgroundColor: s.color }}
-                  />
-                  <span className="font-medium text-slate-700 text-[11px]">
-                    {s.label}:
-                  </span>
-                  <span className="font-mono font-bold text-slate-900 text-[11px]">
-                    {s.pct.toFixed(2)}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <p className="text-[10px] italic text-slate-500 mt-2">
-            Chart: {title || 'Quality Analysis Breakdown'}
-          </p>
+              <tr className="bg-slate-100 font-bold">
+                <td className="border border-slate-400 px-1 py-1">Total {boxes(summary.boxes)}</td>
+                {categories.map((c) => (
+                  <td key={c.key} className="border border-slate-400 px-1 py-1 text-right font-mono">{colTotals[c.key] ?? ''}</td>
+                ))}
+                <td className="border border-slate-400 px-1 py-1 text-right font-mono">{grandTotal}</td>
+              </tr>
+              <tr className="bg-slate-50 font-bold">
+                <td className="border border-slate-400 px-1 py-1">Percentage</td>
+                {categories.map((c) => (
+                  <td key={c.key} className="border border-slate-400 px-1 py-1 text-right font-mono">{pctText(colPcts[c.key])}</td>
+                ))}
+                <td className="border border-slate-400 px-1 py-1 text-right font-mono">100.00%</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
+
+      {/* The graph, as the client draws it */}
+      {block?.show_chart !== false && bars.length > 0 && <FindingsChart bars={bars} title={chartTitle(block)} />}
     </div>
   );
 };

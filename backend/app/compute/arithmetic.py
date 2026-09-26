@@ -46,8 +46,23 @@ def _to_decimal(value: Any) -> Decimal:
     )
 
 
+def _cell(value: Any) -> Decimal:
+    """
+    A table cell's figure. A cell left empty counts as nothing, the same as a
+    cell never filled in: clearing a figure in the preview saved it as "" and
+    every total then failed, so the report could not be shown or downloaded.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return Decimal(0)
+    return _to_decimal(value.strip() if isinstance(value, str) else value)
+
+
 def _round2(d: Decimal) -> Decimal:
     return d.quantize(PRECISION_2DP, rounding=ROUND_HALF_UP)
+
+
+# Units whose figures are counted, not measured.
+COUNT_UNITS = {"pcs", "pc", "pieces", "nos", "no", "boxes", "cartons", "ctns"}
 
 
 def _round3(d: Decimal) -> Decimal:
@@ -95,6 +110,16 @@ def compute_table(block: Dict[str, Any]) -> Dict[str, Any]:
 
     # kg tables keep 3dp precision for intermediate sums, round to 3dp for totals
     use_3dp = (unit == "kg")
+    # Pieces are counted, so their totals are whole numbers ("939", as the
+    # client prints them, not "939.00"). Should a count table ever hold a
+    # fraction, it keeps two places so the fraction is not rounded out of sight.
+    whole = unit in COUNT_UNITS and all(
+        _cell(v) == _cell(v).to_integral_value()
+        for r in rows for v in (r.get("values") or {}).values()
+    )
+
+    def rnd(d: Decimal) -> Decimal:
+        return d.quantize(Decimal(1), rounding=ROUND_HALF_UP) if whole else _round2(d)
 
     col_totals: Dict[str, Decimal] = {cat: Decimal(0) for cat in categories}
     row_totals: List[Decimal] = []
@@ -106,13 +131,12 @@ def compute_table(block: Dict[str, Any]) -> Dict[str, Any]:
         cat_vals: List[Decimal] = []
 
         for cat in categories:
-            raw = values.get(cat, 0)
-            val = _to_decimal(raw)
+            val = _cell(values.get(cat))
             cat_vals.append(val)
             row_sum += val
             col_totals[cat] += val
 
-        row_totals.append(_round3(row_sum) if use_3dp else _round2(row_sum))
+        row_totals.append(_round3(row_sum) if use_3dp else rnd(row_sum))
 
         if row_sum > Decimal(0):
             exact_pcts = [(v / row_sum) * Decimal(100) for v in cat_vals]
@@ -122,14 +146,14 @@ def compute_table(block: Dict[str, Any]) -> Dict[str, Any]:
 
     # Round column totals
     col_totals_rounded = {
-        cat: (_round3(v) if use_3dp else _round2(v))
+        cat: (_round3(v) if use_3dp else rnd(v))
         for cat, v in col_totals.items()
     }
     grand_total = sum(col_totals_rounded.values())
     if use_3dp:
         grand_total = _round3(grand_total)
     else:
-        grand_total = _round2(grand_total)
+        grand_total = rnd(grand_total)
 
     if grand_total > Decimal(0):
         exact_col_pcts = [
@@ -149,6 +173,51 @@ def compute_table(block: Dict[str, Any]) -> Dict[str, Any]:
         "grand_total": grand_total,
         "column_percentages": col_pcts_dict,
     }
+
+
+def compute_table_summary(block: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    The FINAL SUMMARY under a tally table, as in the client's reports: the
+    table's rows grouped by container (or by count), each group's totals and
+    percentages, then the whole table's.
+
+    Each group goes through compute_table, so its figures are worked out the
+    same way as the table's own and can be traced back to the cells. Returns
+    None when the summary is not ticked.
+    """
+    opts = block.get("summary") or {}
+    if not opts.get("show"):
+        return None
+    by = "container" if opts.get("by") == "container" else "group"
+    order: List[str] = []
+    rows_by: Dict[str, List[Dict[str, Any]]] = {}
+    for r in block.get("rows", []) or []:
+        k = str(r.get(by) or "").strip()
+        if k not in rows_by:
+            order.append(k)
+            rows_by[k] = []
+        rows_by[k].append(r)
+
+    def boxes(rows: List[Dict[str, Any]]) -> int:
+        n = 0
+        for r in rows:
+            try:
+                n += int(str(r.get("boxes_opened") or 1).strip())
+            except ValueError:
+                n += 1
+        return n
+
+    groups = []
+    for k in order:
+        c = compute_table({**block, "rows": rows_by[k]})
+        groups.append({
+            "key": k,
+            "boxes": boxes(rows_by[k]),
+            "column_totals": c["column_totals"],
+            "grand_total": c["grand_total"],
+            "column_percentages": c["column_percentages"],
+        })
+    return {"by": by, "groups": groups, "boxes": sum(g["boxes"] for g in groups)}
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +492,9 @@ def compute(block_state: Dict[str, Any]) -> Dict[str, Any]:
 
         if btype == "table":
             block["_computed"] = compute_table(block)
+            summary = compute_table_summary(block)
+            if summary:
+                block["_computed"]["summary"] = summary
 
         elif btype == "photo_plate":
             from app.compute.photo_ranges import compute_photo_ranges
@@ -494,6 +566,9 @@ def compute(block_state: Dict[str, Any]) -> Dict[str, Any]:
 
                     if ub_type == "table":
                         ub["_computed"] = compute_table(ub)
+                        u_summary = compute_table_summary(ub)
+                        if u_summary:
+                            ub["_computed"]["summary"] = u_summary
                     elif ub_type == "photo_plate":
                         groups = ub.get("groups", [])
                         res = compute_photo_ranges(groups, start_number=u_counter[0])

@@ -96,7 +96,7 @@ def test_get_report_preview_html_success(auth_client, test_report):
     assert "a4-page" in html_content
     assert "PARTICULARS" in html_content
     assert "MEASUREMENTS" in html_content
-    assert "234.00" in html_content  # pure compute table total
+    assert ">234<" in html_content  # pure compute table total, a whole count
     assert "56.84" in html_content   # Hare-Niemeyer balanced percentage
 
 

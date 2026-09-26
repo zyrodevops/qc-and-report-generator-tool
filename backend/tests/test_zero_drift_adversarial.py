@@ -136,8 +136,8 @@ def test_adversarial_empty_table_with_categories_zero_rows():
 
     tab = docx_data["defect_tables"][0]
     assert tab["row_totals"] == []
-    assert tab["col_totals"] == ["0.00", "0.00", "0.00"]
-    assert tab["grand_total"] == "0.00"
+    assert tab["col_totals"] == ["0", "0", "0"]
+    assert tab["grand_total"] == "0"
     assert tab["col_pcts"] == ["0.00", "0.00", "0.00"]
     assert tab["full_grid"] == html_data["defect_tables"][0]["full_grid"]
 
@@ -198,10 +198,10 @@ def test_adversarial_single_cell_table():
 
     docx_data = extract_docx_data(docx_bytes)
     tab = docx_data["defect_tables"][0]
-    assert tab["row_totals"] == ["42.00"]
+    assert tab["row_totals"] == ["42"]
     assert tab["row_pcts"] == []  # joined-percentage column removed
-    assert tab["col_totals"] == ["42.00"]
-    assert tab["grand_total"] == "42.00"
+    assert tab["col_totals"] == ["42"]
+    assert tab["grand_total"] == "42"
     assert tab["col_pcts"] == ["100.00"]
 
 
@@ -236,10 +236,10 @@ def test_adversarial_all_zeros_table_multi_cell():
     assert_zero_drift(docx_bytes, html_content)
 
     tab = extract_docx_data(docx_bytes)["defect_tables"][0]
-    assert tab["row_totals"] == ["0.00", "0.00", "0.00"]
+    assert tab["row_totals"] == ["0", "0", "0"]
     assert tab["row_pcts"] == []  # joined-percentage column removed
-    assert tab["col_totals"] == ["0.00", "0.00", "0.00"]
-    assert tab["grand_total"] == "0.00"
+    assert tab["col_totals"] == ["0", "0", "0"]
+    assert tab["grand_total"] == "0"
     assert tab["col_pcts"] == ["0.00", "0.00", "0.00"]
 
 
@@ -288,9 +288,9 @@ def test_adversarial_large_numbers_table():
     assert_zero_drift(docx_bytes, html_content)
 
     tab = extract_docx_data(docx_bytes)["defect_tables"][0]
-    assert tab["row_totals"] == ["600000000000.00", "600000000000.00"]
-    assert tab["grand_total"] == "1200000000000.00"
-    assert tab["col_totals"] == ["900000000000.00", "300000000000.00"]
+    assert tab["row_totals"] == ["600000000000", "600000000000"]
+    assert tab["grand_total"] == "1200000000000"
+    assert tab["col_totals"] == ["900000000000", "300000000000"]
     assert tab["col_pcts"] == ["75.00", "25.00"]
 
 

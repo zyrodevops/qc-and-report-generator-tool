@@ -196,12 +196,12 @@ def test_zero_drift_mandarin_citrus_benchmark():
     # Specific benchmark values check
     html_data = extract_html_data(html_content)
     tab = html_data["defect_tables"][0]
-    assert tab["row_totals"] == ["234.00"]
+    assert tab["row_totals"] == ["234"]
     # No joined-percentage column: every row is exactly as wide as the header.
     assert "%" not in tab["header"]
     assert all(len(r) == len(tab["header"]) for r in tab["data_rows"])
-    assert tab["col_totals"] == ["133.00", "54.00", "14.00", "24.00", "9.00"]
-    assert tab["grand_total"] == "234.00"
+    assert tab["col_totals"] == ["133", "54", "14", "24", "9"]
+    assert tab["grand_total"] == "234"
     assert tab["col_pcts"] == ["56.84", "23.08", "5.98", "10.26", "3.84"]
 
 

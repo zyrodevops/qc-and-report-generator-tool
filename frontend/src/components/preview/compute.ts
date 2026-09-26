@@ -36,6 +36,8 @@ export function hareNiemeyer(exactPcts: number[], target: number = 100.0): numbe
   return floors;
 }
 
+const COUNT_UNITS = ['pcs', 'pc', 'pieces', 'nos', 'no', 'boxes', 'cartons', 'ctns'];
+
 export function computeTable(block: any): {
   row_totals: string[];
   row_percentages: string[][];
@@ -47,6 +49,17 @@ export function computeTable(block: any): {
   const rows: any[] = block.rows || [];
   const unit: string = (block.unit || 'pcs').toLowerCase();
   const isKg = unit === 'kg';
+  // Counted pieces total as whole numbers, as the backend and the client's
+  // reports print them; a fraction somewhere keeps two places.
+  const whole =
+    COUNT_UNITS.includes(unit) &&
+    rows.every((r) =>
+      Object.values(r?.values || {}).every((v) => {
+        const n = parseFloat(String(v ?? '').trim() || '0');
+        return !Number.isFinite(n) || Number.isInteger(n);
+      }),
+    );
+  const places = isKg ? 3 : whole ? 0 : 2;
 
   const colTotalsNum: Record<string, number> = {};
   categories.forEach((cat) => (colTotalsNum[cat] = 0));
@@ -66,7 +79,7 @@ export function computeTable(block: any): {
     const roundedSum = isKg
       ? Math.round(rSum * 1000) / 1000
       : Math.round(rSum * 100) / 100;
-    rowTotalsFormatted.push(isKg ? roundedSum.toFixed(3) : roundedSum.toFixed(2));
+    rowTotalsFormatted.push(roundedSum.toFixed(places));
 
     if (roundedSum > 0) {
       const exactPcts = catVals.map((v) => (v / roundedSum) * 100);
@@ -82,7 +95,7 @@ export function computeTable(block: any): {
     const val = isKg
       ? Math.round(colTotalsNum[cat] * 1000) / 1000
       : Math.round(colTotalsNum[cat] * 100) / 100;
-    colTotalsFormatted[cat] = isKg ? val.toFixed(3) : val.toFixed(2);
+    colTotalsFormatted[cat] = val.toFixed(places);
   });
 
   const rawGrand = Object.keys(colTotalsFormatted).reduce(
@@ -92,7 +105,7 @@ export function computeTable(block: any): {
   const grandTotalNum = isKg
     ? Math.round(rawGrand * 1000) / 1000
     : Math.round(rawGrand * 100) / 100;
-  const grandTotalFormatted = isKg ? grandTotalNum.toFixed(3) : grandTotalNum.toFixed(2);
+  const grandTotalFormatted = grandTotalNum.toFixed(places);
 
   const colPctsFormatted: Record<string, string> = {};
   if (grandTotalNum > 0) {
@@ -116,6 +129,47 @@ export function computeTable(block: any): {
     grand_total: grandTotalFormatted,
     column_percentages: colPctsFormatted,
   };
+}
+
+export interface SummaryGroup {
+  key: string;
+  boxes: number;
+  column_totals: Record<string, string>;
+  grand_total: string;
+  column_percentages: Record<string, string>;
+}
+
+/**
+ * The FINAL SUMMARY: rows grouped by container (or by count), each group's
+ * totals and percentages. Same as compute_table_summary in the backend.
+ */
+export function computeTableSummary(block: any): { by: string; groups: SummaryGroup[]; boxes: number } | null {
+  const opts = block?.summary || {};
+  if (!opts.show) return null;
+  const by = opts.by === 'container' ? 'container' : 'group';
+  const order: string[] = [];
+  const rowsBy: Record<string, any[]> = {};
+  (block.rows || []).forEach((r: any) => {
+    const k = String(r?.[by] ?? '').trim();
+    if (!(k in rowsBy)) {
+      order.push(k);
+      rowsBy[k] = [];
+    }
+    rowsBy[k].push(r);
+  });
+  const boxes = (rows: any[]) =>
+    rows.reduce((n, r) => n + (parseInt(String(r?.boxes_opened ?? 1), 10) || 1), 0);
+  const groups = order.map((k) => {
+    const c = computeTable({ ...block, rows: rowsBy[k] });
+    return {
+      key: k,
+      boxes: boxes(rowsBy[k]),
+      column_totals: c.column_totals,
+      grand_total: c.grand_total,
+      column_percentages: c.column_percentages,
+    };
+  });
+  return { by, groups, boxes: groups.reduce((n, g) => n + g.boxes, 0) };
 }
 
 export function computePhotoRanges(groups: any[], startNumber: number = 1) {
@@ -166,6 +220,8 @@ export function computeBlockState(blockState: any): any {
   blocks.forEach((block: any) => {
     if (block.type === 'table') {
       block._computed = computeTable(block);
+      const summary = computeTableSummary(block);
+      if (summary) block._computed.summary = summary;
     } else if (block.type === 'photo_plate') {
       const res = computePhotoRanges(block.groups, photoCounter);
       block._computed = res;

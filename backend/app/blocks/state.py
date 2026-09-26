@@ -211,6 +211,8 @@ class TableBlock(BaseModel):
     grouping_label: Optional[str] = None
     commodity: Optional[str] = None        # the fruit this table counts; one table per fruit
     show_container: bool = False           # print a Container column after the count column
+    chart_title: Optional[str] = None      # under the graph; default by unit (render/findings.py)
+    summary: Dict[str, Any] = Field(default_factory=dict)  # FINAL SUMMARY: {show, by: container|group, title}
     source: TableSource = Field(default_factory=TableSource)
     categories: List[TableCategory] = Field(default_factory=list)
     rows: List[TableRow] = Field(default_factory=list)

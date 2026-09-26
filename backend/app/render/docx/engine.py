@@ -408,90 +408,39 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
 
     doc.add_paragraph()
 
-    # Chart Generation (Master Spec §14 Day 3 / TEMPLATE-NOTES)
-    # Generate high-resolution visual defect breakdown chart
-    try:
-        chart_stream = (
-            _generate_defect_chart(categories, col_pcts, title or "Defect Analysis Breakdown")
-            if shows_chart(block) else None
-        )
-        if chart_stream:
+    from app.render import findings
+
+    # FINAL SUMMARY: each group's totals, then the table's (see findings.py).
+    summ = findings.summary_rows(block, computed)
+    if summ:
+        head = doc.add_paragraph()
+        hr = head.add_run(summ["title"])
+        hr.bold = True
+        hr.underline = True
+        st = doc.add_table(rows=1 + len(summ["rows"]), cols=len(summ["header"]))
+        st.style = "Table Grid"
+        for j, text in enumerate(summ["header"]):
+            st.rows[0].cells[j].text = text
+        for i, row in enumerate(summ["rows"], start=1):
+            for j, text in enumerate(row["cells"]):
+                st.rows[i].cells[j].text = text
+        for i, trow in enumerate(st.rows):
+            kind = "head" if i == 0 else summ["rows"][i - 1]["kind"]
+            for cell in trow.cells:
+                for para in cell.paragraphs:
+                    for run in para.runs:
+                        run.font.size = Pt(7.5)
+                        run.bold = kind in ("head", "total", "pct_total")
+        doc.add_paragraph()
+
+    # The graph, as the client draws it: columns by condition and a Total bar.
+    if shows_chart(block):
+        png = findings.chart_png(block, computed)
+        if png:
             chart_para = doc.add_paragraph()
             chart_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = chart_para.add_run()
-            run.add_picture(chart_stream, width=Inches(5.0))
-            cap = doc.add_paragraph(f"Chart: {title or 'Quality Analysis Breakdown'}")
-            cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            if cap.runs:
-                cap.runs[0].font.size = Pt(9)
-                cap.runs[0].font.italic = True
+            chart_para.add_run().add_picture(io.BytesIO(png), width=Inches(16 / 2.54))
             doc.add_paragraph()
-    except Exception as e:
-        # Chart generation is non-blocking fallback
-        pass
-
-
-def _generate_defect_chart(
-    categories: List[Dict[str, str]],
-    col_pcts: Dict[str, Any],
-    title: str,
-) -> Optional[io.BytesIO]:
-    """
-    Generate a high-res matplotlib defect analysis breakdown donut chart.
-    Returns BytesIO containing PNG image data.
-    """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
-        labels = []
-        sizes = []
-        for cat in categories:
-            k = cat["key"]
-            raw_pct = col_pcts.get(k, 0)
-            try:
-                pct_val = float(raw_pct)
-            except (ValueError, TypeError):
-                pct_val = 0.0
-            if pct_val > 0:
-                labels.append(cat["label"].split("(")[0].strip())
-                sizes.append(pct_val)
-
-        if not sizes or sum(sizes) <= 0:
-            return None
-
-        # Professional marine surveyor color scheme
-        colors = ["#2563eb", "#f59e0b", "#ef4444", "#8b5cf6", "#10b981", "#64748b"]
-        slice_colors = [colors[i % len(colors)] for i in range(len(sizes))]
-
-        fig, ax = plt.subplots(figsize=(6, 3.5), dpi=200)
-        wedges, texts, autotexts = ax.pie(
-            sizes,
-            labels=labels,
-            autopct="%1.2f%%",
-            startangle=140,
-            colors=slice_colors,
-            pctdistance=0.75,
-            textprops=dict(color="#1f2937", fontsize=8, weight="bold"),
-            wedgeprops=dict(width=0.45, edgecolor="white", linewidth=2),
-        )
-
-        for autotext in autotexts:
-            autotext.set_fontsize(8)
-            autotext.set_weight("bold")
-
-        ax.set_title(title, fontsize=10, weight="bold", pad=12, color="#1e3a8a")
-        plt.tight_layout()
-
-        buf = io.BytesIO()
-        plt.savefig(buf, format="png", bbox_inches="tight", dpi=200)
-        plt.close(fig)
-        buf.seek(0)
-        return buf
-    except Exception:
-        return None
-
 
 
 def _set_cell_margins(cell, margins: Dict[str, int]) -> None:
