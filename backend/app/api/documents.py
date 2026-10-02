@@ -99,6 +99,13 @@ async def read_documents(
                 rpath.write_text(json.dumps(readings), encoding="utf-8")
                 derived["readings"] = str(rpath)
                 result["readings"] = readings  # for merge's count only
+            if result.get("kind") == "recorder":
+                from app.render.recorder_chart import extract_recorder_graph
+                graph_bytes = extract_recorder_graph(data)
+                if graph_bytes:
+                    gpath = stored["folder"] / f"{stored['sha256'][:16]}.graph.png"
+                    gpath.write_bytes(graph_bytes)
+                    derived["graph"] = str(gpath)
         existing = await db.get(Asset, asset_id)
         if existing is None:
             db.add(Asset(id=asset_id, report_id=report.id, kind="document", sha256=stored["sha256"],
@@ -188,7 +195,7 @@ async def recorder_chart(
 ):
     """The graph of one recorder's readings, as the report will print it."""
     from fastapi.responses import Response
-    from app.render.recorder_chart import chart_for
+    from app.render.recorder_chart import chart_for, extract_recorder_graph
 
     report = await _get_report_or_404(report_id, db)
     block = next((b for b in (report.block_state or {}).get("blocks", []) if b.get("type") == "temperature_recorders"), None)
@@ -196,6 +203,10 @@ async def recorder_chart(
     if not rec:
         raise HTTPException(status_code=404, detail="No such recorder in this report.")
     png = chart_for(rec, block.get("set_point_c"))
+    if not png:
+        asset = await db.get(Asset, asset_id)
+        if asset and asset.original_path and Path(asset.original_path).exists():
+            png = extract_recorder_graph(asset.original_path)
     if not png:
         raise HTTPException(status_code=404, detail="This recorder has no readings to draw.")
     return Response(content=png, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
@@ -428,13 +439,19 @@ async def apply_documents(
     for r in ship.get("recorders") or []:
         asset = await db.get(Asset, r.get("asset_id")) if r.get("asset_id") else None
         rfile = (asset.derived_paths or {}).get("readings") if asset else None
+        gfile = (asset.derived_paths or {}).get("graph") if asset else None
         rel = None
         if rfile:
             p = Path(rfile).resolve()
             rel = str(p.relative_to(base)) if base in p.parents else None
+        grel = None
+        if gfile:
+            gp = Path(gfile).resolve()
+            grel = str(gp.relative_to(base)) if base in gp.parents else None
         s = r.get("summary") or {}
         recs.append({
             "asset_id": r.get("asset_id"), "container": r.get("container"), "readings_file": rel,
+            "graph_file": grel,
             **{k: s.get(k) for k in ("device_id", "start", "stop", "start_iso", "stop_iso", "trip_length",
                                      "highest_c", "lowest_c", "average_c", "mkt_c", "data_points",
                                      "interval", "utc_offset")},

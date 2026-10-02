@@ -8,14 +8,13 @@ from typing import Any, Dict, List, Optional
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_actor, get_current_user, UserSession
 from app.database import get_db
 from app.models.report import Report, allocate_report_number_async
 from app.models.template import Template
 from app.models.asset import Asset
-from app.models.audit import Audit
 from app.services.audit import AuditService
 
 router = APIRouter()
