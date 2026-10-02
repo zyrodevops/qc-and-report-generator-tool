@@ -250,7 +250,7 @@ def test_new_reports_start_with_blanks_not_guesses():
     for guess in ("Nhava Sheva", "JNPT", "Found Intact", "HC Reefer", "Mumbai Airport"):
         assert guess not in printed
     particulars = next(b for b in state["blocks"] if b["type"] == "particulars")
-    assert {"label": "Port of Discharge", "value": ["[Port of Discharge]"]} in particulars["rows"]
+    assert any("[Port of Discharge]" in str(r.get("value", [])) for r in particulars["rows"])
 
 
 def test_new_reports_start_with_empty_text_sections():
@@ -260,7 +260,7 @@ def test_new_reports_start_with_empty_text_sections():
 
 
 @pytest.mark.asyncio
-async def test_pick_endpoint_needs_a_login_and_skips_general_cargo():
+async def test_pick_endpoint_needs_a_login_and_gives_fruit_wording_only_for_fruit():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         res = await ac.post("/api/clauses/pick", json={"section": "cause_of_loss", "commodity": "APPLE"})

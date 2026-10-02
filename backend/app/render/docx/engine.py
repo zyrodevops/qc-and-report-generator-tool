@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
@@ -115,50 +115,169 @@ def _add_field(paragraph, field_name: str) -> None:
 # Block renderers — one per block type, additive
 # ---------------------------------------------------------------------------
 
+def _format_cell(
+    cell,
+    text: str,
+    bold: bool = False,
+    font_size_pt: float = 10.0,
+    font_name: str = "Arial",
+    align: WD_ALIGN_PARAGRAPH = WD_ALIGN_PARAGRAPH.LEFT,
+    valign: WD_CELL_VERTICAL_ALIGNMENT = WD_CELL_VERTICAL_ALIGNMENT.TOP,
+) -> None:
+    """Format a table cell with explicit font, spacing, and alignment."""
+    cell.text = ""
+    cell.vertical_alignment = valign
+    p = cell.paragraphs[0]
+    p.alignment = align
+    p.paragraph_format.space_before = Pt(1.5)
+    p.paragraph_format.space_after = Pt(1.5)
+    p.paragraph_format.line_spacing = 1.15
+    run = p.add_run(str(text))
+    run.bold = bold
+    run.font.name = font_name
+    run.font.size = Pt(font_size_pt)
+
+
 def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
-    """Render a particulars block as a key-value table."""
+    """Render a particulars block as a key-value table matching the client's latest reports."""
     rows = block.get("rows", [])
     if not rows:
         return
 
-    doc.add_heading(block.get("section", "PARTICULARS"), level=2)
-    table = doc.add_table(rows=len(rows), cols=2)
+    heading = block.get("section", "")
+    if heading:
+        doc.add_heading(heading, level=2)
+
+    # 5-column table: Col 0 = Label, Col 1 = ":", Cols 2,3,4 = Value or Consignment sub-columns
+    table = doc.add_table(rows=0, cols=5)
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    for i, row in enumerate(rows):
-        label_cell = table.rows[i].cells[0]
-        value_cell = table.rows[i].cells[1]
-        label_cell.text = str(row.get("label", ""))
-        # value is a list; render as joined string
-        value_items = row.get("value", [])
-        if isinstance(value_items, list):
-            parts = []
-            for item in value_items:
-                if isinstance(item, dict) and "amount" in item:
-                    # money
-                    parts.append(f"{item.get('currency', '')} {item['amount']}".strip())
-                elif isinstance(item, list):
-                    parts.extend(str(v) for v in item)
+    # Add table-level cell padding (dxa: 20 dxa = 1 pt; 40 dxa = 2pt, 100 dxa = 5pt)
+    tblPr = table._tbl.tblPr
+    tblCellMar = OxmlElement("w:tblCellMar")
+    for side, sz in (("top", 40), ("bottom", 40), ("left", 100), ("right", 100)):
+        m = OxmlElement(f"w:{side}")
+        m.set(qn("w:w"), str(sz))
+        m.set(qn("w:type"), "dxa")
+        tblCellMar.append(m)
+    tblPr.append(tblCellMar)
+
+    for row in rows:
+        label = str(row.get("label", "")).strip()
+        is_table = (
+            row.get("type") == "table"
+            or "headers" in row
+            or ("consignment" in label.lower() and (row.get("rows") or row.get("items")))
+        )
+
+        if is_table:
+            headers = row.get("headers") or ["Commodity / Variety", "Count / Size", "Total Boxes"]
+            sub_items = row.get("rows") or row.get("items") or []
+            footer = row.get("footer", "")
+
+            # Rows to add: 1 header row + len(sub_items) data rows + (1 footer row if footer)
+            num_cons_rows = 1 + len(sub_items) + (1 if footer else 0)
+            added_rows = [table.add_row() for _ in range(num_cons_rows)]
+
+            # Header row
+            h_row = added_rows[0]
+            _format_cell(h_row.cells[2], str(headers[0]) if len(headers) > 0 else "", bold=True, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.LEFT)
+            _format_cell(h_row.cells[3], str(headers[1]) if len(headers) > 1 else "", bold=True, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.CENTER)
+            _format_cell(h_row.cells[4], str(headers[2]) if len(headers) > 2 else "", bold=True, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.CENTER)
+
+            # Data rows
+            for idx, item in enumerate(sub_items):
+                d_row = added_rows[1 + idx]
+                if isinstance(item, dict):
+                    col1 = item.get("col1") or item.get("variety") or item.get("description") or ""
+                    col2 = item.get("col2") or item.get("count") or item.get("size") or item.get("count_size") or ""
+                    col3 = item.get("col3") or item.get("boxes") or item.get("cartons") or item.get("total_boxes") or ""
+                elif isinstance(item, (list, tuple)):
+                    col1 = item[0] if len(item) > 0 else ""
+                    col2 = item[1] if len(item) > 1 else ""
+                    col3 = item[2] if len(item) > 2 else ""
                 else:
-                    parts.append(str(item))
-            value_cell.text = ", ".join(parts)
+                    col1 = str(item)
+                    col2 = ""
+                    col3 = ""
+                _format_cell(d_row.cells[2], str(col1), bold=False, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.LEFT)
+                _format_cell(d_row.cells[3], str(col2), bold=False, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.CENTER)
+                _format_cell(d_row.cells[4], str(col3), bold=False, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.RIGHT)
+
+            # Footer row (if present)
+            if footer:
+                f_row = added_rows[-1]
+                f_row.cells[2].merge(f_row.cells[4])
+                _format_cell(f_row.cells[2], str(footer), bold=True, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.LEFT)
+
+            # Vertically merge Col 0 and Col 1 across all sub-rows of this consignment table
+            top_c0 = added_rows[0].cells[0]
+            bot_c0 = added_rows[-1].cells[0]
+            top_c0.merge(bot_c0)
+            _format_cell(top_c0, label, bold=True, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+
+            top_c1 = added_rows[0].cells[1]
+            bot_c1 = added_rows[-1].cells[1]
+            top_c1.merge(bot_c1)
+            _format_cell(top_c1, ":", bold=True, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.CENTER, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+
         else:
-            value_cell.text = str(value_items)
-        note = row.get("note")
-        if note:
-            value_cell.text += f" ({note})"
+            # Standard row
+            r = table.add_row()
+            _format_cell(r.cells[0], label, bold=True, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+            _format_cell(r.cells[1], ":", bold=True, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.CENTER, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+            r.cells[2].merge(r.cells[4])
+
+            val = row.get("value", "")
+            if isinstance(val, list):
+                parts = []
+                for item in val:
+                    if isinstance(item, dict) and "amount" in item:
+                        parts.append(f"{item.get('currency', '')} {item['amount']}".strip())
+                    elif isinstance(item, list):
+                        parts.extend(str(v) for v in item)
+                    else:
+                        parts.append(str(item))
+                val_str = ", ".join(parts)
+            else:
+                val_str = str(val)
+
+            note = row.get("note")
+            if note:
+                val_str += f" ({note})"
+            _format_cell(r.cells[2], val_str, bold=False, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+
+    # Prevent row splitting across pages and apply column widths
+    col_widths = [Inches(1.55), Inches(0.20), Inches(2.35), Inches(1.35), Inches(1.05)]
+    for row in table.rows:
+        trPr = row._tr.get_or_add_trPr()
+        trPr.append(OxmlElement("w:cantSplit"))
+        for idx, width in enumerate(col_widths):
+            try:
+                row.cells[idx].width = width
+            except (IndexError, AttributeError):
+                pass
+
+    for idx, width in enumerate(col_widths):
+        try:
+            table.columns[idx].width = width
+        except (IndexError, AttributeError):
+            pass
 
     doc.add_paragraph()  # spacing
 
 
 def render_narrative(doc: Document, block: Dict[str, Any]) -> None:
     """Render a narrative block as a heading + paragraph."""
-    section = block.get("section", "")
+    section = block.get("_heading") or block.get("section", "")
     if section:
         doc.add_heading(section, level=2)
+    _narrative_body(doc, block.get("additional_text") or "")
+    doc.add_paragraph()
 
-    clause_text = block.get("additional_text") or ""
+
+def _narrative_body(doc: Document, clause_text: str) -> None:
     if clause_text:
         from docx.shared import Pt
         from app.render.narrative_text import split_narrative
@@ -180,7 +299,72 @@ def render_narrative(doc: Document, block: Dict[str, Any]) -> None:
                     if i < len(lines) - 1:
                         run.add_break()
 
+
+def render_survey_unit(doc: Document, block: Dict[str, Any]) -> None:
+    """
+    One OUR SURVEY paragraph of a general cargo report. When people attended,
+    their table goes after the opening paragraph ("We visited ... on ..."), where
+    the client puts it. Its tables (damage, tally, weighbridge) go where their
+    marks are in the text, or after it; the last paragraph carries the WEIGHT
+    FINAL SUMMARY.
+    """
+    from app.compute.gc_tables import unit_segments, unit_table
+
+    heading = block.get("_heading") or "OUR SURVEY:"
+    doc.add_heading(heading, level=2)
+    people = [r for r in block.get("attendance") or [] if any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing"))]
+    first_text = True
+    for kind, value in unit_segments(block.get("additional_text") or ""):
+        if kind == "text":
+            if first_text and people:
+                first, _, rest = value.partition("\n\n")
+                _narrative_body(doc, first)
+                render_attendance(doc, {"title": "", "intro": block.get("attendance_intro") or "The following persons attended the survey:",
+                                        "rows": people})
+                _narrative_body(doc, rest)
+            else:
+                _narrative_body(doc, value)
+            first_text = False
+        else:
+            t = unit_table(block, value)
+            if t:
+                _grid(doc, t["columns"], t["rows"], bold_last=t.get("total", False))
+    summary = (block.get("_computed") or {}).get("weight_summary")
+    if summary:
+        doc.add_heading(summary["title"], level=2)
+        _grid(doc, summary["columns"], summary["rows"], bold_last=True)
     doc.add_paragraph()
+
+
+def _grid(doc: Document, columns: List[str], rows: List[List[str]], bold_last: bool = False) -> None:
+    """A plain table: bold header; the last row bold when it is a total."""
+    from docx.shared import Pt
+
+    if not rows:
+        return
+    table = doc.add_table(rows=len(rows) + 1, cols=len(columns))
+    table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for ci, h in enumerate(columns):
+        run = table.cell(0, ci).paragraphs[0].add_run(h)
+        run.bold = True
+        run.font.size = Pt(9)
+    for ri, r in enumerate(rows, start=1):
+        for ci, v in enumerate(r):
+            run = table.cell(ri, ci).paragraphs[0].add_run(str(v))
+            run.font.size = Pt(9)
+            run.bold = bold_last and ri == len(rows)
+    doc.add_paragraph()
+
+
+def render_gc_table(doc: Document, block: Dict[str, Any]) -> None:
+    """A general cargo report table: containers & seals, weather, summary of reserve."""
+    t = (block.get("_computed") or {}).get("table")
+    if not t:
+        return
+    if t.get("title"):
+        doc.add_heading(t["title"], level=2)
+    _grid(doc, t["columns"], t["rows"], bold_last=t.get("total", False))
 
 
 def render_recorders(doc: Document, block: Dict[str, Any]) -> None:
@@ -668,10 +852,14 @@ def render_parties(doc: Document, block: Dict[str, Any]) -> None:
 
 def render_attendance(doc: Document, block: Dict[str, Any]) -> None:
     """Render attendance block as a 3-column table (Name, Designation, Representing)."""
-    doc.add_heading("Attendance at Survey", level=2)
-    rows = block.get("rows", [])
+    rows = [r for r in block.get("rows", []) if any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing"))]
     if not rows:
         return
+    title = block.get("title", "Attendance at Survey")
+    if title:
+        doc.add_heading(title, level=2)
+    if block.get("intro"):
+        doc.add_paragraph(block["intro"])
     table = doc.add_table(rows=len(rows) + 1, cols=3)
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -943,6 +1131,10 @@ def render_docx(
             render_unit_group(doc, block, block_computed, assets)
         elif btype == "temperature_recorders":
             render_recorders(doc, block)
+        elif btype == "survey_unit":
+            render_survey_unit(doc, block)
+        elif btype == "gc_table":
+            render_gc_table(doc, block)
 
     # Step 4: return bytes
     buf = io.BytesIO()

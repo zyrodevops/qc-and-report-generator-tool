@@ -172,28 +172,46 @@ def _build_blocks_for_commodity(
     blocks: List[Dict[str, Any]] = []
 
     # ── Block 1: PARTICULARS ───────────────────────────────────────────────
-    declared = supp.get("declared", f"Fresh {label}")
+    packing_defaults = {
+        "apple": "Fresh Apples packed in slotted cardboard trays; such 4/5 trays packed inside the ventilated polyethylene sheet and further packed into a ventilated 3-ply corrugated cardboard box. Such boxes were reportedly stuffed inside a 40' Reefer container.",
+        "pear": "Fresh Pear fruits packed in slotted EPS trays; such 4 trays packed inside the ventilated polyethylene sheet and further packed into a ventilated 3-ply corrugated cardboard box. Such boxes reportedly placed onto pallets and corners protected with cardboard sheet and fastened with nylon straps at equal intervals.",
+        "mandarin": "Fresh Mandarin fruits packed in a open top ventilated corrugated cardboard box. Such cartons were reportedly placed on wooden pallets and secured with plastic straps. Such various pallets stuffed inside 40' Reefer container.",
+        "orange": "Fresh Orange fruits packed in a open top ventilated corrugated cardboard box. Such cartons were reportedly placed on wooden pallets and secured with plastic straps. Such various pallets stuffed inside 40' Reefer container.",
+        "citrus": "Fresh Citrus fruits packed in ventilated corrugated cardboard box, placed on pallets and secured with straps inside 40' Reefer container.",
+        "grapes": "Bunch of fresh grapes packed in non-woven bag (Uvasys-used to prevent post-harvest fungal decay during transportation and storage), such bag packed inside ventilated plastic box. Such boxes were reportedly placed inside 40' Reefer container.",
+        "plum": "Fresh Plum packed in plastic crate / boxes, stuffed inside 40' High Cube Reefer Containers.",
+        "kiwi": "Fresh Kiwi fruits packed in corrugated boxes placed on pallets and secured with straps inside 40' Reefer container.",
+    }
+    packing_desc = packing_defaults.get(commodity_key.lower(), f"Fresh {label} fruits packed in standard export packaging, stuffed inside 40' Reefer container.")
+
     blocks.append({
         "id": "b_particulars",
         "type": "particulars",
+        "section": "",
         "title": "PARTICULARS",
         "rows": [
-            {"label": "Exporter / Shipper", "value": ["[Shipper Name, Country]"]},
-            {"label": "Consignee", "value": ["[Consignee Name, City, India]"]},
-            {"label": "Bill of Lading / AWB No.", "value": ["[B/L or AWB Number]"]},
-            {"label": "Invoice No.", "value": ["[Invoice Number]"]},
-            # Blanks, not guesses. These used to start as "(40' HC Reefer)",
-            # "(Found Intact)", "Nhava Sheva (JNPT)" and today's date, and
-            # printed as fact on any report where nobody changed them. The
-            # values come from the transport documents and the tally sheet.
-            {"label": "Container / Carriage Unit", "value": ["[Container No.]"]},
-            {"label": "Seal No.", "value": ["[Seal No.]"]},
-            {"label": "Carrying Vessel / Flight", "value": ["[Vessel Name / Flight No.]"]},
-            {"label": "Port of Loading", "value": ["[Port of Loading]"]},
-            {"label": "Port of Discharge", "value": ["[Port of Discharge]"]},
-            {"label": "Cargo Declared", "value": [declared]},
-            {"label": "Survey Date", "value": ["[Survey Date]"]},
-            {"label": "Survey Location", "value": ["[Cold Storage Name & Address]"]},
+            {"label": "Policy No.", "value": ["Information not furnished"]},
+            {"label": "Insurer", "value": ["Information not furnished"]},
+            {"label": "Sum Insured", "value": ["Information not furnished"]},
+            {"label": "Shipper", "value": ["[Shipper Name, Address, Country]"]},
+            {"label": "Consignees", "value": ["[Consignee Name, Address, City, India]"]},
+            {"label": "Comm. Invoice No.", "value": ["Information not furnished"]},
+            {"label": "Invoice Value", "value": ["Information not furnished"]},
+            {"label": "Bill of Lading No.", "value": ["[B/L No. dated Date]"]},
+            {"label": "Vessel Name", "value": ["[Vessel Name] Voyage No. [Voyage]"]},
+            {"label": "Voyage as per B/L", "value": ["[Port of Loading] to [Port of Discharge]"]},
+            {"label": "Date of arrival", "value": ["[Date of arrival at Terminal]"]},
+            {"label": "Container Nos.", "value": ["[Container No.] (1x40' Reefer / 40RH)"]},
+            {
+                "label": "Consignment",
+                "type": "table",
+                "headers": [f"Fresh {label} Variety", "Count / Size", "Total Boxes"],
+                "rows": [
+                    {"col1": f"Fresh {label}", "col2": "[Count / Size]", "col3": "[Boxes]"}
+                ],
+                "footer": "Total: [Total Boxes] Gross Weight: [Weight] kg"
+            },
+            {"label": "Nature of Packing", "value": [packing_desc]},
         ],
     })
 
@@ -336,425 +354,10 @@ def _build_blocks_for_commodity(
 
 
 # ---------------------------------------------------------------------------
-# General Cargo Block Builder (Gladstone & MCA Format)
-# ---------------------------------------------------------------------------
-
-_GC_COMMODITY_CONFIG: Dict[str, Dict[str, Any]] = {
-    "STEEL_METALS": {
-        "label": "Steel & Metal Products",
-        "cargo_desc": "Prime Hot Rolled / Cold Rolled Steel Coils / Pipe Bundles in export seaworthy packing",
-        "survey_findings": (
-            "1. STRUCTURAL CONDITION OF CONTAINER:\n"
-            "External inspection revealed the container panels to be structurally sound without visible perforations. "
-            "Door rubber gaskets were inspected and found in pliable, weather-tight condition. Visual light testing inside the "
-            "closed container showed no daylight penetration from the roof or side panels.\n\n"
-            "2. CARGO STOWAGE & LASHINGS:\n"
-            "Coils were stowed on heavy wooden cradles/dunnage chocks and secured with high-tensile steel straps and wire rope "
-            "lashings connected with turnbuckles. Certain coils located in forward bay exhibited longitudinal displacement, "
-            "scuffing against side walls, and loosened strapping.\n\n"
-            "3. CHEMICAL TESTING (SILVER NITRATE):\n"
-            "Silver nitrate solution (2% AgNO3) chemical testing was conducted on oxidized surfaces of the coils. No milky precipitate "
-            "or white cloudiness was observed, confirming the absence of sea water chlorides (fresh water / atmospheric oxidation)."
-        ),
-        "cause_of_loss": (
-            "Based on our physical inspection, the observed physical impact and edge deformations are attributed to "
-            "excessive motion, longitudinal acceleration, and heavy rolling of the carrying vessel during sea transit, causing coils "
-            "to strain against lashings. There was no evidence of sea water ingress (AgNO3 test negative). "
-            "Carrier liability is formally reserved and consignees have lodged a formal Notice of Claim."
-        ),
-        "categories": [
-            {"key": "sound", "label": "Sound Coils"},
-            {"key": "surface_rust", "label": "Surface Rust (Grade B)"},
-            {"key": "heavy_rust", "label": "Heavy Rust / Pitted"},
-            {"key": "dented_bent", "label": "Dented / Deformed Edges"},
-            {"key": "telescoped", "label": "Telescoped / Oval Coils"},
-            {"key": "shortage", "label": "Shortage / Missing"},
-        ],
-        "rows": [
-            {
-                "group": "Coil Lot #1 (Coils 01-05)",
-                "boxes_opened": 5,
-                "values": {"sound": 4, "surface_rust": 1, "heavy_rust": 0, "dented_bent": 0, "telescoped": 0, "shortage": 0},
-                "provenance": "user_declared",
-            },
-            {
-                "group": "Coil Lot #2 (Coils 06-12)",
-                "boxes_opened": 7,
-                "values": {"sound": 5, "surface_rust": 1, "heavy_rust": 0, "dented_bent": 1, "telescoped": 0, "shortage": 0},
-                "provenance": "user_declared",
-            },
-        ],
-    },
-    "MACHINERY_PARTS": {
-        "label": "Machinery & Equipment",
-        "cargo_desc": "Industrial Machinery, Assemblies & Mechanical Equipment Components in Wooden Crates",
-        "survey_findings": (
-            "1. PACKAGING & EXTERNAL CONDITION:\n"
-            "Inspection of the wooden crates revealed heavy impact marks, splintered wooden battens, and skid displacements "
-            "on certain packages. Tilt/drop impact indicators attached to crate exterior were inspected.\n\n"
-            "2. PHYSICAL EXAMINATION OF MACHINERY:\n"
-            "Upon uncrating in the presence of technical engineers, localized mechanical damages including fractured castings, "
-            "bent mounting brackets, and sheared bolts were observed. Internal anti-rust VCI film was torn on affected units."
-        ),
-        "cause_of_loss": (
-            "The physical damage sustained was attributable to sudden impact and rough handling during transhipment / shore crane "
-            "operations. Shock sensors indicated acceleration exceeding design limits. Notice of claim issued against bailees."
-        ),
-        "categories": [
-            {"key": "sound", "label": "Sound Packages"},
-            {"key": "broken_cracked", "label": "Broken / Cracked Castings"},
-            {"key": "dented_deformed", "label": "Dented Panels / Bent Frame"},
-            {"key": "scratched", "label": "Scratched / Scuffed"},
-            {"key": "missing_parts", "label": "Missing Components"},
-            {"key": "moisture", "label": "Moisture Affected"},
-        ],
-        "rows": [
-            {
-                "group": "Crate Lot #1 (Main Units)",
-                "boxes_opened": 3,
-                "values": {"sound": 2, "broken_cracked": 1, "dented_deformed": 0, "scratched": 0, "missing_parts": 0, "moisture": 0},
-                "provenance": "user_declared",
-            },
-            {
-                "group": "Crate Lot #2 (Accessories & Spares)",
-                "boxes_opened": 8,
-                "values": {"sound": 6, "broken_cracked": 0, "dented_deformed": 1, "scratched": 1, "missing_parts": 0, "moisture": 0},
-                "provenance": "user_declared",
-            },
-        ],
-    },
-    "AUTOMOTIVE": {
-        "label": "Automotive & Parts",
-        "cargo_desc": "Automotive Components, Assemblies & Spare Parts in Palletized Cartons",
-        "survey_findings": (
-            "1. PACKAGING & EXTERNAL CONDITION:\n"
-            "Cartons were stowed on wooden pallets shrink-wrapped with stretch film. Pallets in doorway exhibited crushed corners "
-            "and torn wrapping from forklift handling.\n\n"
-            "2. INTERNAL EXAMINATION:\n"
-            "Component parts inside affected cartons showed surface abrasions, scuffing, and minor panel deformations."
-        ),
-        "cause_of_loss": (
-            "Damage resulted from excessive stacking pressure and rough forklift handling during container stuffing/destuffing operations."
-        ),
-        "categories": [
-            {"key": "sound", "label": "Sound Cartons"},
-            {"key": "dented_impact", "label": "Dented / Impacted"},
-            {"key": "scratched", "label": "Scratched / Scuffed"},
-            {"key": "torn_pkg", "label": "Torn / Crushed Packaging"},
-            {"key": "corrosion", "label": "Rust / Corrosion"},
-            {"key": "shortage", "label": "Shortage / Pilfered"},
-        ],
-        "rows": [
-            {
-                "group": "Pallet 01 - Body Panels",
-                "boxes_opened": 20,
-                "values": {"sound": 17, "dented_impact": 2, "scratched": 1, "torn_pkg": 0, "corrosion": 0, "shortage": 0},
-                "provenance": "user_declared",
-            },
-            {
-                "group": "Pallet 02 - Trim & Fixtures",
-                "boxes_opened": 25,
-                "values": {"sound": 22, "dented_impact": 0, "scratched": 1, "torn_pkg": 2, "corrosion": 0, "shortage": 0},
-                "provenance": "user_declared",
-            },
-        ],
-    },
-    "CHEMICALS_LIQUIDS": {
-        "label": "Chemicals & Liquids",
-        "cargo_desc": "Industrial Chemicals / Liquid Cargo in Tight-head Steel Drums & Composite IBC Tanks",
-        "survey_findings": (
-            "1. CONTAINER & DRUM CONDITION:\n"
-            "Upon opening container doors, chemical odor was noted. Several steel drums in lower tier exhibited dented chimes, "
-            "rim deformation, and product seepage over floor panels.\n\n"
-            "2. LEAKAGE QUANTIFICATION:\n"
-            "Affected drums were weighed individually to determine ullage and net product loss against standard tare weights."
-        ),
-        "cause_of_loss": (
-            "Puncture and rim deformation sustained due to inadequate vertical bracing and shifting during sudden vessel maneuvers in transit."
-        ),
-        "categories": [
-            {"key": "sound", "label": "Sound Drums / IBCs"},
-            {"key": "leaking", "label": "Leaking / Punctured"},
-            {"key": "dented_chimes", "label": "Dented Rims & Chimes"},
-            {"key": "bulged", "label": "Bulged / Deformed"},
-            {"key": "contaminated", "label": "Contaminated"},
-            {"key": "empty_shortage", "label": "Empty / Shortage"},
-        ],
-        "rows": [
-            {
-                "group": "Tier 1 - Steel Drums 01-40",
-                "boxes_opened": 40,
-                "values": {"sound": 36, "leaking": 2, "dented_chimes": 2, "bulged": 0, "contaminated": 0, "empty_shortage": 0},
-                "provenance": "user_declared",
-            },
-            {
-                "group": "Tier 2 - Steel Drums 41-80",
-                "boxes_opened": 40,
-                "values": {"sound": 39, "leaking": 0, "dented_chimes": 1, "bulged": 0, "contaminated": 0, "empty_shortage": 0},
-                "provenance": "user_declared",
-            },
-        ],
-    },
-    "PAPER_PACKAGING": {
-        "label": "Paper & Packaging",
-        "cargo_desc": "Paper Reels / Packaging Kraft Board in Export Bundles with Moisture Barriers",
-        "survey_findings": (
-            "1. REEL CONDITION & PACKAGING:\n"
-            "Reels were stowed on end. Several reels showed gouged edges, torn outer wrapper layers, and clamp indentation marks.\n\n"
-            "2. MOISTURE READINGS:\n"
-            "Moisture meter readings on outer paper plies showed normal moisture content (6-8%), confirming physical handling damage."
-        ),
-        "cause_of_loss": (
-            "Edge gouging and clamp marks caused by improper clamp truck handling and contact with container side walls in transit."
-        ),
-        "categories": [
-            {"key": "sound", "label": "Sound Reels"},
-            {"key": "clamp_damage", "label": "Clamp Impact Damage"},
-            {"key": "torn_wrapper", "label": "Torn Outer Wrapper"},
-            {"key": "edge_gouged", "label": "Edge Gouged / Chipped"},
-            {"key": "wet_moisture", "label": "Wet / Moisture"},
-            {"key": "crushed_core", "label": "Crushed / Deformed Core"},
-        ],
-        "rows": [
-            {
-                "group": "Reel Lot A (Reels 01-10)",
-                "boxes_opened": 10,
-                "values": {"sound": 8, "clamp_damage": 1, "torn_wrapper": 0, "edge_gouged": 1, "wet_moisture": 0, "crushed_core": 0},
-                "provenance": "user_declared",
-            },
-            {
-                "group": "Reel Lot B (Reels 11-24)",
-                "boxes_opened": 14,
-                "values": {"sound": 12, "clamp_damage": 1, "torn_wrapper": 1, "edge_gouged": 0, "wet_moisture": 0, "crushed_core": 0},
-                "provenance": "user_declared",
-            },
-        ],
-    },
-    "GENERAL_CARGO": {
-        "label": "General Merchandise & Breakbulk",
-        "cargo_desc": "General Breakbulk Merchandise & Manufactured Products in Export Packing",
-        "survey_findings": (
-            "1. STRUCTURAL CONDITION OF THE CONTAINER:\n"
-            "External inspection revealed the container panels to be structurally sound without visible perforations or punctures. "
-            "Door rubber gaskets were inspected and found in pliable, weather-tight condition. Visual light testing inside the closed container "
-            "showed no daylight penetration from the roof or side panels.\n\n"
-            "2. CARGO STOWAGE & SECURING:\n"
-            "Upon opening the doors, cargo packages were observed stacked inside the container. Securing lashing polyester straps and wooden dunnage "
-            "chocks were inspected. Certain packages located in doorway exhibited displacement, impact creases, and shifting during transit."
-        ),
-        "cause_of_loss": (
-            "Based on our physical inspection, the observed physical impact and exterior case deformations are attributed to "
-            "excessive motion, longitudinal acceleration, and heavy impact sustained during handling and intermodal sea/road transit. "
-            "Carrier and stevedore liabilities are formally reserved."
-        ),
-        "categories": [
-            {"key": "sound", "label": "Sound Units"},
-            {"key": "dented_crushed", "label": "Dented / Crushed"},
-            {"key": "torn_cut", "label": "Torn / Cut Bags"},
-            {"key": "wet_moisture", "label": "Wet / Moisture Affected"},
-            {"key": "rust_moisture", "label": "Rust / Oxidation"},
-            {"key": "shortage", "label": "Shortage / Missing"},
-        ],
-        "rows": [
-            {
-                "group": "Item Lot #1 (Cases 01-10)",
-                "boxes_opened": 10,
-                "values": {"sound": 8, "dented_crushed": 2, "torn_cut": 0, "wet_moisture": 0, "rust_moisture": 0, "shortage": 0},
-                "provenance": "user_declared",
-            },
-            {
-                "group": "Item Lot #2 (Cases 11-25)",
-                "boxes_opened": 15,
-                "values": {"sound": 12, "dented_crushed": 1, "torn_cut": 2, "wet_moisture": 0, "rust_moisture": 0, "shortage": 0},
-                "provenance": "user_declared",
-            },
-        ],
-    },
-}
-
-
-def _build_blocks_for_general_cargo(
-    is_air: bool,
-    is_preliminary: bool,
-    today_str: str,
-    commodity_key: Optional[str] = None,
-    selected_sections: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Builds authentic block sequence for General Cargo reports (Gladstone / MCA format),
-    tailored to the specific cargo subcategory (Steel, Machinery, Automotive, Chemicals, Paper, General).
-    Supports client section selection.
-    """
-    cat_key = (commodity_key or "GENERAL_CARGO").upper()
-    cfg = _GC_COMMODITY_CONFIG.get(cat_key, _GC_COMMODITY_CONFIG["GENERAL_CARGO"])
-
-    disclaimer = (
-        "This preliminary survey report is issued based on observations made at the time of inspection "
-        "and without prejudice to liability, terms, and conditions of applicable insurance policies and carrier contracts."
-        if is_preliminary
-        else "This survey report is issued without prejudice to the liability of any party and is subject to the terms, conditions, and exceptions of the governing policy of insurance."
-    )
-
-    all_blocks: List[Tuple[str, Dict[str, Any]]] = []
-
-    # 1. Particulars
-    all_blocks.append(("particulars", {
-        "id": "b_particulars",
-        "type": "particulars",
-        "title": "CONSIGNMENT PARTICULARS",
-        "rows": [
-            {"label": "Vessel / Voyage" if not is_air else "Flight / Date", "value": "[VESSEL / FLIGHT]", "provenance": "user_declared"},
-            {"label": "Bill of Lading / AWB No." if not is_air else "Air Waybill No.", "value": "[B/L or AWB NUMBER]", "provenance": "user_declared"},
-            {"label": "Container No. & Seal No.", "value": "[CONTAINER NO.] / [SEAL NO.]", "provenance": "user_declared"},
-            {"label": "Shipper", "value": "[SHIPPER NAME & ADDRESS]", "provenance": "user_declared"},
-            {"label": "Consignee", "value": "[CONSIGNEE NAME & ADDRESS]", "provenance": "user_declared"},
-            {"label": "Cargo Description", "value": cfg["cargo_desc"], "provenance": "user_declared"},
-            {"label": "Declared B/L Gross Weight", "value": "[DECLARED GROSS WT (KG)]", "provenance": "user_declared"},
-            {"label": "Port of Loading", "value": "[PORT OF LOADING]", "provenance": "user_declared"},
-            {"label": "Port of Discharge", "value": "[PORT OF DISCHARGE]", "provenance": "user_declared"},
-            {"label": "Place & Date of Survey", "value": "[PLACE & DATE OF SURVEY]", "provenance": "user_declared"},
-        ],
-    }))
-
-    # 2. Attendance
-    all_blocks.append(("attendance", {
-        "id": "b_attendance",
-        "type": "attendance",
-        "title": "ATTENDANCE REGISTER",
-        "rows": [
-            {"name": "Mr. [SURVEYOR NAME]", "representing": "Marine Cargo Agencies Pvt. Ltd. (Independent Surveyors)"},
-            {"name": "Mr. [CONSIGNEE REP]", "representing": "Consignee / Importer Representative"},
-            {"name": "Mr. [CFS / CARRIER REP]", "representing": "CFS Logistics / Shipping Line Representative"},
-        ],
-    }))
-
-    # 3. Circumstances of Loss
-    all_blocks.append(("narrative_circ", {
-        "id": "b_narrative_circ",
-        "type": "narrative",
-        "section": "CIRCUMSTANCES OF LOSS & INSTRUCTIONS",
-        "additional_text": (
-            f"Under instructions received from the Underwriters / Instructing Principals, we attended the joint survey on {today_str} "
-            f"at the Consignee's premises to ascertain the nature, cause, and extent of alleged loss/damage to the subject consignment of {cfg['label']}. "
-            f"The container was reported to have arrived on board the carrier and was discharged at the port prior to destuffing. "
-            f"The original bolt seal was verified intact prior to cutting and opening in the presence of attending representatives."
-        ),
-    }))
-
-    # 4. Our Survey (Container Condition & Cargo Inspection)
-    all_blocks.append(("narrative_survey", {
-        "id": "b_narrative_survey",
-        "type": "narrative",
-        "section": "OUR SURVEY & FINDINGS",
-        "additional_text": cfg["survey_findings"],
-    }))
-
-    # 5. Damage Table
-    all_blocks.append(("table", {
-        "id": "b_table",
-        "type": "table",
-        "title": f"{cfg['label'].upper()} DAMAGE INVENTORY & RECONCILIATION",
-        "grouping_label": "Package Item / Lot",
-        "unit": "pcs",
-        "categories": cfg["categories"],
-        "rows": cfg["rows"],
-    }))
-
-    # 6. Cause of Loss & Liability
-    all_blocks.append(("narrative_cause", {
-        "id": "b_narrative_cause",
-        "type": "narrative",
-        "section": "CAUSE OF LOSS & LIABILITY OBSERVATIONS",
-        "additional_text": cfg["cause_of_loss"],
-    }))
-
-    # 7. Claim Reserve (Preliminary) or Final Claim (Final)
-    if is_preliminary:
-        all_blocks.append(("narrative_reserve", {
-            "id": "b_narrative_reserve",
-            "type": "narrative",
-            "section": "CLAIM RESERVE & ESTIMATE",
-            "additional_text": (
-                "CLAIM RESERVE (PRELIMINARY):\n"
-                "Pending final testing, repair quotation, and commercial invoice quantification from the Consignees, "
-                f"an initial claim reserve of INR [ESTIMATED RESERVE] / USD [RESERVE USD] is recommended against this {cfg['label']} consignment. "
-                "This reserve is provisional and subject to adjustment upon production of salvage proceeds and documentary evidence."
-            ),
-        }))
-    else:
-        all_blocks.append(("narrative_reserve", {
-            "id": "b_narrative_final_claim",
-            "type": "narrative",
-            "section": "FINAL LOSS ADJUSTMENT & QUANTIFICATION",
-            "additional_text": (
-                "FINAL QUANTIFICATION:\n"
-                "The loss has been adjusted on the basis of verified CIF commercial values and agreed depreciation/repair costs: "
-                "Gross Assessed Loss: INR [AMOUNT] less Agreed Salvage Retention: INR [SALVAGE], resulting in Net Adjusted Loss of INR [NET AMOUNT]. "
-                "Adjusted without prejudice to terms, conditions, and deductibles of the policy."
-            ),
-        }))
-
-    # 8. Survey Photographs
-    all_blocks.append(("photos", {
-        "id": "b_photos",
-        "type": "photo_plate",
-        "title": "SURVEY PHOTOGRAPHS",
-        "series_id": "survey",
-        "label": "Survey",
-        "provenance": "own_survey",
-        "columns": 2,
-        # Empty for the same reason as the perishable plate above.
-        "groups": [],
-    }))
-
-    # 9. Documentation / List of Enclosures
-    all_blocks.append(("enclosures", {
-        "id": "b_enclosures",
-        "type": "fixed_text",
-        "title": "DOCUMENTATION & ANNEXURES SCHEDULE",
-        "content": (
-            "1. Copy of Ocean Bill of Lading / Air Waybill\n"
-            "2. Copy of Commercial Invoice and Packing List\n"
-            "3. Copy of Weighbridge Slip / Delivery Order\n"
-            "4. Container Destuffing Tally / Gate Pass\n"
-            "5. Consignee Letter of Protest / Notice of Claim to Carrier\n"
-            "6. Survey Photographic Annexure Sheet"
-        ),
-    }))
-
-    # 10. Closure
-    all_blocks.append(("closure", {
-        "id": "b_closure",
-        "type": "fixed_text",
-        "title": "CLOSURE",
-        "content": (
-            f"{disclaimer}\n\n"
-            "Consignees are requested to pursue any claims-related matter directly with the responsible carrier/parties.\n\n"
-            "“ISSUED WITHOUT PREJUDICE”\n"
-            f"Dated: {today_str}\n"
-            "Marine Cargo Agencies Pvt. Ltd.\n"
-            "ØØØ"
-        ),
-    }))
-
-    # Filter blocks if client selected specific sections
-    if selected_sections and len(selected_sections) > 0:
-        sel_set = set(selected_sections)
-        blocks = [blk for sec_id, blk in all_blocks if sec_id in sel_set]
-        # Always guarantee at least particulars
-        if not blocks:
-            blocks = [blk for sec_id, blk in all_blocks if sec_id == "particulars"]
-    else:
-        blocks = [blk for _, blk in all_blocks]
-
-    return blocks
-
-
-# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-_GC_KEYS = {"STEEL_METALS", "MACHINERY_PARTS", "AUTOMOTIVE", "CHEMICALS_LIQUIDS", "PAPER_PACKAGING", "GENERAL_CARGO"}
+from app.seeds.general_cargo import CARGO_TYPE_KEYS as _GC_KEYS  # noqa: E402
 
 
 class UnknownCommodity(ValueError):
@@ -813,25 +416,20 @@ def get_default_block_state(
     today_str = date.today().strftime("%d %B %Y")
 
     if is_general:
-        commodity_val = commodity_upper if commodity_upper in _GC_KEYS else "GENERAL_CARGO"
-        cfg = _GC_COMMODITY_CONFIG.get(commodity_val, _GC_COMMODITY_CONFIG["GENERAL_CARGO"])
-        blocks = _build_blocks_for_general_cargo(
-            is_air=is_air,
-            is_preliminary=is_preliminary,
-            today_str=today_str,
-            commodity_key=commodity_val,
-            selected_sections=selected_sections,
-        )
-        report_title = (
-            f"PRELIMINARY GENERAL CARGO SURVEY REPORT (PLA) — {cfg['label'].upper()}" if is_preliminary
-            else f"FINAL GENERAL CARGO SURVEY REPORT — {cfg['label'].upper()}"
-        )
-        metadata = {
-            "docx_template": "mca-general-canonical-v1.docx",
-            "family": "SURVEY_REPORT",
-            "commodity": commodity_val,
-            "state": "PRELIMINARY" if is_preliminary else "FINAL",
+        # The client's general cargo layout; he issues Final reports only.
+        from app.seeds import general_cargo
+
+        gc = general_cargo.block_state(mode, cargo_type=commodity_upper or None, state=state)
+        gc["transport"] = {
+            "mode": mode,
+            "container_no": "",
+            "vessel": "",
+            "voyage": "",
+            "origin": "",
+            "destination": "",
+            "document": {"kind": "BILL_OF_LADING" if mode == "SEA" else "AIR_WAYBILL", "number": ""},
         }
+        return gc
     else:
         key = fruit_key(commodity_key)
         archetypes = _load_archetypes()

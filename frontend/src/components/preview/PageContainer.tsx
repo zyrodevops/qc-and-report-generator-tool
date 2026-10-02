@@ -6,6 +6,10 @@ export interface PageContainerProps {
   headerLeft?: string;
   headerRight?: string;
   reportNumber?: string;
+  /** e.g. "FINAL SURVEY REPORT"; the running header reads "<label> NO. <number>". */
+  reportLabel?: string;
+  /** QC reports keep their own header and footer wording. */
+  isQc?: boolean;
   children: React.ReactNode;
   className?: string;
   /** Photo pages: the Word file's photo margins, so 8 photos fit as they do there. */
@@ -18,15 +22,15 @@ export const PageContainer: React.FC<PageContainerProps> = ({
   headerLeft = 'MARINE CARGO AGENCIES',
   headerRight,
   reportNumber,
+  reportLabel,
+  isQc = false,
   children,
   className = '',
   photoPage = false,
 }) => {
+  const label = isQc ? 'IN-HOUSE QC INSPECTION REPORT' : reportLabel || 'SURVEY REPORT';
   const formattedHeaderRight =
-    headerRight ||
-    (reportNumber
-      ? `IN-HOUSE QC INSPECTION REPORT # ${reportNumber}`
-      : 'IN-HOUSE QC INSPECTION REPORT');
+    headerRight || (reportNumber ? `${label} ${isQc ? '#' : 'NO.'} ${reportNumber}` : label);
 
   return (
     <div
@@ -63,7 +67,7 @@ export const PageContainer: React.FC<PageContainerProps> = ({
         <span className="font-bold text-slate-700 tracking-wider">
           Page {pageNumber} of {totalPages}
         </span>
-        <span className="italic">Confidential QC Inspection</span>
+        <span className="italic">{isQc ? 'Confidential QC Inspection' : 'Confidential'}</span>
       </footer>
     </div>
   );

@@ -105,7 +105,16 @@ def quick_text(data: bytes, max_pages: int = 3) -> str:
         reader = PdfReader(io.BytesIO(data))
         return "\n".join((reader.pages[i].extract_text() or "") for i in range(min(max_pages, len(reader.pages))))
     except Exception:
-        return ""
+        # Some PDFs trip pypdf's font limits (one of the client's 58-page
+        # bundles does: "Too many character widths"). pdfplumber reads them;
+        # without this the whole file was taken for a scan.
+        try:
+            import pdfplumber
+
+            with pdfplumber.open(io.BytesIO(data)) as pdf:
+                return "\n".join((p.extract_text() or "") for p in pdf.pages[:max_pages])
+        except Exception:
+            return ""
 
 
 def classify(text: str, filename: str = "") -> str:
@@ -228,6 +237,11 @@ def read_sea_document(data: bytes, kind: str) -> Dict[str, Any]:
                 nums = re.findall(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{3}\b|\b\d{4,6}\.\d{1,3}\b", after)
                 if nums:
                     entry["gross_kg"] = nums[0]
+                    # The container's tare is printed after the gross weight, as a whole number
+                    # of kg ("20 PACKAGE(S) 20500.000 2150 25.000").
+                    m = re.search(re.escape(nums[0]) + r"\s+(\d{3,5})\s+\d", after)
+                    if m:
+                        entry["tare_kg"] = m.group(1)
                 for look in [line] + lines[i + 1:i + 3]:
                     m = re.search(r"\bSEAL(?:\s*NO\.?|\s*#)?[:\s]+([A-Z0-9]{5,15})\b", look, re.I)
                     if m:
@@ -408,17 +422,40 @@ def read_packing_list(data: bytes) -> Dict[str, Any]:
             _field(out, key, v[0], 1, f"label: {lab}")
     boxes_total = 0
     pallets = 0
+    lines: List[Dict[str, Any]] = []
     for _p, rows in _tables(data):
-        hit = _header_index(rows, r"box|carton|qty")
-        if not hit:
-            continue
-        i, cols = hit
-        for row in rows[i + 1:]:
-            qty = row[cols[r"box|carton|qty"]].replace(",", "").strip()
-            if re.fullmatch(r"\d{1,5}", qty):
-                boxes_total += int(qty)
-                pallets += 1
-        break
+        hit = _header_index(rows, r"box|carton|qty|quantity", r"variety|commodity|description|item|product")
+        if hit and not lines:
+            i, cols = hit
+            head = [c.lower() for c in rows[i]]
+            size_col = next((j for j, h in enumerate(head) if re.search(r"count|size|grade|calibre", h)), None)
+            cont_col = next((j for j, h in enumerate(head) if "container" in h), None)
+            for row in rows[i + 1:]:
+                qty = row[cols[r"box|carton|qty|quantity"]].replace(",", "").strip()
+                desc = row[cols[r"variety|commodity|description|item|product"]].strip()
+                if re.fullmatch(r"\d{1,6}", qty) and desc and not re.match(r"(?i)total", desc):
+                    item_info = _describe(desc)
+                    if size_col is not None and size_col < len(row) and row[size_col].strip():
+                        item_info["count"] = row[size_col].strip()
+                    if cont_col is not None and cont_col < len(row) and row[cont_col].strip():
+                        c_found = containers_in(row[cont_col])
+                        if c_found:
+                            item_info["container"] = c_found[0]
+                    lines.append({"cartons": int(qty), **item_info, "page": _p})
+
+        hit_qty = _header_index(rows, r"box|carton|qty")
+        if hit_qty and not boxes_total:
+            i, cols = hit_qty
+            for row in rows[i + 1:]:
+                qty = row[cols[r"box|carton|qty"]].replace(",", "").strip()
+                if re.fullmatch(r"\d{1,5}", qty):
+                    boxes_total += int(qty)
+                    pallets += 1
+
+    if lines:
+        out["lines"] = lines
+        if not boxes_total:
+            boxes_total = sum(l["cartons"] for l in lines)
     if boxes_total:
         _field(out, "boxes", boxes_total, 1, "table: boxes column")
         _field(out, "pallets", pallets, 1, "table: rows")
@@ -486,6 +523,88 @@ def read_recorder(data: bytes, filename: str = "") -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+
+def read_file(data: bytes, filename: str) -> List[Dict[str, Any]]:
+    """
+    Every document in a file. A bundle (the insurance certificate, the
+    invoice, the bill of entry ... in one PDF) is split into its documents,
+    each read as its own; each result says which pages it came from. Never
+    raises for a bad file.
+    """
+    from app.ingest.documents import gc_readers
+    from app.ingest.documents.pages import RECOGNISED_ONLY, SCAN_KINDS, is_bundle, page_texts, split, sub_pdf
+
+    if not data[:5] == b"%PDF-":
+        return [read_document(data, filename)]
+    try:
+        texts = page_texts(data)
+    except Exception:
+        return [read_document(data, filename)]
+    parts = split(texts, filename)
+    whole = not is_bundle(parts)
+    out: List[Dict[str, Any]] = []
+    for part in parts:
+        kind = part.kind
+        pages = part.pages
+        ptexts = [texts[i - 1] for i in pages]
+        part_data = data if whole else sub_pdf(data, pages)
+        if whole and kind == "unknown":
+            kind = classify("\n".join(ptexts[:3]), filename)
+        try:
+            if kind in ("scanned",) or kind in SCAN_KINDS and all(len(t.strip()) < 40 for t in ptexts):
+                doc = {"kind": kind, "scan": True,
+                       "status": "A scan (no text inside): read it with the online reader, or type the figures in."}
+            elif kind in RECOGNISED_ONLY:
+                doc = {"kind": kind, "status": "Recognised; nothing is taken from it."}
+            elif kind == "insurance":
+                doc = gc_readers.read_insurance(ptexts)
+            elif kind == "bill_of_entry":
+                doc = gc_readers.read_bill_of_entry(ptexts)
+            elif kind == "shipping_bill":
+                doc = gc_readers.read_shipping_bill(ptexts)
+            elif kind == "eir":
+                doc = gc_readers.read_eir(ptexts)
+            elif kind == "container_tracking":
+                doc = gc_readers.read_tracking(ptexts)
+            elif kind in ("recorder", "bill_of_lading", "sea_waybill", "air_waybill", "invoice", "packing_list",
+                          "other_report", "unknown"):
+                doc = _read_kind(part_data, filename, kind)
+                if kind == "invoice":
+                    value = gc_readers.invoice_value(ptexts)
+                    if value:
+                        _field(doc, "invoice_value", value, 1, "text: invoice value")
+                if kind == "packing_list":
+                    weights = gc_readers.container_weights(ptexts)
+                    if weights:
+                        doc["container_weights"] = weights
+                    for key, v in gc_readers.total_weights(ptexts).items():
+                        _field(doc, key, v, 1, "label: total weight")
+            else:
+                doc = {"kind": kind, "status": "Recognised; nothing is taken from it."}
+        except Exception as exc:  # one bad part must not stop the rest of the file
+            doc = {"kind": kind, "status": f"Could not be read: {type(exc).__name__}"}
+        if not whole:
+            doc["page_range"] = f"p{pages[0]}" if len(pages) == 1 else f"p{pages[0]}–{pages[-1]}"
+        doc["page_numbers"] = pages
+        out.append(doc)
+    return out
+
+
+def _read_kind(data: bytes, filename: str, kind: str) -> Dict[str, Any]:
+    if kind == "recorder":
+        return read_recorder(data, filename)
+    if kind in ("bill_of_lading", "sea_waybill"):
+        return read_sea_document(data, kind)
+    if kind == "air_waybill":
+        return read_air_waybill(data)
+    if kind == "invoice":
+        return read_invoice(data)
+    if kind == "packing_list":
+        return read_packing_list(data)
+    if kind == "other_report":
+        return {"kind": "other_report", "status": "A survey report, not a shipment document; nothing is taken from it."}
+    return {"kind": "unknown", "status": "Not recognised as a shipment document."}
+
 
 def read_document(data: bytes, filename: str) -> Dict[str, Any]:
     """Tell what the document is and read it. Never raises for a bad file."""

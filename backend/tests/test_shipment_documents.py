@@ -189,13 +189,13 @@ def test_documents_are_checked_against_each_other():
     assert next(c for c in ship["containers"] if c["container"] == C2)["seal"] == "SL20002"
     assert ship["recorders"][0]["container"] == C1
     rows = {r["label"]: r["value"] for r in particulars(ship)}
-    assert rows["Exporter / Shipper"] == "Green Valley Orchards De Chile, Chile"
-    assert rows["Consignee"] == "Example Fresh Imports Pvt Ltd, Maharashtra, India"
-    assert rows["Bill of Lading / AWB No."] == "TST0001234 dated 2 March 2026"
-    assert rows["Carrying Vessel / Flight"] == "“SEA BREEZE” Voy No. 123E"
-    assert rows["Port of Loading"] == "Valparaiso, Chile"
-    assert rows["Net / Gross Weight"] == "Net 36,000 kg / Gross 41,000 kg"
-    assert rows["Container / Carriage Unit"].endswith("(2 × 40' Reefers)")
+    assert rows["Shipper"] == "Green Valley Orchards De Chile, Chile"
+    assert rows["Consignees"] == "Example Fresh Imports Pvt Ltd, Maharashtra, India"
+    assert rows["Bill of Lading No."] == "TST0001234 dated 2 March 2026"
+    assert rows["Vessel Name"] == "“SEA BREEZE” Voyage No. 123E"
+    assert rows["Voyage as per B/L"] == "Valparaiso, Chile to Nhava Sheva"
+    assert "Net Weight: 36,000 kg" in rows["Nature of Packing"]
+    assert rows["Container Nos."].startswith("TSTU1234568 & FAKU7654324 (2x40' Reefer")
 
 
 def test_names_keep_their_acronyms():
@@ -233,8 +233,8 @@ async def test_read_then_apply_fills_the_particulars():
         assert res.status_code == 200, res.text
         st = res.json()["block_state"]
         p = next(b for b in st["blocks"] if b["type"] == "particulars")
-        row = next(r for r in p["rows"] if r["label"] == "Port of Discharge")
-        assert row["value"] == ["Nhava Sheva"] and row["provenance"] == "document_verified"
+        row = next(r for r in p["rows"] if r["label"] == "Voyage as per B/L")
+        assert "Nhava Sheva" in str(row["value"]) and row["provenance"] == "document_verified"
         assert st["metadata"]["shipment"]["requested_temperature_c"] == "0"
         assert st["metadata"]["recorders"][0]["container"] == C1
 
@@ -276,3 +276,62 @@ async def test_recorders_get_a_summary_section_and_a_graph_that_can_be_left_out(
         doc = Document()
         render_recorders(doc, {**rb, "show_chart": False})
         assert len(doc.inline_shapes) == 0 and len(doc.tables) == 1
+
+
+@pytest.mark.asyncio
+async def test_apply_documents_consignment_ordering_before_nature_of_packing():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        login = await ac.post("/api/auth/login", json={"password": "surveyor123"})
+        hdr = {"Authorization": f"Bearer {login.json()['token']}"}
+        rep = (await ac.post("/api/reports", json={"family": "SURVEY_REPORT", "commodity": "APPLE",
+                                                   "template_id": "perishable_sea_survey"}, headers=hdr)).json()
+
+        # Multi-container apply
+        ship_multi = {
+            "containers": [
+                {"container": "CONT001", "type": "40RH"},
+                {"container": "CONT002", "type": "40RH"},
+            ],
+            "consignment": [
+                {"container": "CONT001", "variety": "Gala", "count": "100", "cartons": 500},
+                {"container": "CONT002", "variety": "Fuji", "count": "120", "cartons": 600},
+            ],
+            "nature_of_packing": "Packed in ventilated cartons."
+        }
+        part_multi = particulars(ship_multi, general_cargo=False)
+        res = await ac.post(f"/api/reports/{rep['id']}/documents/apply", headers=hdr,
+                            json={"particulars": part_multi, "shipment": ship_multi})
+        assert res.status_code == 200, res.text
+        st = res.json()["block_state"]
+        p_block = next(b for b in st["blocks"] if b["type"] == "particulars")
+        labels = [r.get("label") for r in p_block["rows"]]
+
+        # Assert no unfilled placeholder Consignment row remains
+        assert "Consignment" not in labels
+        c1_idx = labels.index("Consignment # CONT001")
+        c2_idx = labels.index("Consignment # CONT002")
+        nop_idx = labels.index("Nature of Packing")
+        assert c2_idx == c1_idx + 1
+        assert nop_idx == c2_idx + 1
+
+        # Single-container apply replaces container tables cleanly before Nature of Packing
+        ship_single = {
+            "containers": [{"container": "CONT001", "type": "40RH"}],
+            "consignment": [{"container": "CONT001", "fruit": "Apple", "variety": "Gala", "count": "100", "cartons": 500}],
+            "nature_of_packing": "Packed in 3-ply corrugated box."
+        }
+        part_single = particulars(ship_single, general_cargo=False)
+        res2 = await ac.post(f"/api/reports/{rep['id']}/documents/apply", headers=hdr,
+                             json={"particulars": part_single, "shipment": ship_single})
+        assert res2.status_code == 200, res2.text
+        st2 = res2.json()["block_state"]
+        p_block2 = next(b for b in st2["blocks"] if b["type"] == "particulars")
+        labels2 = [r.get("label") for r in p_block2["rows"]]
+
+        assert "Consignment" in labels2
+        assert "Consignment # CONT001" not in labels2
+        assert "Consignment # CONT002" not in labels2
+        c_idx = labels2.index("Consignment")
+        nop_idx2 = labels2.index("Nature of Packing")
+        assert nop_idx2 == c_idx + 1

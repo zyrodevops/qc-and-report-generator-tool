@@ -14,6 +14,7 @@ import {
   ParticularsProposal,
   readShipmentDocuments,
 } from '../../api/client';
+import { CheckedScan, ScanReader } from './ScanReader';
 
 interface Props {
   reportId: string;
@@ -35,9 +36,13 @@ export const ShipmentDocuments: React.FC<Props> = ({ reportId, blockState, onApp
   const [result, setResult] = useState<DocumentsReadResult | null>(null);
   const [rows, setRows] = useState<(ParticularsProposal & { keep: boolean })[]>([]);
   const [temp, setTemp] = useState('');
+  // Scans read by the online reader, checked by the surveyor: one entry per scanned document.
+  const [scans, setScans] = useState<Record<string, CheckedScan>>({});
   const input = useRef<HTMLInputElement>(null);
 
   const applied = blockState?.metadata?.shipment;
+  const gc = blockState?.metadata?.report_kind === 'general_cargo';
+  const scanKey = (d: any) => `${d.asset_id}:${(d.pages || []).join(',')}`;
 
   const read = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -46,6 +51,7 @@ export const ShipmentDocuments: React.FC<Props> = ({ reportId, blockState, onApp
     try {
       const r = await readShipmentDocuments(reportId, Array.from(files));
       setResult(r);
+      setScans({});
       setRows(r.particulars.map((p) => ({ ...p, keep: true })));
       const t = r.shipment.requested_temperature_c;
       setTemp(Array.isArray(t) ? t.join(' to ') : t ?? '');
@@ -67,9 +73,35 @@ export const ShipmentDocuments: React.FC<Props> = ({ reportId, blockState, onApp
         ...result.shipment,
         requested_temperature_c: !t ? null : parts.length === 2 ? parts : parts[0],
       };
+      const kept = (kind: string) =>
+        Object.values(scans).filter((s) => s.kind === kind).flatMap((s) => s.rows.filter((r) => r.keep));
+      const hasContent = (r: any) => {
+        if (r.type === 'table' || r.rows || r.headers) return true;
+        if (typeof r.value === 'string') return Boolean(r.value.trim());
+        if (Array.isArray(r.value)) return r.value.length > 0;
+        return Boolean(r.value);
+      };
       const res = await applyShipmentDocuments(reportId, {
-        particulars: rows.filter((r) => r.keep && r.value.trim()).map(({ label, value }) => ({ label, value })),
-        shipment,
+        particulars: rows.filter((r) => r.keep && hasContent(r)).map((r) => {
+          if (r.type === 'table' || r.rows || r.headers) {
+            return {
+              label: r.label,
+              type: 'table',
+              headers: r.headers || ['Commodity / Variety', 'Count / Size', 'Total Boxes'],
+              rows: r.rows || r.items || [],
+              footer: r.footer || '',
+              value: r.value || [r.footer || ''],
+              source: r.source,
+            };
+          }
+          return {
+            label: r.label,
+            value: typeof r.value === 'string' ? r.value : Array.isArray(r.value) ? r.value.join(', ') : String(r.value || ''),
+            source: r.source,
+          };
+        }),
+        shipment: { ...shipment, lorry_receipts: kept('lorry_receipt').map(({ keep, flags, ...r }) => r) },
+        weight_slips: kept('weight_slip').map(({ keep, flags, ...r }) => r),
       });
       onApplied(res.block_state, res.version);
       setOpen(false);
@@ -105,7 +137,8 @@ export const ShipmentDocuments: React.FC<Props> = ({ reportId, blockState, onApp
           }}
           className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg"
         >
-          <Upload className="w-4 h-4" /> Upload B/L, invoice, packing lists, recorder files
+          <Upload className="w-4 h-4" />{' '}
+          {gc ? 'Upload B/L, invoice, packing lists, policy, weight slips' : 'Upload B/L, invoice, packing lists, recorder files'}
         </button>
       </div>
       <p className="text-xs text-gray-500 mt-1">
@@ -213,16 +246,49 @@ export const ShipmentDocuments: React.FC<Props> = ({ reportId, blockState, onApp
                               </td>
                               <td className="py-1.5 pr-3 w-48 font-semibold text-gray-600 text-xs">{r.label}</td>
                               <td className="py-1.5">
-                                <textarea
-                                  value={r.value}
-                                  rows={Math.min(4, Math.ceil(r.value.length / 90) || 1)}
-                                  onChange={(e) => setRows((p) => p.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
-                                  className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                />
-                                <div className="text-[10px] text-gray-400">
-                                  from {r.source || 'the documents'}
-                                  {was && was !== r.value && <span className="text-amber-700"> · replaces “{was}”</span>}
-                                </div>
+                                {r.type === 'table' || r.headers || r.rows ? (
+                                  <div className="border border-slate-300 rounded overflow-hidden text-xs bg-white">
+                                    <table className="w-full">
+                                      <thead className="bg-slate-50 border-b border-slate-300 text-slate-700">
+                                        <tr>
+                                          <th className="p-1.5 text-left font-semibold">{(r.headers || ['Commodity / Variety', 'Count / Size', 'Total Boxes'])[0]}</th>
+                                          <th className="p-1.5 text-center font-semibold">{(r.headers || ['Commodity / Variety', 'Count / Size', 'Total Boxes'])[1]}</th>
+                                          <th className="p-1.5 text-right font-semibold">{(r.headers || ['Commodity / Variety', 'Count / Size', 'Total Boxes'])[2]}</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {(r.rows || r.items || []).map((it: any, sIdx: number) => (
+                                          <tr key={sIdx} className="border-b border-slate-100">
+                                            <td className="p-1.5">{it.col1 ?? it.variety ?? it.description ?? ''}</td>
+                                            <td className="p-1.5 text-center">{it.col2 ?? it.count ?? it.size ?? ''}</td>
+                                            <td className="p-1.5 text-right">{it.col3 ?? it.boxes ?? it.cartons ?? ''}</td>
+                                          </tr>
+                                        ))}
+                                        {r.footer && (
+                                          <tr className="bg-slate-50 font-bold border-t border-slate-300">
+                                            <td colSpan={3} className="p-1.5">{r.footer}</td>
+                                          </tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                    <div className="text-[10px] text-gray-400 p-1 bg-slate-50 border-t border-slate-200">
+                                      from {r.source || 'the documents'}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <textarea
+                                      value={typeof r.value === 'string' ? r.value : Array.isArray(r.value) ? r.value.join('\n') : String(r.value || '')}
+                                      rows={Math.min(4, Math.ceil((typeof r.value === 'string' ? r.value.length : 20) / 90) || 1)}
+                                      onChange={(e) => setRows((p) => p.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}
+                                      className="w-full border border-gray-300 rounded px-2 py-1 text-sm font-sans"
+                                    />
+                                    <div className="text-[10px] text-gray-400">
+                                      from {r.source || 'the documents'}
+                                      {was && was !== r.value && <span className="text-amber-700"> · replaces “{was}”</span>}
+                                    </div>
+                                  </>
+                                )}
                               </td>
                             </tr>
                           );
@@ -244,7 +310,61 @@ export const ShipmentDocuments: React.FC<Props> = ({ reportId, blockState, onApp
                     </table>
                   </div>
 
-                  {containers.length > 0 && (
+                  {result.documents.some((d) => d.scan) && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold uppercase text-gray-400">Scanned documents</div>
+                      {result.documents
+                        .filter((d) => d.scan)
+                        .map((d) => (
+                          <ScanReader
+                            key={scanKey(d)}
+                            reportId={reportId}
+                            doc={d}
+                            containers={containers}
+                            value={scans[scanKey(d)]}
+                            onChange={(v) =>
+                              setScans((prev) => {
+                                const next = { ...prev };
+                                if (v) next[scanKey(d)] = v;
+                                else delete next[scanKey(d)];
+                                return next;
+                              })
+                            }
+                          />
+                        ))}
+                    </div>
+                  )}
+
+                  {gc && containers.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Containers</div>
+                      <table className="w-full text-xs border" data-testid="gc-containers">
+                        <thead className="bg-gray-50 text-gray-500">
+                          <tr>
+                            {['Container', 'Type', 'Seal', 'Tare (B/L)', 'Gross (packing list)', 'Discharged', 'To consignee', 'Delivered to (EIR)'].map((h) => (
+                              <th key={h} className="text-left px-2 py-1">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {containers.map((c) => (
+                            <tr key={c.container} className="border-t">
+                              <td className="px-2 py-1 font-mono">{c.container}</td>
+                              <td className="px-2 py-1">{c.type || '—'}</td>
+                              <td className="px-2 py-1 font-mono">{c.seal || '—'}</td>
+                              <td className="px-2 py-1">{c.tare_kg || '—'}</td>
+                              <td className="px-2 py-1">{c.pl_gross_kg || '—'}</td>
+                              <td className="px-2 py-1">{c.tracking?.discharged || '—'}</td>
+                              <td className="px-2 py-1">{c.tracking?.to_consignee || '—'}</td>
+                              <td className="px-2 py-1">{c.eir?.destination || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {!gc && containers.length > 0 && (
                     <div>
                       <div className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Containers</div>
                       <table className="w-full text-xs border">

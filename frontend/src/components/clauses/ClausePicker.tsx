@@ -55,6 +55,8 @@ export const WithBlanks: React.FC<{ text: string }> = ({ text }) => (
 export interface ClausePickerProps {
   /** Section heading as it appears on the form, e.g. "PARAGRAPH 3: CAUSE OF LOSS". */
   sectionHeading: string;
+  /** The section slug, when the heading does not say it. */
+  section?: string;
   /** What the report already knows — fruit, mode, container, measurements, defects. */
   context: ClauseContext;
   /** Topics already added to this section: topic key -> the text that was added. */
@@ -63,11 +65,30 @@ export interface ClausePickerProps {
   onRemove: (topic: string) => void;
 }
 
-export const ClausePicker: React.FC<ClausePickerProps> = ({ sectionHeading, context, added, onAdd, onRemove }) => {
-  const section = detectSectionFromHeading(sectionHeading);
+export const ClausePicker: React.FC<ClausePickerProps> = ({ sectionHeading, section: given, context, added, onAdd, onRemove }) => {
+  const section = given || detectSectionFromHeading(sectionHeading);
   const [topics, setTopics] = useState<WordingTopic[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  // General cargo cards: which choice of each piece, and which optional pieces are in.
+  const [picked, setPicked] = useState<Record<string, { on: boolean; choice: string }[]>>({});
+
+  const selection = (t: WordingTopic) =>
+    picked[t.topic] || (t.parts || []).map((p) => ({ on: p.on, choice: p.choices[0].topic }));
+  const composed = (t: WordingTopic): string => {
+    if (!t.parts) return t.text;
+    const sel = selection(t);
+    return t.parts
+      .map((p, i) => (sel[i]?.on ? p.choices.find((c) => c.topic === sel[i].choice)?.text || p.choices[0].text : null))
+      .filter(Boolean)
+      .join('\n\n');
+  };
+  const setPart = (t: WordingTopic, i: number, next: { on: boolean; choice: string }) => {
+    const sel = [...selection(t)];
+    sel[i] = next;
+    setPicked((prev) => ({ ...prev, [t.topic]: sel }));
+  };
+  const blankCount = (t: WordingTopic) => (composed(t).match(/\[[^\]\n]{1,40}\]/g) || []).length;
 
   const contextKey = JSON.stringify(context);
   const hasFruit = Boolean(context.commodity);
@@ -106,7 +127,7 @@ export const ClausePicker: React.FC<ClausePickerProps> = ({ sectionHeading, cont
 
   const toggle = (t: WordingTopic) => {
     if (added[t.topic] !== undefined) onRemove(t.topic);
-    else onAdd(t.topic, t.text);
+    else onAdd(t.topic, composed(t));
     setPreview(null);
   };
 
@@ -135,9 +156,9 @@ export const ClausePicker: React.FC<ClausePickerProps> = ({ sectionHeading, cont
               >
                 <div className="flex items-start justify-between gap-1">
                   <span className="text-[11.5px] font-semibold text-slate-800 leading-tight">{t.label}</span>
-                  {t.blanks.length > 0 && !isAdded && (
+                  {blankCount(t) > 0 && !isAdded && (
                     <span className="shrink-0 text-[9px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1">
-                      {t.blanks.length} blank{t.blanks.length > 1 ? 's' : ''}
+                      {blankCount(t)} blank{blankCount(t) > 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
@@ -200,8 +221,49 @@ export const ClausePicker: React.FC<ClausePickerProps> = ({ sectionHeading, cont
       {shown && (
         <div className="mt-2 rounded-lg border border-blue-200 bg-white p-3">
           <div className="text-[11px] font-semibold text-blue-800 mb-1.5">{shown.label} — this is what will be added</div>
+          {shown.parts && shown.parts.some((p) => p.optional || p.choices.length > 1) && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-2" data-testid="card-parts">
+              {shown.parts.map((p, i) => {
+                const s = selection(shown)[i];
+                if (!p.optional && p.choices.length === 1) return null;
+                const chip = (active: boolean) =>
+                  `text-[10.5px] px-2 py-0.5 rounded-full border ${
+                    active ? 'border-blue-500 bg-blue-50 text-blue-800 font-semibold' : 'border-slate-300 bg-white text-slate-600 hover:border-blue-400'
+                  }`;
+                return (
+                  <div
+                    key={i}
+                    className={`flex flex-wrap items-center gap-1 ${
+                      p.choices.length > 1 ? 'border border-dashed border-slate-300 rounded-full px-1 py-0.5' : ''
+                    }`}
+                    title={p.choices.length > 1 ? 'Pick one' : undefined}
+                  >
+                    {p.choices.map((c) => (
+                      <button
+                        key={c.topic}
+                        type="button"
+                        aria-pressed={s.on && s.choice === c.topic}
+                        className={chip(s.on && s.choice === c.topic)}
+                        onClick={() =>
+                          setPart(shown, i, p.optional && s.on && s.choice === c.topic ? { ...s, on: false } : { on: true, choice: c.topic })
+                        }
+                      >
+                        {s.on && s.choice === c.topic && <Check size={9} className="inline mr-0.5" />}
+                        {c.label}
+                      </button>
+                    ))}
+                    {p.optional && p.choices.length > 1 && (
+                      <button type="button" aria-pressed={!s.on} className={chip(!s.on)} onClick={() => setPart(shown, i, { ...s, on: false })}>
+                        Leave out
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <div className="text-[11px] leading-relaxed text-slate-700 whitespace-pre-line max-h-64 overflow-y-auto">
-            <WithBlanks text={shown.text} />
+            <WithBlanks text={composed(shown)} />
           </div>
           <div className="flex items-center justify-between mt-2">
             <span className="text-[10px] text-slate-500">

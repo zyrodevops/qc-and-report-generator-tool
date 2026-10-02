@@ -1,5 +1,6 @@
 import React, { useRef, useLayoutEffect } from 'react';
 import { ClausePicker, WithBlanks, detectSectionFromHeading } from '../../clauses/ClausePicker';
+import { NotesWriter } from '../../clauses/NotesWriter';
 import type { ClauseContext } from '../../../api/client';
 import { BLANK_PATTERN } from '../../../utils/clauseContext';
 
@@ -9,6 +10,10 @@ export interface NarrativeBlockProps {
   editable?: boolean;
   /** Fruit, container, measurements and counted defects, for the clause picker. */
   clauseContext?: ClauseContext;
+  /** Shown instead of the section name (general cargo: the numbered heading). Never saved. */
+  heading?: string;
+  /** Which wording to offer, when the heading does not say (a general cargo survey paragraph). */
+  clauseSection?: string;
 }
 
 export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
@@ -16,8 +21,10 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   onChange,
   editable = true,
   clauseContext,
+  heading,
+  clauseSection,
 }) => {
-  const sectionTitle = block?.section || 'ATTENDANCE & CIRCUMSTANCES';
+  const sectionTitle = heading || block?._heading || block?.section || 'ATTENDANCE & CIRCUMSTANCES';
   const text = block?.additional_text || '';
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -94,7 +101,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
     onChange({ ...block, additional_text: next, wording_added: rest, surveyor_edited: true });
   };
 
-  const sectionSlug = detectSectionFromHeading(sectionTitle);
+  const sectionSlug = clauseSection || detectSectionFromHeading(sectionTitle);
   const blanks = text.match(BLANK_PATTERN) || [];
 
   // Split and highlight bracketed photo references (Photo Nos?...)
@@ -126,6 +133,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
           {clauseContext && (
             <ClausePicker
               sectionHeading={sectionTitle}
+              section={clauseSection}
               context={clauseContext}
               added={addedTopics}
               onAdd={handleAddTopic}
@@ -144,6 +152,20 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
             }
             className="w-full bg-transparent border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white focus:outline-none rounded p-1 text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text"
           />
+
+          {clauseContext?.commodity === 'GENERAL_CARGO' && sectionSlug !== 'general' && (
+            <NotesWriter
+              section={sectionSlug}
+              context={clauseContext}
+              onAdd={(added) =>
+                onChange({
+                  ...block,
+                  additional_text: [text.trim(), added.trim()].filter(Boolean).join('\n\n'),
+                  surveyor_edited: true,
+                })
+              }
+            />
+          )}
 
           {clauseContext && blanks.length > 0 && (
             <div className="mt-1 text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">

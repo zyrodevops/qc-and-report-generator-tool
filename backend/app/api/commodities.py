@@ -19,8 +19,6 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]  # backend/app/api -> r
 _FRUITS_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "perishable_fruits_output" / "template_archetypes.json"
 _FRUITS_FALLBACK_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "template_archetypes.json"
 
-_GC_ARCHETYPES_FILE = _REPO_ROOT / "tools" / "general_cargo_output" / "template_archetypes.json"
-_GC_FALLBACK_FILE = pathlib.Path(__file__).resolve().parents[1] / "seeds" / "general_cargo_archetypes.json"
 
 # Emoji and display-name mapping for Perishable Fruits
 _FRUITS_META: dict[str, dict] = {
@@ -38,15 +36,6 @@ _FRUITS_META: dict[str, dict] = {
     "PLUM": {"emoji": "🟣", "display": "Plum", "color": "purple"},
 }
 
-# Emoji and display-name mapping for General Cargo
-_GC_META: dict[str, dict] = {
-    "STEEL_METALS": {"emoji": "🔩", "display": "Steel & Metals", "color": "slate", "description": "Coils, pipes, plates, bars, wire rods, tinplates"},
-    "MACHINERY_PARTS": {"emoji": "⚙️", "display": "Machinery & Equipment", "color": "amber", "description": "Industrial machinery, engines, bearings, pumps, transformers"},
-    "AUTOMOTIVE": {"emoji": "🚗", "display": "Automotive & Parts", "color": "indigo", "description": "CKD/SKD kits, vehicle chassis, engines, automotive components"},
-    "CHEMICALS_LIQUIDS": {"emoji": "🧪", "display": "Chemicals & Liquids", "color": "teal", "description": "Steel drums, plastic barrels, IBC tanks, ISO tanks, liquid bulk"},
-    "PAPER_PACKAGING": {"emoji": "📦", "display": "Paper & Packaging", "color": "yellow", "description": "Paper reels, packaging kraft, cartons, pulp bales"},
-    "GENERAL_CARGO": {"emoji": "🚢", "display": "General Merchandise", "color": "blue", "description": "Breakbulk cargo, bagged commodities, wooden cases, palletized cargo"},
-}
 
 
 @lru_cache(maxsize=1)
@@ -59,14 +48,6 @@ def _load_fruit_archetypes() -> dict:
     return {}
 
 
-@lru_cache(maxsize=1)
-def _load_gc_archetypes() -> dict:
-    """Load and cache the general cargo archetypes JSON from disk."""
-    for path in (_GC_ARCHETYPES_FILE, _GC_FALLBACK_FILE):
-        if path.exists():
-            with open(path, encoding="utf-8") as f:
-                return json.load(f)
-    return {}
 
 
 @router.get("/commodities")
@@ -77,7 +58,6 @@ async def list_commodities(category: Optional[str] = Query(None, description="Fi
     defect_columns (top 6), heading_sequence, top_narrative_clauses.
     """
     fruit_raw = _load_fruit_archetypes()
-    gc_raw = _load_gc_archetypes()
 
     result = []
 
@@ -119,28 +99,24 @@ async def list_commodities(category: Optional[str] = Query(None, description="Fi
 
     # 2. General Cargo
     if not cat_upper or cat_upper == "GENERAL_CARGO":
-        for key, meta in _GC_META.items():
-            data = gc_raw.get(key, {})
-            defect_cols = data.get("defect_columns") or [
-                "Sound", "Dented / Deformed", "Rusted / Oxidized", "Wet / Moisture", "Torn / Broken", "Shortage"
-            ]
+        # The cargo types of the general cargo analysis. No damage columns and
+        # no sample wording: a general cargo report's tables and wording are
+        # chosen in the report itself, not fixed by the cargo.
+        from app.seeds.general_cargo import CARGO_TYPES
+
+        for ct in CARGO_TYPES:
             result.append({
-                "key": key,
-                "display": meta["display"],
-                "emoji": meta["emoji"],
-                "color": meta["color"],
-                "description": meta.get("description", ""),
+                "key": ct["key"],
+                "display": ct["display"],
+                "emoji": ct["emoji"],
+                "color": ct["color"],
+                "description": ct["description"],
                 "category": "GENERAL_CARGO",
-                "report_count": data.get("report_count", 0),
-                "unit": data.get("unit", "pcs"),
-                "defect_columns": defect_cols,
-                "heading_sequence": data.get("heading_sequence") or [
-                    "PARTICULARS", "ATTENDANCE", "CIRCUMSTANCES OF LOSS", "CONDITION OF CONTAINER",
-                    "OUR SURVEY & CARGO FINDINGS", "DAMAGE INVENTORY & RECONCILIATION",
-                    "CAUSE OF LOSS & LIABILITY", "CLAIM RESERVE / QUANTIFICATION",
-                    "SALVAGE & MITIGATION", "DOCUMENTATION & ENCLOSURES", "SURVEY PHOTOGRAPHS"
-                ],
-                "top_narrative_clauses": data.get("top_narrative_clauses", [])[:4],
+                "report_count": 0,
+                "unit": "pcs",
+                "defect_columns": [],
+                "heading_sequence": [],
+                "top_narrative_clauses": [],
             })
 
     # Sort: within each category by report_count descending

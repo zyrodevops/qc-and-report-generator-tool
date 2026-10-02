@@ -1,3 +1,5 @@
+import { paragraphHeadings } from '../../utils/generalCargo';
+
 /**
  * Pure Client-Side Zero-Drift Arithmetic Engine.
  * Matches backend app.compute.arithmetic and photo_ranges bit-for-bit.
@@ -36,7 +38,7 @@ export function hareNiemeyer(exactPcts: number[], target: number = 100.0): numbe
   return floors;
 }
 
-const COUNT_UNITS = ['pcs', 'pc', 'pieces', 'nos', 'no', 'boxes', 'cartons', 'ctns'];
+const COUNT_UNITS =['pcs', 'pc', 'pieces', 'nos', 'no', 'boxes', 'cartons', 'ctns'];
 
 export function computeTable(block: any): {
   row_totals: string[];
@@ -215,6 +217,11 @@ export function computeBlockState(blockState: any): any {
   if (!blockState) return blockState;
   const state = JSON.parse(JSON.stringify(blockState));
   const blocks = state.blocks || [];
+  // General cargo: PARAGRAPH 1, 2, 2.1 … as the backend numbers them.
+  const headings = paragraphHeadings(state);
+  blocks.forEach((b: any) => {
+    if (headings[b.id]) b._heading = headings[b.id];
+  });
   let photoCounter = 1;
 
   blocks.forEach((block: any) => {

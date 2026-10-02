@@ -5,43 +5,23 @@ export interface FixedTextBlockProps {
   metadata?: any;
 }
 
-export const FixedTextBlock: React.FC<FixedTextBlockProps> = ({
-  block,
-  metadata,
-}) => {
-  const content = block?.content || '';
-  const place = metadata?.place || 'Mumbai, India';
-  const issuedDate = metadata?.issued_date || new Date().toISOString().split('T')[0];
-
+/**
+ * The closing text, exactly as the Word file prints it (render_fixed_text):
+ * the block's own lines and nothing else. It used to add a "General
+ * Disclaimer & Limitation of Liability" heading, a second Place / Date, and a
+ * signature box with a licence number that was not the client's — none of
+ * which is in the downloaded report.
+ */
+export const FixedTextBlock: React.FC<FixedTextBlockProps> = ({ block }) => {
+  const content = String(block?.content || '');
+  if (!content.trim()) return null;
   return (
-    <div className="fixed-text-block my-4 pt-2 border-t border-slate-200">
-      <div className="bg-slate-50 border border-slate-300 rounded p-3 text-[11px] leading-relaxed text-slate-700 italic">
-        <p className="font-bold uppercase tracking-wider text-slate-800 not-italic mb-1 text-[10px]">
-          General Disclaimer & Limitation of Liability:
+    <div className="fixed-text-block my-4 pt-2 text-[10pt] leading-relaxed text-slate-800">
+      {content.split(/\n\s*\n/).map((para, i) => (
+        <p key={i} className="whitespace-pre-line mb-2">
+          {para}
         </p>
-        <p>{content}</p>
-      </div>
-
-      {/* Surveyor Signature Block */}
-      <div className="mt-6 pt-4 border-t border-slate-200 flex justify-between items-end text-xs">
-        <div>
-          <p className="text-slate-600">
-            <span className="font-semibold">Place:</span> {place}
-          </p>
-          <p className="text-slate-600">
-            <span className="font-semibold">Date:</span> {issuedDate}
-          </p>
-        </div>
-
-        <div className="text-right">
-          <p className="font-bold text-[#00387A]">For MARINE CARGO AGENCIES PVT. LTD.</p>
-          <div className="h-12 flex items-center justify-end">
-            <span className="inline-block border-b border-dashed border-slate-400 w-44"></span>
-          </div>
-          <p className="text-[11px] font-semibold text-slate-700">Surveyor & Loss Assessor</p>
-          <p className="text-[10px] text-slate-500 font-mono">IRDAI SLA Licence No. 12948</p>
-        </div>
-      </div>
+      ))}
     </div>
   );
 };

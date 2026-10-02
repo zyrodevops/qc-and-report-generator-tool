@@ -21,8 +21,10 @@ export const AttendanceBlock: React.FC<AttendanceBlockProps> = ({
   onChange,
   editable = true,
 }) => {
-  const rows = block.rows || [];
+  const rows = (block.rows || []).filter((r: any) => ['name', 'designation', 'representing'].some((k) => String(r?.[k] ?? '').trim()));
   if (rows.length === 0) return null;
+  const title = (block as any).title === undefined ? 'Attendance at Survey' : (block as any).title;
+  const intro = (block as any).intro;
 
   const updateRow = (idx: number, field: keyof AttendanceRow, val: string) => {
     if (!onChange) return;
@@ -33,9 +35,10 @@ export const AttendanceBlock: React.FC<AttendanceBlockProps> = ({
 
   return (
     <div className="my-4 text-xs font-sans text-gray-800">
-      <h2 className="text-[11pt] font-bold text-[#00387A] uppercase border-b border-gray-300 pb-1 mb-2 tracking-wide">
-        Attendance at Survey
-      </h2>
+      {title && <h2 className="text-[11pt] font-bold text-[#00387A] uppercase border-b border-gray-300 pb-1 mb-2 tracking-wide">
+        {title}
+      </h2>}
+      {intro && <p className="text-[9pt] mb-1.5">{intro}</p>}
       <table className="w-full border-collapse border border-gray-300 text-[9pt]">
         <thead>
           <tr className="bg-[#00387A] text-white font-bold">

@@ -614,6 +614,28 @@ def compute(block_state: Dict[str, Any]) -> Dict[str, Any]:
                 "validated": True,
             }
 
+        elif btype == "survey_unit":
+            from app.compute.gc_tables import unit_table
+            from app.seeds.general_cargo import findings_rows
+            # The tables as printed, Sr. No. and worked-out weights included,
+            # so the check on printed numbers finds every figure.
+            block["_computed"] = {"validated": True, "findings_rows": findings_rows(block),
+                                  "tables": {k: unit_table(block, k) for k in ("damage", "tally", "weights")}}
+
+        elif btype == "gc_table":
+            from app.compute.gc_tables import report_table
+            block["_computed"] = {"validated": True, "table": report_table(block)}
+
+    # General cargo: the WEIGHT FINAL SUMMARY goes after the last survey paragraph.
+    units = [b for b in blocks if b.get("type") == "survey_unit" and b.get("included") is not False]
+    if units:
+        from app.compute.gc_tables import weight_summary
+        units[-1].setdefault("_computed", {})["weight_summary"] = weight_summary(blocks)
+
+    # General cargo: PARAGRAPH 1, 2, 2.1, 2.2 … numbered from what is included.
+    from app.compute.paragraphs import number_paragraphs
+    number_paragraphs(state)
+
     return state
 
 

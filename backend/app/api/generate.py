@@ -360,10 +360,25 @@ async def update_block_state(
     new_version = current_version + 1
     old_state = report.block_state
 
+    # Check if report number was updated in metadata
+    new_report_number = (new_state.get("metadata") or {}).get("number")
+    report_number_to_update = report.report_number
+    if new_report_number and str(new_report_number).strip() and str(new_report_number).strip().upper() != report.report_number:
+        clean_num = str(new_report_number).strip().upper()
+        check_stmt = select(Report).where(Report.report_number == clean_num, Report.id != report.id)
+        check_res = await db.execute(check_stmt)
+        if check_res.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Report number '{clean_num}' is already in use by another report.",
+            )
+        report_number_to_update = clean_num
+
     stmt = (
         sql_update(Report)
         .where(Report.id == report.id)
         .values(
+            report_number=report_number_to_update,
             block_state=new_state,
             version=new_version,
             updated_at=datetime.now(timezone.utc),

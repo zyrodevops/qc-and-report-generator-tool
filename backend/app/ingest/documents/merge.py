@@ -17,7 +17,15 @@ TRANSPORT_KINDS = ("bill_of_lading", "sea_waybill", "air_waybill")
 KIND_LABELS = {
     "bill_of_lading": "Bill of Lading", "sea_waybill": "Sea Waybill", "air_waybill": "Air Waybill",
     "invoice": "Invoice", "packing_list": "Packing List", "recorder": "Temperature recorder",
-    "other_report": "Other report", "scanned": "Scanned PDF", "unknown": "Not recognised", "unsupported": "Not a PDF",
+    "other_report": "Other report", "scanned": "Scanned pages", "unknown": "Not recognised", "unsupported": "Not a PDF",
+    # general cargo
+    "insurance": "Insurance certificate", "bill_of_entry": "Bill of Entry", "shipping_bill": "Shipping Bill",
+    "eir": "EIR", "container_tracking": "Container tracking", "weight_slip": "Weight slips",
+    "lorry_receipt": "Lorry receipt / consignment note", "letter_of_protest": "Letter of protest",
+    "booking_confirmation": "Booking confirmation", "certificate_of_origin": "Certificate of origin",
+    "sales_contract": "Sales contract", "inspection_certificate": "Inspection certificate",
+    "proforma_invoice": "Proforma invoice", "other_certificate": "Certificate", "email": "Email",
+    "exif_sheet": "Photo EXIF sheet",
 }
 
 _COUNTRIES = (
@@ -34,8 +42,8 @@ _INDIAN_STATES = (
     "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir",
 )
 _KEEP_UPPER = {"SC", "SA", "LLC", "LLP", "USA", "UK", "UAE", "INC", "SRL", "SPA", "BV", "S.A.", "S.A"}
-# Short words that are words, not codes: "Frutas De Santa Rita", "Sardar Ji".
-_SHORT_WORDS = {"DE", "DA", "DO", "DI", "DU", "LA", "LE", "EL", "JI", "OF", "Y", "E", "AL", "EN", "ET"}
+# Short words that are words, not codes: "Frutas De La Sierra", "Ram Ji Traders".
+_SHORT_WORDS = {"DE", "DA", "DO", "DI", "DU", "LA", "LE", "EL", "JI", "OF", "Y", "E", "AL", "EN", "ET", "TO"}
 
 
 def title(s: str) -> str:
@@ -205,6 +213,10 @@ def merge(docs: List[Dict[str, Any]]) -> Dict[str, Any]:
             put("invoice_date", _v(inv, "invoice_date"), inv)
         if _v(inv, "incoterm"):
             put("incoterm", _v(inv, "incoterm"), inv)
+    if not lines:
+        for pl in packings:
+            for l in pl.get("lines", []):
+                lines.append({k: l.get(k) for k in ("cartons", "variety", "count", "fruit", "kg_per_carton", "description", "container")})
     if lines:
         ship["consignment"] = lines
         total = sum(l["cartons"] for l in lines if l.get("cartons"))
@@ -222,9 +234,83 @@ def merge(docs: List[Dict[str, Any]]) -> Dict[str, Any]:
         if pod_pl and ship.get("port_of_discharge") and ship["port_of_discharge"].split(",")[0].strip().upper() not in pod_pl.upper():
             conflicts.append({"field": "Port of discharge", "values": [{"value": ship["port_of_discharge"], "from": t["filename"]},
                                                                        {"value": pod_pl, "from": packings[0]["filename"]}]})
+    _merge_general_cargo(docs, ship, conts, conflicts, put)
+    ship["containers"] = list(conts.values())
     if not transport:
         notes.append("No B/L or waybill was uploaded, so the voyage, the parties and Sea / Air could not be read.")
     return {"shipment": ship, "conflicts": conflicts, "notes": notes}
+
+
+def _same_or_range(dates: List[str]) -> Optional[str]:
+    """One date when all containers share it, else "first – last" as read."""
+    ds = [d for d in dates if d]
+    if not ds:
+        return None
+    uniq = list(dict.fromkeys(ds))
+    return uniq[0] if len(uniq) == 1 else f"{uniq[0]} – {uniq[-1]}"
+
+
+def _merge_general_cargo(docs: List[Dict[str, Any]], ship: Dict[str, Any], conts: Dict[str, Dict[str, Any]],
+                         conflicts: List[Dict[str, Any]], put) -> None:
+    """
+    What the general cargo documents add: the insurance, customs, the
+    invoice value, and for each container its packing-list weights, the
+    B/L tare, the seal on the bill of entry, the EIR and the tracking dates.
+    Where the bill of entry's seal differs from the B/L's, both are shown.
+    """
+    for d in docs:
+        kind = d.get("kind")
+        if kind == "insurance":
+            for key in ("insurer", "policy_number", "certificate_number", "insured_value", "assured"):
+                put(key, _v(d, key), d)
+        elif kind == "invoice":
+            put("invoice_value", _v(d, "invoice_value"), d)
+        elif kind in ("bill_of_entry", "shipping_bill"):
+            no, date = (_v(d, "be_number"), _v(d, "be_date")) if kind == "bill_of_entry" else (_v(d, "sb_number"), _v(d, "sb_date"))
+            if no:
+                put(kind, {"number": no, "date": date}, d)
+            put("customs_broker", _v(d, "customs_broker"), d)
+            if kind == "bill_of_entry":
+                put("inward_date", _v(d, "inward_date"), d)
+                put("out_of_charge_date", _v(d, "ooc_date"), d)
+            for c in d.get("containers") or []:
+                entry = conts.setdefault(c["container"], {"container": c["container"], "from": d.get("filename")})
+                if entry.get("seal") and _norm_seal(entry["seal"]) != _norm_seal(c["seal"]):
+                    conflicts.append({"field": f"Seal of {c['container']}",
+                                      "values": [{"value": entry["seal"], "from": entry.get("from")},
+                                                 {"value": c["seal"], "from": d.get("filename")}]})
+                elif not entry.get("seal"):
+                    entry["seal"] = c["seal"]
+        elif kind == "packing_list":
+            for w in d.get("container_weights") or []:
+                entry = conts.setdefault(w["container"], {"container": w["container"], "from": d.get("filename")})
+                for k in ("net_kg", "gross_kg"):
+                    if w.get(k):
+                        entry[f"pl_{k}"] = w[k]
+            if not ship.get("total_net_kg"):
+                put("total_net_kg", _v(d, "total_net_kg"), d)
+            if not ship.get("total_gross_kg"):
+                put("total_gross_kg", _v(d, "total_gross_kg"), d)
+        elif kind == "eir":
+            for e in d.get("eirs") or []:
+                entry = conts.setdefault(e["container"], {"container": e["container"], "from": d.get("filename")})
+                entry["eir"] = {k: e.get(k) for k in ("out", "in", "movement", "destination", "seal", "truck", "remarks") if e.get(k)}
+        elif kind == "container_tracking":
+            for t in d.get("tracking") or []:
+                entry = conts.setdefault(t["container"], {"container": t["container"], "from": d.get("filename")})
+                entry["tracking"] = {k: t.get(k) for k in ("loaded_on_board", "arrival", "discharged", "to_consignee",
+                                                           "status", "status_date", "status_place") if t.get(k)}
+    # For the whole shipment, when the containers agree.
+    tracked = [c.get("tracking") or {} for c in conts.values()]
+    for key, field in (("loaded_on_board_date", "loaded_on_board"), ("arrival_date", "arrival"),
+                       ("discharged_date", "discharged"), ("delivered_date", "to_consignee")):
+        v = _same_or_range([t.get(field) for t in tracked])
+        if v:
+            ship[key] = v
+    dests = [re.sub(r"\s+", " ", (c.get("eir") or {}).get("destination", "")).strip() for c in conts.values()]
+    dests = [x for x in dests if x]
+    if dests:
+        ship["cfs"] = max(set(dests), key=dests.count)
 
 
 def _kg(s: Optional[str]) -> Optional[str]:
@@ -244,53 +330,270 @@ def _kg(s: Optional[str]) -> Optional[str]:
     return f"{int(whole):,}" + (f".{frac}" if frac else "") + " kg"
 
 
-def particulars(ship: Dict[str, Any]) -> List[Dict[str, Any]]:
+def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[str, Any]]:
     """
     The Particulars rows the documents can fill, worded as the client's
-    reports word them. Only rows with something to show are returned.
+    reports word them. Only rows with something to show are returned. A
+    general cargo cover has more fields (the insurance, customs, the dates of
+    the voyage), named as his general cargo reports name them.
     """
     rows: List[Tuple[str, Optional[str], str]] = []
     src = ship.get("sources", {})
-    if ship.get("shipper"):
-        rows.append(("Exporter / Shipper", ship["shipper"]["shown"], src.get("shipper")))
-    if ship.get("consignee"):
-        rows.append(("Consignee", ship["consignee"]["shown"], src.get("consignee")))
-    if ship.get("document_number"):
-        dated = f" dated {ship['document_date']}" if ship.get("document_date") else ""
-        rows.append(("Bill of Lading / AWB No.", f"{ship['document_number']}{dated}", src.get("document_number")))
-    if ship.get("invoice_number"):
+    if general_cargo:
+        if ship.get("insurer"):
+            rows.append(("Insurers", ship["insurer"], src.get("insurer")))
+        if ship.get("policy_number"):
+            rows.append(("Policy No.", ship["policy_number"], src.get("policy_number")))
+        if ship.get("certificate_number"):
+            rows.append(("Certificate No.", ship["certificate_number"], src.get("certificate_number")))
+        if ship.get("insured_value"):
+            rows.append(("Insured Value", ship["insured_value"], src.get("insured_value")))
+        if ship.get("assured"):
+            rows.append(("Assured", title(ship["assured"]), src.get("assured")))
+        if ship.get("shipper"):
+            rows.append(("Exporter / Shipper", ship["shipper"]["shown"], src.get("shipper")))
+        if ship.get("consignee"):
+            rows.append(("Consignee", ship["consignee"]["shown"], src.get("consignee")))
+        if ship.get("document_number"):
+            dated = f" dated {ship['document_date']}" if ship.get("document_date") else ""
+            rows.append(("Bill of Lading / AWB No.", f"{ship['document_number']}{dated}", src.get("document_number")))
+        if ship.get("invoice_number"):
+            dated = f" dated {ship['invoice_date']}" if ship.get("invoice_date") else ""
+            rows.append(("Invoice No.", f"{ship['invoice_number']}{dated}", src.get("invoice_number")))
+        if ship.get("invoice_value"):
+            rows.append(("Invoice Value", ship["invoice_value"], src.get("invoice_value")))
+        conts = ship.get("containers") or []
+        if conts:
+            n = len(conts)
+            size = next((re.search(r"(20|40|45)", c.get("type", "")).group(1) for c in conts if re.search(r"(20|40|45)", c.get("type", ""))), None)
+            kind = f" ({n} × {size}')" if size else ""
+            rows.append(("Container / Carriage Unit", ", ".join(c["container"] for c in conts) + kind, src.get("containers") or conts[0].get("from")))
+            seals = [f"{c['container']}: {c['seal']}" if n > 1 else c["seal"] for c in conts if c.get("seal")]
+            if seals:
+                rows.append(("Seal No.", ", ".join(seals), conts[0].get("from")))
+        if ship.get("vessel"):
+            voy = f" Voy No. {ship['voyage']}" if ship.get("voyage") else ""
+            rows.append(("Carrying Vessel / Flight", f"“{ship['vessel']}”{voy}", src.get("vessel")))
+        elif ship.get("flight"):
+            rows.append(("Carrying Vessel / Flight", ship["flight"], src.get("flight")))
+        if ship.get("port_of_loading"):
+            rows.append(("Port of Loading", title(ship["port_of_loading"]), src.get("port_of_loading")))
+        if ship.get("port_of_discharge"):
+            rows.append(("Port of Discharge", title(ship["port_of_discharge"]), src.get("port_of_discharge")))
+        lines = ship.get("consignment") or []
+        if lines:
+            total = sum(l["cartons"] for l in lines if l.get("cartons"))
+            parts = []
+            for l in lines:
+                what = " ".join(x for x in [l.get("variety"), f"Count {l['count']}" if l.get("count") else None] if x) or l.get("description", "")
+                parts.append(f"{what}: {l['cartons']:,} boxes")
+            fruit = next((l.get("fruit") for l in lines if l.get("fruit")), None)
+            head = f"Fresh {title(fruit)} — {total:,} boxes" if fruit else f"{total:,} boxes"
+            rows.append(("Cargo Declared", head + "; " + "; ".join(parts), "invoice"))
+        net, gross = _kg(ship.get("total_net_kg")), _kg(ship.get("total_gross_kg"))
+        if net or gross:
+            rows.append(("Net / Gross Weight", " / ".join(x for x in [net and f"Net {net}", gross and f"Gross {gross}"] if x),
+                         src.get("total_net_kg") or src.get("total_gross_kg")))
+        for key, label in (("bill_of_entry", "Bill of Entry No. & Date"), ("shipping_bill", "Shipping Bill No. & Date")):
+            doc = ship.get(key)
+            if doc:
+                rows.append((label, doc["number"] + (f" dated {doc['date']}" if doc.get("date") else ""), src.get(key)))
+        for key, label in (("arrival_date", "Date of Arrival"), ("discharged_date", "Discharged Date"),
+                           ("delivered_date", "Cargo Departed from CFS")):
+            if ship.get(key):
+                rows.append((label, ship[key], "container tracking"))
+        return [{"label": l, "value": v, "source": s} for l, v, s in rows if v]
+
+    # Perishable Fruits: 14-field layout matching latest 2026 reports
+    fruit_rows: List[Dict[str, Any]] = []
+    # 1. Policy No.
+    fruit_rows.append({
+        "label": "Policy No.",
+        "value": ship.get("policy_number") or "Information not furnished",
+        "source": src.get("policy_number"),
+    })
+    # 2. Insurer
+    fruit_rows.append({
+        "label": "Insurer",
+        "value": ship.get("insurer") or "Information not furnished",
+        "source": src.get("insurer"),
+    })
+    # 3. Sum Insured
+    fruit_rows.append({
+        "label": "Sum Insured",
+        "value": ship.get("insured_value") or "Information not furnished",
+        "source": src.get("insured_value"),
+    })
+    # 4. Shipper
+    shipper_val = ship["shipper"]["shown"] if ship.get("shipper") else "[Shipper Name, Address, Country]"
+    fruit_rows.append({
+        "label": "Shipper",
+        "value": shipper_val,
+        "source": src.get("shipper"),
+    })
+    # 5. Consignees
+    consignee_val = ship["consignee"]["shown"] if ship.get("consignee") else "[Consignee Name, Address, City, India]"
+    fruit_rows.append({
+        "label": "Consignees",
+        "value": consignee_val,
+        "source": src.get("consignee"),
+    })
+    # 6. Comm. Invoice No.
+    inv_no = ship.get("invoice_number")
+    if inv_no:
         dated = f" dated {ship['invoice_date']}" if ship.get("invoice_date") else ""
-        rows.append(("Invoice No.", f"{ship['invoice_number']}{dated}", src.get("invoice_number")))
+        fruit_rows.append({
+            "label": "Comm. Invoice No.",
+            "value": f"{inv_no}{dated}",
+            "source": src.get("invoice_number"),
+        })
+    else:
+        fruit_rows.append({
+            "label": "Comm. Invoice No.",
+            "value": "Information not furnished",
+            "source": None,
+        })
+    # 7. Invoice Value
+    fruit_rows.append({
+        "label": "Invoice Value",
+        "value": ship.get("invoice_value") or "Information not furnished",
+        "source": src.get("invoice_value"),
+    })
+    # 8. Bill of Lading No.
+    bl_no = ship.get("document_number")
+    dated = f" dated {ship['document_date']}" if ship.get("document_date") else ""
+    fruit_rows.append({
+        "label": "Bill of Lading No.",
+        "value": f"{bl_no}{dated}" if bl_no else "[B/L No. dated Date]",
+        "source": src.get("document_number"),
+    })
+    # 9. Vessel Name
+    vessel = ship.get("vessel") or ship.get("flight")
+    voy = f" Voyage No. {ship['voyage']}" if ship.get("voyage") else ""
+    fruit_rows.append({
+        "label": "Vessel Name",
+        "value": f"“{vessel}”{voy}" if vessel else "[Vessel Name / Flight No.]",
+        "source": src.get("vessel"),
+    })
+    # 10. Voyage as per B/L
+    pol = title(ship["port_of_loading"]) if ship.get("port_of_loading") else "[Port of Loading]"
+    pod = title(ship["port_of_discharge"]) if ship.get("port_of_discharge") else "[Port of Discharge]"
+    fruit_rows.append({
+        "label": "Voyage as per B/L",
+        "value": f"{pol} to {pod}",
+        "source": src.get("port_of_loading"),
+    })
+    # 11. Date of arrival
+    arr = ship.get("arrival_date") or "[Date of arrival at Terminal]"
+    fruit_rows.append({
+        "label": "Date of arrival",
+        "value": arr,
+        "source": src.get("arrival_date"),
+    })
+    # 12. Container Nos.
     conts = ship.get("containers") or []
     if conts:
         n = len(conts)
-        size = next((re.search(r"(20|40|45)", c.get("type", "")).group(1) for c in conts if re.search(r"(20|40|45)", c.get("type", ""))), None)
-        kind = f" ({n} × {size}' Reefer{'s' if n > 1 else ''})" if size else ""
-        rows.append(("Container / Carriage Unit", ", ".join(c["container"] for c in conts) + kind, src.get("containers") or conts[0].get("from")))
-        seals = [f"{c['container']}: {c['seal']}" if n > 1 else c["seal"] for c in conts if c.get("seal")]
-        if seals:
-            rows.append(("Seal No.", ", ".join(seals), conts[0].get("from")))
-    if ship.get("vessel"):
-        voy = f" Voy No. {ship['voyage']}" if ship.get("voyage") else ""
-        rows.append(("Carrying Vessel / Flight", f"“{ship['vessel']}”{voy}", src.get("vessel")))
-    elif ship.get("flight"):
-        rows.append(("Carrying Vessel / Flight", ship["flight"], src.get("flight")))
-    if ship.get("port_of_loading"):
-        rows.append(("Port of Loading", title(ship["port_of_loading"]), src.get("port_of_loading")))
-    if ship.get("port_of_discharge"):
-        rows.append(("Port of Discharge", title(ship["port_of_discharge"]), src.get("port_of_discharge")))
+        size = next((re.search(r"(20|40|45)", c.get("type", "")).group(1) for c in conts if re.search(r"(20|40|45)", c.get("type", ""))), "40")
+        types = next((c.get("type") for c in conts if c.get("type")), f"{size}RH")
+        kind = f" ({n}x{size}' Reefer)" if n > 1 else f" (1x{size}' Reefer / {types})"
+        c_label = "Container Nos." if n > 1 else "Container No."
+        c_text = " & ".join(c["container"] for c in conts) if n == 2 else ", ".join(c["container"] for c in conts)
+        fruit_rows.append({
+            "label": c_label,
+            "value": f"{c_text}{kind}",
+            "source": conts[0].get("from"),
+        })
+    else:
+        fruit_rows.append({
+            "label": "Container No.",
+            "value": "[Container No.] (1x40' Reefer / 40RH)",
+            "source": None,
+        })
+    # 13. Consignment
     lines = ship.get("consignment") or []
-    if lines:
-        total = sum(l["cartons"] for l in lines if l.get("cartons"))
-        parts = []
+    fruit_name = next((l.get("fruit") for l in lines if l.get("fruit")), "")
+    fruit_col = f"Fresh {title(fruit_name)} Variety" if fruit_name else "Commodity / Variety"
+    net = _kg(ship.get("total_net_kg"))
+    gross = _kg(ship.get("total_gross_kg"))
+    if len(conts) > 1:
+        for c in conts:
+            cno = c.get("container", "")
+            c_lines = [l for l in lines if l.get("container") == cno] or lines
+            sub_rows = []
+            c_tot = 0
+            for l in c_lines:
+                var = l.get("variety") or l.get("description") or f"Fresh {title(fruit_name)}"
+                cnt = str(l.get("count") or l.get("size") or "-")
+                bx = l.get("cartons") or 0
+                if isinstance(bx, int):
+                    c_tot += bx
+                    bx_str = f"{bx:,}"
+                else:
+                    bx_str = str(bx)
+                sub_rows.append({"col1": var, "col2": cnt, "col3": bx_str})
+            c_gross = c.get("gross_kg") or ship.get("total_gross_kg") or ""
+            footer = f"Total: {c_tot:,} boxes" + (f" (Gross Weight: {c_gross} kg)" if c_gross else "")
+            fruit_rows.append({
+                "label": f"Consignment # {cno}",
+                "type": "table",
+                "headers": ["Commodity", "Sizes", "Total Boxes"],
+                "rows": sub_rows or [{"col1": f"Fresh {title(fruit_name)}", "col2": "-", "col3": "-"}],
+                "footer": footer,
+                "source": "invoice / packing list",
+                "value": [footer],
+            })
+    else:
+        sub_rows = []
+        tot = 0
         for l in lines:
-            what = " ".join(x for x in [l.get("variety"), f"Count {l['count']}" if l.get("count") else None] if x) or l.get("description", "")
-            parts.append(f"{what}: {l['cartons']:,} boxes")
-        fruit = next((l.get("fruit") for l in lines if l.get("fruit")), None)
-        head = f"Fresh {title(fruit)} — {total:,} boxes" if fruit else f"{total:,} boxes"
-        rows.append(("Cargo Declared", head + "; " + "; ".join(parts), "invoice"))
-    net, gross = _kg(ship.get("total_net_kg")), _kg(ship.get("total_gross_kg"))
+            var = l.get("variety") or l.get("description") or f"Fresh {title(fruit_name)}"
+            cnt = str(l.get("count") or l.get("size") or "-")
+            bx = l.get("cartons") or 0
+            if isinstance(bx, int):
+                tot += bx
+                bx_str = f"{bx:,}"
+            else:
+                bx_str = str(bx)
+            sub_rows.append({"col1": var, "col2": cnt, "col3": bx_str})
+        weights = " / ".join(x for x in [net and f"Net Weight: {net}", gross and f"Gross Weight: {gross}"] if x)
+        pallets = next((c.get("pallets") for c in conts if c.get("pallets")), ship.get("pallets"))
+        pallets_str = f" on {pallets} Pallets" if pallets else ""
+        footer = f"Total: {tot:,} boxes{pallets_str}" + (f" {weights}" if weights else "")
+        fruit_rows.append({
+            "label": "Consignment",
+            "type": "table",
+            "headers": [fruit_col, "Count / Size", "Total Boxes"],
+            "rows": sub_rows or [{"col1": f"Fresh {title(fruit_name)}", "col2": "-", "col3": "-"}],
+            "footer": footer,
+            "source": "invoice / packing list",
+            "value": [footer],
+        })
+    # 14. Nature of Packing
+    packing_text = ship.get("nature_of_packing")
+    if not packing_text:
+        fn = fruit_name.lower()
+        if "apple" in fn:
+            packing_text = "Fresh Apples packed in slotted cardboard trays; such 4/5 trays packed inside the ventilated polyethylene sheet and further packed into a ventilated 3-ply corrugated cardboard box. Such boxes were reportedly stuffed inside a 40' Reefer container."
+        elif "pear" in fn:
+            packing_text = "Fresh Pear fruits packed in slotted EPS trays; such 4 trays packed inside the ventilated polyethylene sheet and further packed into a ventilated 3-ply corrugated cardboard box. Such boxes reportedly placed onto pallets and corners protected with cardboard sheet and fastened with nylon straps at equal intervals."
+        elif "mandarin" in fn or "orange" in fn or "citrus" in fn:
+            packing_text = "Fresh Mandarin fruits packed in a open top ventilated corrugated cardboard box. Such cartons were reportedly placed on wooden pallets and secured with plastic straps. Such various pallets stuffed inside 40' Reefer container."
+        elif "grape" in fn:
+            packing_text = "Bunch of fresh grapes packed in non-woven bag (Uvasys-used to prevent post-harvest fungal decay during transportation and storage), such bag packed inside ventilated plastic box. Stuffed inside 40' Reefer container."
+        elif "plum" in fn:
+            packing_text = "Fresh Plum packed in plastic crate / boxes, stuffed inside 40' High Cube Reefer Containers."
+        else:
+            packing_text = f"Fresh {title(fruit_name)} fruits packed in standard export packaging, stuffed inside 40' Reefer container." if fruit_name else "[Packaging details as per packing list / survey]"
     if net or gross:
-        rows.append(("Net / Gross Weight", " / ".join(x for x in [net and f"Net {net}", gross and f"Gross {gross}"] if x),
-                     src.get("total_net_kg") or src.get("total_gross_kg")))
-    return [{"label": l, "value": v, "source": s} for l, v, s in rows if v]
+        w_line = " / ".join(x for x in [net and f"Net Weight: {net}", gross and f"Gross Weight: {gross}"] if x)
+        if packing_text.strip() == "[Packaging details as per packing list / survey]":
+            packing_text = w_line
+        else:
+            packing_text += f"\n{w_line}."
+    fruit_rows.append({
+        "label": "Nature of Packing",
+        "value": packing_text,
+        "source": "packing list",
+    })
+    return fruit_rows

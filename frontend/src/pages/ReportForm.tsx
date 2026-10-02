@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Download,
@@ -13,6 +13,8 @@ import {
   Loader2,
   Eye,
   Edit3,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { ReportSummary, patchBlockState, getDownloadDocxUrl } from '../api/client';
 import { TableGrid } from '../components/tables/TableGrid';
@@ -22,8 +24,14 @@ import { PhotoTray } from '../components/photos/PhotoTray';
 import { ReportPreview } from '../components/preview/ReportPreview';
 import { NarrativeBlock } from '../components/preview/blocks/NarrativeBlock';
 import { RecordersBlock } from '../components/preview/blocks/RecordersBlock';
-import { clauseContextFrom, findBlanks } from '../utils/clauseContext';
+import { clauseContextFrom, fillNamedBlanks, findBlanks, generalCargoValues } from '../utils/clauseContext';
 import { ShipmentDocuments } from '../components/documents/ShipmentDocuments';
+import { CoverEditor } from '../components/generalCargo/CoverEditor';
+import { LossTypePicker } from '../components/generalCargo/LossTypePicker';
+import { AttendanceEditor } from '../components/generalCargo/AttendanceEditor';
+import { SurveyUnitCard } from '../components/generalCargo/SurveyUnitCard';
+import { isGeneralCargo, newSurveyUnit, paragraphHeadings, withReportTables } from '../utils/generalCargo';
+import { ReportTableEditor } from '../components/generalCargo/ReportTableEditor';
 
 interface ReportFormProps {
   report: ReportSummary;
@@ -88,6 +96,60 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
     setSavedMsg(false);
   };
 
+  // ---- general cargo: the OUR SURVEY paragraphs (one per container or visit)
+  const gc = isGeneralCargo(blockState);
+  const headings = useMemo(() => paragraphHeadings(blockState), [blockState]);
+  const surveyUnits = blocks.filter((b: any) => b.type === 'survey_unit');
+  const editBlocks = (fn: (list: any[]) => any[]) => {
+    setBlockState((prev: any) => ({ ...prev, blocks: fn([...(prev?.blocks || [])]) }));
+    setDirty(true);
+    setSavedMsg(false);
+  };
+  const addSurveyAfter = (afterId: string, init: Record<string, string> = {}) =>
+    editBlocks((list) => {
+      const at = list.findIndex((b: any) => b.id === afterId);
+      list.splice(at < 0 ? list.length : at + 1, 0, newSurveyUnit(list, init));
+      return list;
+    });
+  const removeSurvey = (block: any) => {
+    const written = String(block.additional_text || '').trim();
+    if (written && !window.confirm('Remove this survey paragraph? Its text will be deleted.')) return;
+    editBlocks((list) => list.filter((b: any) => b.id !== block.id));
+  };
+  const moveSurvey = (block: any, dir: -1 | 1) =>
+    editBlocks((list) => {
+      const units = list.map((b: any, i: number) => ({ b, i })).filter((x) => x.b.type === 'survey_unit');
+      const k = units.findIndex((x) => x.b.id === block.id);
+      const other = units[k + dir];
+      if (!other) return list;
+      const a = units[k].i;
+      [list[a], list[other.i]] = [list[other.i], list[a]];
+      return list;
+    });
+  // One survey paragraph for each container on the documents that has none yet.
+  const containersWithoutSurvey = shipmentContainers.filter(
+    (c) => !surveyUnits.some((u: any) => String(u.container || '').toUpperCase() === c.toUpperCase()),
+  );
+  const addSurveyPerContainer = () =>
+    editBlocks((list) => {
+      let last = list.map((b: any) => b.type).lastIndexOf('survey_unit');
+      // An untouched first paragraph takes the first container instead of staying empty.
+      const firstIdx = list.findIndex((b: any) => b.type === 'survey_unit');
+      const todo = [...containersWithoutSurvey];
+      if (firstIdx >= 0) {
+        const f = list[firstIdx];
+        if (!f.container && !String(f.additional_text || '').trim() && todo.length) {
+          list[firstIdx] = { ...f, container: todo.shift() };
+        }
+      }
+      for (const c of todo) {
+        const unit = newSurveyUnit(list, { container: c });
+        list.splice(last + 1, 0, unit);
+        last += 1;
+      }
+      return list;
+    });
+
   const handlePhotoBlockUpdate =(updatedBlock: any, updatedAssets?: Record<string, any>) => {
     setBlockState((prev: any) => {
       const currentBlocks = prev?.blocks || [];
@@ -135,6 +197,30 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
 
   // For the clause pickers: the report as it stands on screen, saved or not.
   const clauseContext = useMemo(() => clauseContextFrom(blockState), [blockState]);
+
+  // General cargo: a report made before the report tables existed gets them (off).
+  useEffect(() => {
+    const next = withReportTables(blockState);
+    if (next) setBlockState(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const coverFacts = useMemo(() => generalCargoValues(blockState?.blocks || []), [blockState]);
+  const coverSeals: string[] = useMemo(() => {
+    const row = ((blockState?.blocks || []).find((b: any) => b.type === 'particulars')?.rows || [])
+      .find((r: any) => /seal/i.test(String(r.label || '')));
+    const v = String(Array.isArray(row?.value) ? row.value[0] ?? '' : row?.value ?? '');
+    return v.startsWith('[') ? [] : v.split(/[,&/]|\band\b/).map((x) => x.trim()).filter(Boolean);
+  }, [blockState]);
+
+  // General cargo: a named blank in wording already added ([VESSEL] …) is
+  // filled as soon as the report has the value.
+  useEffect(() => {
+    const next = fillNamedBlanks(blockState);
+    if (next) {
+      setBlockState(next);
+      setDirty(true);
+    }
+  }, [blockState]);
 
   /**
    * Before a download: blanks left in the report ([DATE], [NAME], a starting
@@ -348,6 +434,84 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
       {/* GENERATED BLOCKS LIST */}
       <div className="space-y-6">
         {blocks.map((block: any) => {
+          if (block.type === 'particulars' && gc) {
+            return (
+              <React.Fragment key={block.id}>
+                <LossTypePicker
+                  value={blockState?.metadata?.loss_types || []}
+                  onChange={(next) => {
+                    setBlockState((prev: any) => ({ ...prev, metadata: { ...prev?.metadata, loss_types: next } }));
+                    setDirty(true);
+                  }}
+                />
+                <CoverEditor block={block} onChange={handleBlockChange} />
+              </React.Fragment>
+            );
+          }
+
+          if (block.type === 'gc_table') {
+            return (
+              <ReportTableEditor
+                key={block.id}
+                block={block}
+                onChange={handleBlockChange}
+                containers={coverFacts.container_nos || []}
+                seals={coverSeals}
+              />
+            );
+          }
+
+          if (block.type === 'attendance') {
+            return (
+              <div key={block.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <AttendanceEditor
+                  rows={block.rows || []}
+                  intro={block.intro ?? ''}
+                  label="Attendance (printed under Application)"
+                  onChange={(rows, intro) => handleBlockChange({ ...block, rows, intro })}
+                />
+              </div>
+            );
+          }
+
+          if (block.type === 'survey_unit') {
+            const isLast = block.id === surveyUnits[surveyUnits.length - 1]?.id;
+            return (
+              <React.Fragment key={block.id}>
+                <SurveyUnitCard
+                  block={block}
+                  heading={headings[block.id] || 'OUR SURVEY'}
+                  onChange={handleBlockChange}
+                  onRemove={surveyUnits.length > 1 ? () => removeSurvey(block) : undefined}
+                  onMove={surveyUnits.length > 1 ? (dir) => moveSurvey(block, dir) : undefined}
+                  containers={shipmentContainers}
+                  clauseContext={clauseContext}
+                  shipmentContainers={blockState?.metadata?.shipment?.containers || []}
+                />
+                {isLast && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => addSurveyAfter(block.id, { survey_date: block.survey_date || '', place: block.place || '' })}
+                      className="flex-1 min-w-[16rem] text-sm text-blue-700 font-medium py-2.5 rounded-xl border border-dashed border-blue-300 bg-blue-50/40 hover:bg-blue-50"
+                    >
+                      + Add another survey paragraph (next container or visit)
+                    </button>
+                    {containersWithoutSurvey.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={addSurveyPerContainer}
+                        className="flex-1 min-w-[16rem] text-sm text-emerald-700 font-medium py-2.5 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/40 hover:bg-emerald-50"
+                      >
+                        + One paragraph per container from the documents ({containersWithoutSurvey.length} to add)
+                      </button>
+                    )}
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          }
+
           if (block.type === 'particulars') {
             return (
               <div key={block.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
@@ -356,21 +520,188 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                   <span>Particulars of Survey</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {block.rows.map((row: any, rIdx: number) => (
-                    <div key={rIdx}>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">{row.label}</label>
-                      <input
-                        type="text"
-                        value={Array.isArray(row.value) ? row.value.join(', ') : row.value}
-                        onChange={(e) => {
-                          const newRows = [...block.rows];
-                          newRows[rIdx] = { ...newRows[rIdx], value: [e.target.value] };
-                          handleBlockChange({ ...block, rows: newRows });
-                        }}
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  ))}
+                  {block.rows.map((row: any, rIdx: number) => {
+                    const label = row.label || '';
+                    const isTable =
+                      row.type === 'table' ||
+                      Boolean(row.headers) ||
+                      (label.toLowerCase().includes('consignment') && (Boolean(row.rows) || Boolean(row.items)));
+
+                    if (isTable) {
+                      const headers = row.headers || ['Commodity / Variety', 'Count / Size', 'Total Boxes'];
+                      const subItems: any[] = row.rows || row.items || [];
+                      const footer = row.footer || '';
+
+                      const updateSubItem = (sIdx: number, key: string, val: string) => {
+                        const newRows = [...block.rows];
+                        const items = [...(newRows[rIdx].rows || newRows[rIdx].items || [])];
+                        items[sIdx] = { ...items[sIdx], [key]: val };
+                        newRows[rIdx] = { ...newRows[rIdx], rows: items };
+                        handleBlockChange({ ...block, rows: newRows });
+                      };
+
+                      const addSubItem = () => {
+                        const newRows = [...block.rows];
+                        const items = [...(newRows[rIdx].rows || newRows[rIdx].items || [])];
+                        items.push({ col1: '', col2: '', col3: '' });
+                        newRows[rIdx] = { ...newRows[rIdx], rows: items };
+                        handleBlockChange({ ...block, rows: newRows });
+                      };
+
+                      const removeSubItem = (sIdx: number) => {
+                        const newRows = [...block.rows];
+                        const items = [...(newRows[rIdx].rows || newRows[rIdx].items || [])];
+                        items.splice(sIdx, 1);
+                        newRows[rIdx] = { ...newRows[rIdx], rows: items };
+                        handleBlockChange({ ...block, rows: newRows });
+                      };
+
+                      const updateFooter = (val: string) => {
+                        const newRows = [...block.rows];
+                        newRows[rIdx] = { ...newRows[rIdx], footer: val, value: [val] };
+                        handleBlockChange({ ...block, rows: newRows });
+                      };
+
+                      const autoSum = () => {
+                        let total = 0;
+                        for (const it of subItems) {
+                          const bx = (it.col3 ?? it.boxes ?? it.cartons ?? it.total_boxes ?? '').toString().replace(/,/g, '').trim();
+                          const n = parseInt(bx, 10);
+                          if (!isNaN(n)) total += n;
+                        }
+                        updateFooter(`Total: ${total.toLocaleString()} boxes`);
+                      };
+
+                      return (
+                        <div key={rIdx} className="md:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-700">{label}</label>
+                            <button
+                              type="button"
+                              onClick={autoSum}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+                            >
+                              Auto-calculate total
+                            </button>
+                          </div>
+                          <div className="overflow-x-auto border border-slate-300 rounded bg-white">
+                            <table className="w-full text-xs">
+                              <thead className="bg-slate-100 border-b border-slate-300 text-slate-700">
+                                <tr>
+                                  <th className="p-2 text-left font-semibold">{headers[0]}</th>
+                                  <th className="p-2 text-center font-semibold">{headers[1]}</th>
+                                  <th className="p-2 text-right font-semibold">{headers[2]}</th>
+                                  <th className="p-2 w-10"></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {subItems.map((item: any, sIdx: number) => {
+                                  const col1 = item.col1 ?? item.variety ?? item.description ?? '';
+                                  const col2 = item.col2 ?? item.count ?? item.size ?? item.count_size ?? '';
+                                  const col3 = item.col3 ?? item.boxes ?? item.cartons ?? item.total_boxes ?? '';
+                                  return (
+                                    <tr key={sIdx} className="border-b border-slate-200">
+                                      <td className="p-1">
+                                        <input
+                                          type="text"
+                                          value={col1}
+                                          onChange={(e) => updateSubItem(sIdx, 'col1', e.target.value)}
+                                          placeholder="e.g. Royal Gala / Tenroy"
+                                          className="w-full px-2 py-1 border border-slate-200 rounded text-xs"
+                                        />
+                                      </td>
+                                      <td className="p-1">
+                                        <input
+                                          type="text"
+                                          value={col2}
+                                          onChange={(e) => updateSubItem(sIdx, 'col2', e.target.value)}
+                                          placeholder="e.g. 180"
+                                          className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-center"
+                                        />
+                                      </td>
+                                      <td className="p-1">
+                                        <input
+                                          type="text"
+                                          value={col3}
+                                          onChange={(e) => updateSubItem(sIdx, 'col3', e.target.value)}
+                                          placeholder="e.g. 1,176"
+                                          className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-right"
+                                        />
+                                      </td>
+                                      <td className="p-1 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => removeSubItem(sIdx)}
+                                          className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                                          title="Remove row"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="flex items-center justify-between gap-4 pt-1">
+                            <button
+                              type="button"
+                              onClick={addSubItem}
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium py-1 px-2 border border-blue-200 rounded bg-blue-50/50 hover:bg-blue-50 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Add Variety / Count
+                            </button>
+                            <div className="flex items-center gap-2 flex-1 max-w-md">
+                              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Footer Summary:</span>
+                              <input
+                                type="text"
+                                value={footer}
+                                onChange={(e) => updateFooter(e.target.value)}
+                                placeholder="Total: X boxes (Gross Weight: ...)"
+                                className="w-full px-2 py-1 border border-slate-300 rounded text-xs font-medium"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const isLong =
+                      label.toLowerCase().includes('packing') ||
+                      label.toLowerCase().includes('nature') ||
+                      label.toLowerCase().includes('shipper') ||
+                      label.toLowerCase().includes('consignee');
+
+                    return (
+                      <div key={rIdx} className={isLong ? 'md:col-span-2' : ''}>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">{row.label}</label>
+                        {isLong ? (
+                          <textarea
+                            rows={label.toLowerCase().includes('packing') ? 4 : 2}
+                            value={Array.isArray(row.value) ? row.value.join('\n') : row.value}
+                            onChange={(e) => {
+                              const newRows = [...block.rows];
+                              newRows[rIdx] = { ...newRows[rIdx], value: [e.target.value] };
+                              handleBlockChange({ ...block, rows: newRows });
+                            }}
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={Array.isArray(row.value) ? row.value.join(', ') : row.value}
+                            onChange={(e) => {
+                              const newRows = [...block.rows];
+                              newRows[rIdx] = { ...newRows[rIdx], value: [e.target.value] };
+                              handleBlockChange({ ...block, rows: newRows });
+                            }}
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -400,6 +731,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                     onChange={handleBlockChange}
                     editable={true}
                     clauseContext={clauseContext}
+                    heading={headings[block.id]}
                   />
                 ) : (
                   <div className="pr-28">

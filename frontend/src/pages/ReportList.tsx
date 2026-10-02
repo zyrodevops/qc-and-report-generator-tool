@@ -9,13 +9,10 @@ import {
   Loader2,
   CheckCircle2,
   Info,
-  ChevronDown,
-  ChevronUp,
-  CheckSquare,
-  Square,
-  SlidersHorizontal,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
-import { fetchReports, createReport, fetchCommodities, fetchTemplates, ReportSummary, CommodityArchetype, ReportTemplate } from '../api/client';
+import { fetchReports, createReport, deleteReport, deleteAllReports, resetReportSequence, fetchCommodities, fetchTemplates, ReportSummary, CommodityArchetype, ReportTemplate } from '../api/client';
 
 interface ReportListProps {
   onSelectReport: (report: ReportSummary) => void;
@@ -25,18 +22,6 @@ interface ReportListProps {
 // cannot drift apart. The previous hardcoded list still referenced the removed
 // duplicate ids (perishable-qc-sea etc.), which would have broken report creation.
 
-export const GENERAL_CARGO_SECTIONS = [
-  { id: 'particulars', label: '1. Consignment Particulars', desc: 'Vessel/voyage, B/L, Container, Shipper, Consignee, Port' },
-  { id: 'attendance', label: '2. Attendance Register', desc: 'Surveyor, Consignee, CHA & Shipping Line representatives' },
-  { id: 'narrative_circ', label: '3. Circumstances of Loss', desc: 'Voyage history, discharge, CFS transfer & instructions' },
-  { id: 'narrative_survey', label: '4. Condition of Container & Cargo Findings', desc: 'Structural check, light/hose test & silver nitrate test' },
-  { id: 'table', label: '5. Damage Inventory & Reconciliation Table', desc: 'Itemized damage counts by defect category' },
-  { id: 'narrative_cause', label: '6. Cause of Loss & Liability', desc: 'Proximate causation analysis & carrier reservation' },
-  { id: 'narrative_reserve', label: '7. Claim Reserve / Final Quantification', desc: 'Provisional reserve (PLA) or final loss calculation' },
-  { id: 'photos', label: '8. Survey Photographs Plate', desc: 'Auto-numbered photo plate with container & damage views' },
-  { id: 'enclosures', label: '9. Documentation & Enclosures', desc: 'Checklist of shipping documents, weighbridge slips & EIR' },
-  { id: 'closure', label: '10. Formal Closure & Disclaimer', desc: 'Without prejudice disclaimer, date & signature block' },
-];
 
 // Color mapping for commodity pills
 const COLOR_CLASSES: Record<string, { bg: string; border: string; text: string; badge: string }> = {
@@ -60,17 +45,26 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  // Delete modal state
+  const [confirmDeleteReport, setConfirmDeleteReport] = useState<ReportSummary | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Delete all modal state
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [resetSequenceOnDeleteAll, setResetSequenceOnDeleteAll] = useState(true);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [deleteAllError, setDeleteAllError] = useState<string | null>(null);
+
   // Commodity data from backend
   const [commodities, setCommodities] = useState<CommodityArchetype[]>([]);
   const [commoditiesLoading, setCommoditiesLoading] = useState(false);
   const [reportTypes, setReportTypes] = useState<ReportTemplate[]>([]);
   const [expandedCommodity, setExpandedCommodity] = useState<string | null>(null);
 
-  // General cargo section customization
-  const [selectedSections, setSelectedSections] = useState<string[]>(
-    GENERAL_CARGO_SECTIONS.map((s) => s.id)
-  );
-  const [showSectionOptions, setShowSectionOptions] = useState(false);
+  // Custom report number
+  const [customReportNumber, setCustomReportNumber] = useState('');
+
 
   // New report form state
   // Set from GET /api/templates when the modal opens. Do not hardcode an id here:
@@ -79,9 +73,10 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [selectedMode, setSelectedMode] = useState<'SEA' | 'AIR'>('SEA');
   const [selectedFamily, setSelectedFamily] = useState('SURVEY_REPORT');
-  // Preliminary is 1 of 439 reports in the client's archive, so it is out of
-  // scope and every report is created as FINAL. See IMPLEMENTATION-SPEC section 1.
-  const [selectedState] = useState<'PRELIMINARY' | 'FINAL'>('FINAL');
+  // Fruit: Preliminary is 1 of 439 reports in the client's archive, so fruit
+  // reports are created as FINAL. General cargo: Final by default, Preliminary
+  // when picked.
+  const [selectedState, setSelectedState] = useState<'PRELIMINARY' | 'FINAL'>('FINAL');
   const [selectedCommodity, setSelectedCommodity] = useState('APPLE');
   const [year, setYear] = useState(new Date().getFullYear());
 
@@ -137,6 +132,7 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
 
   const handleOpenModal = () => {
     setShowModal(true);
+    setCustomReportNumber('');
     if (commodities.length === 0) loadCommodities();
     if (reportTypes.length === 0) loadReportTypes();
   };
@@ -159,32 +155,63 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
     }
   };
 
-  const toggleSection = (secId: string) => {
-    setSelectedSections((prev) =>
-      prev.includes(secId) ? prev.filter((id) => id !== secId) : [...prev, secId]
-    );
-  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setCreating(true);
-      const isGeneral = selectedTemplate.includes('general');
       const newRep = await createReport({
         template_id: selectedTemplate,
         family: selectedFamily,
         mode: selectedMode,
         commodity: selectedCommodity,
-        state: selectedFamily === 'SURVEY_REPORT' ? selectedState : 'FINAL',
-        selected_sections: isGeneral ? selectedSections : undefined,
+        state: selectedTemplate.includes('general') ? selectedState : 'FINAL',
         year: Number(year),
+        custom_report_number: customReportNumber.trim() ? customReportNumber.trim() : undefined,
       });
       setShowModal(false);
+      setCustomReportNumber('');
       onSelectReport(newRep);
     } catch (err: any) {
       alert(err.message);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!confirmDeleteReport) return;
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      await deleteReport(confirmDeleteReport.id);
+      setReports((prev) => prev.filter((r) => r.id !== confirmDeleteReport.id));
+      setConfirmDeleteReport(null);
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete report');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteAllConfirm = async () => {
+    try {
+      setIsDeletingAll(true);
+      setDeleteAllError(null);
+      await deleteAllReports();
+      if (resetSequenceOnDeleteAll) {
+        try {
+          await resetReportSequence(2026, 1);
+        } catch {
+          /* non-blocking */
+        }
+      }
+      setReports([]);
+      setShowDeleteAllModal(false);
+    } catch (err: any) {
+      setDeleteAllError(err.message || 'Failed to delete all reports');
+    } finally {
+      setIsDeletingAll(false);
     }
   };
 
@@ -199,13 +226,28 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
             IRDAI-Licensed Marine Cargo Agencies — QC &amp; Survey Report Platform
           </p>
         </div>
-        <button
-          onClick={handleOpenModal}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition"
-        >
-          <Plus className="w-5 h-5" />
-          Create New Report
-        </button>
+        <div className="flex items-center gap-3">
+          {reports.length > 0 && (
+            <button
+              onClick={() => {
+                setShowDeleteAllModal(true);
+                setDeleteAllError(null);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition shadow-sm"
+              title="Delete all reports from this dashboard"
+            >
+              <Trash2 className="w-4 h-4 text-red-600" />
+              <span>Delete All ({reports.length})</span>
+            </button>
+          )}
+          <button
+            onClick={handleOpenModal}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition"
+          >
+            <Plus className="w-5 h-5" />
+            Create New Report
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -267,6 +309,18 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                           QC Report
                         </span>
                       )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteError(null);
+                          setConfirmDeleteReport(rep);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition ml-1"
+                        title="Delete Report"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
@@ -330,6 +384,23 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                     <option key={opt.id} value={opt.id}>{opt.name}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* ── Custom Report Number (Optional) ───────────────────────── */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Report Number <span className="text-xs font-normal text-gray-500">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={customReportNumber}
+                  onChange={(e) => setCustomReportNumber(e.target.value)}
+                  placeholder="e.g. M-109-2026 (Leave blank for auto-number)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave blank to automatically assign the next sequential number.
+                </p>
               </div>
 
               {/* Survey Report Stage removed: the report type already states it,
@@ -397,7 +468,37 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                     })()}
 
                     {/* Expanded detail panel for selected commodity / cargo */}
-                    {selectedCommodityData && (
+                    {selectedCommodityData && selectedTemplate.includes('general') && (
+                      <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
+                        <p className="font-semibold text-slate-800">
+                          {selectedCommodityData.emoji} {selectedCommodityData.display}
+                        </p>
+                        <p className="mt-0.5">{selectedCommodityData.description}</p>
+                        <p className="mt-1.5 text-slate-500">
+                          General cargo survey report. The cover fields, the survey
+                          paragraphs (one per container or visit) and the tables are set up in the report itself.
+                        </p>
+                        <div className="mt-2 flex items-center gap-2" data-testid="report-stage">
+                          <span className="font-semibold text-slate-700">Report:</span>
+                          {(['FINAL', 'PRELIMINARY'] as const).map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              aria-pressed={selectedState === s}
+                              onClick={() => setSelectedState(s)}
+                              className={`px-2.5 py-0.5 rounded-full border ${
+                                selectedState === s
+                                  ? 'border-blue-500 bg-blue-50 text-blue-800 font-semibold'
+                                  : 'border-slate-300 bg-white text-slate-600 hover:border-blue-400'
+                              }`}
+                            >
+                              {s === 'FINAL' ? 'Final' : 'Preliminary'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedCommodityData && !selectedTemplate.includes('general') && (
                       <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 text-xs">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -448,73 +549,6 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                       </div>
                     )}
 
-                    {/* General Cargo Section Checklist */}
-                    {selectedTemplate.includes('general') && (
-                      <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <SlidersHorizontal className="w-4 h-4 text-slate-700" />
-                            <span className="font-bold text-xs text-slate-900">
-                              Report Sections Included ({selectedSections.length} of {GENERAL_CARGO_SECTIONS.length})
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedSections(GENERAL_CARGO_SECTIONS.map((s) => s.id))}
-                              className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
-                            >
-                              Select All
-                            </button>
-                            <span className="text-gray-300">|</span>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedSections(['particulars', 'attendance', 'narrative_survey', 'table', 'photos'])}
-                              className="text-[11px] font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
-                            >
-                              Essential Only
-                            </button>
-                          </div>
-                        </div>
-
-                        <p className="text-[11px] text-slate-500">
-                          Customize which modules and sections appear in this General Cargo report.
-                        </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                          {GENERAL_CARGO_SECTIONS.map((sec) => {
-                            const checked = selectedSections.includes(sec.id);
-                            return (
-                              <div
-                                key={sec.id}
-                                onClick={() => toggleSection(sec.id)}
-                                className={`flex items-start gap-2.5 p-2 rounded-lg border text-left cursor-pointer transition select-none ${
-                                  checked
-                                    ? 'bg-white border-blue-400 shadow-xs'
-                                    : 'bg-slate-100/60 border-slate-200 text-gray-400'
-                                }`}
-                              >
-                                <div className="mt-0.5 shrink-0">
-                                  {checked ? (
-                                    <CheckSquare className="w-4 h-4 text-blue-600" />
-                                  ) : (
-                                    <Square className="w-4 h-4 text-gray-300" />
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className={`font-bold text-xs leading-tight ${checked ? 'text-gray-800' : 'text-gray-500'}`}>
-                                    {sec.label}
-                                  </div>
-                                  <div className="text-[10px] text-gray-500 truncate mt-0.5">
-                                    {sec.desc}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
@@ -589,6 +623,124 @@ export const ReportList: React.FC<ReportListProps> = ({ onSelectReport }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* DELETE CONFIRMATION MODAL                                          */}
+      {/* ------------------------------------------------------------------ */}
+      {confirmDeleteReport && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-2.5 bg-red-50 rounded-xl">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Delete Report</h3>
+                <p className="text-xs text-gray-500 font-mono">{confirmDeleteReport.report_number}</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Are you sure you want to permanently delete this report? All associated inspection forms, calculations, and uploaded photos will be removed.
+            </p>
+
+            {deleteError && (
+              <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => {
+                  setConfirmDeleteReport(null);
+                  setDeleteError(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteConfirm}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition shadow-sm disabled:opacity-50"
+              >
+                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Delete All Reports Confirmation Modal                              */}
+      {/* ------------------------------------------------------------------ */}
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-2.5 bg-red-100 rounded-xl">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Delete All Reports</h3>
+                <p className="text-xs text-red-600 font-semibold">{reports.length} reports will be deleted</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Are you sure you want to permanently delete <strong className="text-gray-900 font-semibold">all {reports.length} reports</strong>? All inspection data, calculations, forms, and uploaded photos will be wiped.
+            </p>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2">
+              <label className="flex items-start gap-2.5 cursor-pointer text-xs text-amber-900 font-medium">
+                <input
+                  type="checkbox"
+                  checked={resetSequenceOnDeleteAll}
+                  onChange={(e) => setResetSequenceOnDeleteAll(e.target.checked)}
+                  className="rounded text-amber-600 focus:ring-amber-500 mt-0.5"
+                />
+                <span>
+                  <strong>Reset report counter to 1</strong> (next report will start cleanly at <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-800 font-bold">M-1-2026</code>).
+                </span>
+              </label>
+            </div>
+
+            {deleteAllError && (
+              <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+                {deleteAllError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isDeletingAll}
+                onClick={() => {
+                  setShowDeleteAllModal(false);
+                  setDeleteAllError(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingAll}
+                onClick={handleDeleteAllConfirm}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition shadow-sm disabled:opacity-50"
+              >
+                {isDeletingAll && <Loader2 className="w-4 h-4 animate-spin" />}
+                Yes, Delete All Reports
+              </button>
+            </div>
           </div>
         </div>
       )}

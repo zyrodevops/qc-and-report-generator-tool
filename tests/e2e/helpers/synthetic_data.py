@@ -187,6 +187,7 @@ def make_synthetic_block_state(mode: str = "SEA", multi_unit: bool = False) -> D
             {
                 "id": "b1",
                 "type": "particulars",
+                "section": "PARTICULARS",
                 "rows": [
                     {"label": "Applicant", "value": ["Pacific Trading Co."]},
                     {"label": "Invoice Value", "value": [{"amount": "45000.00", "currency": "USD"}]},

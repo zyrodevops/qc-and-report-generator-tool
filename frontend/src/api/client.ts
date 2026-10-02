@@ -60,6 +60,7 @@ export interface CreateReportParams {
   commodity?: string;
   state?: 'PRELIMINARY' | 'FINAL';
   selected_sections?: string[];
+  custom_report_number?: string;
   block_state?: any;
 }
 
@@ -199,6 +200,7 @@ export async function createReport(params: CreateReportParams): Promise<ReportSu
       commodity: params.commodity || null,
       state: params.state || 'FINAL',
       selected_sections: params.selected_sections,
+      custom_report_number: params.custom_report_number || null,
       block_state: params.block_state || {},
     }),
   });
@@ -213,6 +215,58 @@ export async function createReport(params: CreateReportParams): Promise<ReportSu
       /* not JSON: show as sent */
     }
     throw new Error(`Could not create the report. ${msg}`);
+  }
+  return res.json();
+}
+
+export async function deleteReport(reportId: string): Promise<void> {
+  const res = await fetch(`/api/reports/${reportId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = text;
+    try {
+      const d = JSON.parse(text).detail;
+      msg = typeof d === 'string' ? d : d?.message || text;
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(`Failed to delete report: ${msg}`);
+  }
+}
+
+export async function deleteAllReports(): Promise<{ deleted_count: number; message: string }> {
+  const res = await fetch('/api/reports/all', {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = text;
+    try {
+      const d = JSON.parse(text).detail;
+      msg = typeof d === 'string' ? d : d?.message || text;
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(`Failed to delete all reports: ${msg}`);
+  }
+  return res.json();
+}
+
+export async function resetReportSequence(year: number = 2026, nextVal: number = 1): Promise<{ next_report_number: string }> {
+  const res = await fetch('/api/reports/sequence/reset', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ year, next_val: nextVal }),
+  });
+  if (!res.ok) {
+    throw new Error('Failed to reset report sequence');
   }
   return res.json();
 }
@@ -577,12 +631,26 @@ export interface WordingTopic {
   /** The client's sentences, in his layout. Words in [BRACKETS] are blanks. */
   text: string;
   blanks: string[];
+  /**
+   * General cargo: the card's pieces. A piece with several choices is "pick
+   * one"; an optional piece can be left out. `text` is the default mix.
+   */
+  parts?: WordingPart[];
+}
+
+export interface WordingPart {
+  optional: boolean;
+  /** In the default text. */
+  on: boolean;
+  choices: { topic: string; label: string; text: string }[];
 }
 
 export interface WordingPick {
   section: string;
   available: boolean;
   topics: WordingTopic[];
+  /** General cargo, Our Survey: the sentences a findings list is written in (lead, finding_remaining). */
+  patterns?: Record<string, string>;
 }
 
 /** What the report already knows; the server fills matching blanks with it. */
@@ -592,6 +660,10 @@ export interface ClauseContext {
   mode?: string;
   values: Record<string, any>;
   defects: string[];
+  /** General cargo: the cargo type, the types of loss picked, FINAL / PRELIMINARY. */
+  cargo_type?: string;
+  loss_types?: string[];
+  state?: string;
 }
 
 export async function pickClauses(section: string, ctx: ClauseContext): Promise<WordingPick> {
@@ -604,6 +676,9 @@ export async function pickClauses(section: string, ctx: ClauseContext): Promise<
       mode: ctx.mode || null,
       values: ctx.values,
       defects: ctx.defects,
+      cargo_type: ctx.cargo_type || null,
+      loss_types: ctx.loss_types || [],
+      state: ctx.state || null,
     }),
   });
   if (!res.ok) {
@@ -612,6 +687,38 @@ export async function pickClauses(section: string, ctx: ClauseContext): Promise<
   return res.json();
 }
 
+
+export interface NotesDraft {
+  text: string;
+  /** Figures, containers or names in the text that are not in the notes or the report. */
+  flagged: string[];
+  /** "gemini:<model>", or "notes" when no model answered and the notes came back as typed. */
+  source: string;
+  message?: string | null;
+  /** Sentences left out because the notes do not say them. */
+  removed?: string[];
+}
+
+/** General cargo: the surveyor's notes written up as this section's text. */
+export async function draftFromNotes(section: string, ctx: ClauseContext, notes: string): Promise<NotesDraft> {
+  const res = await fetch('/api/clauses/draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({
+      section,
+      commodity: ctx.commodity || null,
+      mode: ctx.mode || null,
+      values: ctx.values,
+      defects: ctx.defects,
+      cargo_type: ctx.cargo_type || null,
+      loss_types: ctx.loss_types || [],
+      state: ctx.state || null,
+      notes,
+    }),
+  });
+  if (!res.ok) throw new Error(`Could not write from the notes (${res.status}).`);
+  return res.json();
+}
 
 // ---------------------------------------------------------------------------
 // Shipment documents — B/L / waybill, invoice, packing lists, recorder files
@@ -626,6 +733,30 @@ export interface ShipmentDocumentRead {
   fields?: Record<string, any>;
   summary?: Record<string, any>;
   readings?: number;
+  /** The file's pages this document is (a bundle is split into its documents). */
+  pages?: number[];
+  /** A scan: nothing to read on the server; the online reader can read it. */
+  scan?: boolean;
+}
+
+/** One scanned page as the online reader read it: a proposal for the surveyor to check. */
+export interface ScanRow {
+  page: number;
+  flags: string[];
+  [field: string]: any;
+}
+
+export async function readScan(
+  reportId: string,
+  payload: { asset_id: string; pages: number[]; kind: string },
+): Promise<{ rows: ScanRow[]; error: string | null; model: string | null }> {
+  const res = await fetch(`/api/reports/${reportId}/documents/read-scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Could not read the scan (${res.status}).`);
+  return res.json();
 }
 
 export interface ParticularsProposal {
@@ -656,7 +787,11 @@ export async function readShipmentDocuments(reportId: string, files: File[]): Pr
 
 export async function applyShipmentDocuments(
   reportId: string,
-  payload: { particulars: ParticularsProposal[]; shipment: Record<string, any> },
+  payload: {
+    particulars: ParticularsProposal[];
+    shipment: Record<string, any>;
+    weight_slips?: Record<string, any>[];
+  },
 ): Promise<{ block_state: any; version: number }> {
   const res = await fetch(`/api/reports/${reportId}/documents/apply`, {
     method: 'POST',

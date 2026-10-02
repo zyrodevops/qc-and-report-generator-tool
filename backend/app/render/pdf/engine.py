@@ -28,6 +28,8 @@ _LIBREOFFICE_CANDIDATES = [
     "/usr/bin/soffice",
     "libreoffice",
     "soffice",
+    r"C:\Program Files\LibreOffice\program\soffice.exe",
+    r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
 ]
 
 _CONVERSION_TIMEOUT_SECONDS = 120

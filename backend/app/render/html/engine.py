@@ -266,64 +266,174 @@ table.defect-table td:first-child, table.defect-table th:first-child {
 
 
 def render_particulars_html(block: Dict[str, Any]) -> str:
-    """Render particulars block as a 2-column key-value table matching Word 'Table Grid'."""
+    """Render particulars block matching the client's latest reports."""
     rows = block.get("rows", [])
     if not rows:
         return ""
 
-    section = html.escape(block.get("section", "PARTICULARS"))
-    out = [f'<h2 class="block-heading">{section}</h2>']
-    out.append('<table class="report-table particulars-table"><tbody>')
+    section = html.escape(block.get("section", ""))
+    out = [f'<h2 class="block-heading">{section}</h2>'] if section else []
+    out.append('<table class="report-table particulars-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;"><tbody>')
 
     for r in rows:
         label = html.escape(str(r.get("label", "")))
-        value_items = r.get("value", [])
-        if isinstance(value_items, list):
-            parts = []
-            for item in value_items:
-                if isinstance(item, dict) and "amount" in item:
-                    curr = item.get("currency", "")
-                    amt = item["amount"]
-                    parts.append(f"{curr} {amt}".strip())
-                elif isinstance(item, list):
-                    parts.extend(str(v) for v in item)
-                else:
-                    parts.append(str(item))
-            val_str = ", ".join(parts)
-        else:
-            val_str = str(value_items)
-
-        note = r.get("note")
-        if note:
-            val_str += f" ({note})"
-
-        val_escaped = html.escape(val_str)
-        out.append(
-            f'<tr><td style="width: 35%; font-weight: 600;">{label}</td>'
-            f'<td>{val_escaped}</td></tr>'
+        is_table = (
+            r.get("type") == "table"
+            or "headers" in r
+            or ("consignment" in label.lower() and (r.get("rows") or r.get("items")))
         )
+
+        if is_table:
+            headers = r.get("headers") or ["Commodity / Variety", "Count / Size", "Total Boxes"]
+            sub_items = r.get("rows") or r.get("items") or []
+            footer = r.get("footer", "")
+
+            sub_html = ['<table class="consignment-subtable" style="width: 100%; border-collapse: collapse; margin: 0;">']
+            sub_html.append('<thead><tr style="font-weight: bold; border-bottom: 1px solid #000;">')
+            sub_html.append(f'<th style="border: 1px solid #000; padding: 4px 6px; text-align: left;">{html.escape(str(headers[0]))}</th>')
+            sub_html.append(f'<th style="border: 1px solid #000; padding: 4px 6px; text-align: center;">{html.escape(str(headers[1]))}</th>')
+            sub_html.append(f'<th style="border: 1px solid #000; padding: 4px 6px; text-align: center;">{html.escape(str(headers[2]))}</th>')
+            sub_html.append('</tr></thead><tbody>')
+
+            for item in sub_items:
+                if isinstance(item, dict):
+                    col1 = item.get("col1") or item.get("variety") or item.get("description") or ""
+                    col2 = item.get("col2") or item.get("count") or item.get("size") or item.get("count_size") or ""
+                    col3 = item.get("col3") or item.get("boxes") or item.get("cartons") or item.get("total_boxes") or ""
+                elif isinstance(item, (list, tuple)):
+                    col1 = item[0] if len(item) > 0 else ""
+                    col2 = item[1] if len(item) > 1 else ""
+                    col3 = item[2] if len(item) > 2 else ""
+                else:
+                    col1 = str(item)
+                    col2 = ""
+                    col3 = ""
+                sub_html.append(
+                    f'<tr>'
+                    f'<td style="border: 1px solid #000; padding: 4px 6px; text-align: left;">{html.escape(str(col1))}</td>'
+                    f'<td style="border: 1px solid #000; padding: 4px 6px; text-align: center;">{html.escape(str(col2))}</td>'
+                    f'<td style="border: 1px solid #000; padding: 4px 6px; text-align: right;">{html.escape(str(col3))}</td>'
+                    f'</tr>'
+                )
+            if footer:
+                sub_html.append(
+                    f'<tr><td colspan="3" style="border: 1px solid #000; padding: 4px 6px; font-weight: bold;">{html.escape(str(footer))}</td></tr>'
+                )
+            sub_html.append('</tbody></table>')
+
+            out.append(
+                f'<tr>'
+                f'<td style="width: 25%; font-weight: 600; border: 1px solid #000; padding: 4px 6px; vertical-align: top;">{label}</td>'
+                f'<td style="width: 3%; text-align: center; border: 1px solid #000; padding: 4px 6px; vertical-align: top;">:</td>'
+                f'<td style="width: 72%; border: 1px solid #000; padding: 0; vertical-align: top;">{"".join(sub_html)}</td>'
+                f'</tr>'
+            )
+        else:
+            value_items = r.get("value", [])
+            if isinstance(value_items, list):
+                parts = []
+                for item in value_items:
+                    if isinstance(item, dict) and "amount" in item:
+                        curr = item.get("currency", "")
+                        amt = item["amount"]
+                        parts.append(f"{curr} {amt}".strip())
+                    elif isinstance(item, list):
+                        parts.extend(str(v) for v in item)
+                    else:
+                        parts.append(str(item))
+                val_str = ", ".join(parts)
+            else:
+                val_str = str(value_items)
+
+            note = r.get("note")
+            if note:
+                val_str += f" ({note})"
+
+            val_escaped = html.escape(val_str).replace("\n", "<br>")
+            out.append(
+                f'<tr>'
+                f'<td style="width: 25%; font-weight: 600; border: 1px solid #000; padding: 4px 6px; vertical-align: top;">{label}</td>'
+                f'<td style="width: 3%; text-align: center; border: 1px solid #000; padding: 4px 6px; vertical-align: top;">:</td>'
+                f'<td style="width: 72%; border: 1px solid #000; padding: 4px 6px; vertical-align: top;">{val_escaped}</td>'
+                f'</tr>'
+            )
 
     out.append("</tbody></table>")
     return "\n".join(out)
 
 
+def _narrative_body_html(clause_text: str) -> str:
+    if not clause_text:
+        return ""
+    from app.render.narrative_text import split_narrative
+
+    parts = []
+    for kind, lines in split_narrative(clause_text):
+        if kind == "ul":
+            parts.append("<ul>" + "".join(f"<li>{html.escape(i)}</li>" for i in lines) + "</ul>")
+        else:
+            parts.append("<p>" + "<br>".join(html.escape(l) for l in lines) + "</p>")
+    return f'<div class="narrative-block">{"".join(parts)}</div>'
+
+
 def render_narrative_html(block: Dict[str, Any]) -> str:
     """Render narrative block as heading and paragraph text."""
-    section = block.get("section", "")
+    section = block.get("_heading") or block.get("section", "")
     clause_text = block.get("additional_text") or block.get("content") or ""
     out = []
     if section:
         out.append(f'<h2 class="block-heading">{html.escape(section)}</h2>')
-    if clause_text:
-        from app.render.narrative_text import split_narrative
+    body = _narrative_body_html(clause_text)
+    if body:
+        out.append(body)
+    return "\n".join(out)
 
-        parts = []
-        for kind, lines in split_narrative(clause_text):
-            if kind == "ul":
-                parts.append("<ul>" + "".join(f"<li>{html.escape(i)}</li>" for i in lines) + "</ul>")
+
+def render_survey_unit_html(block: Dict[str, Any]) -> str:
+    """One OUR SURVEY paragraph, laid out as in the DOCX engine: attendance after its opening paragraph, its tables at their marks."""
+    from app.compute.gc_tables import unit_segments, unit_table
+
+    out = [f'<h2 class="block-heading">{html.escape(block.get("_heading") or "OUR SURVEY:")}</h2>']
+    people = [r for r in block.get("attendance") or [] if any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing"))]
+    first_text = True
+    for kind, value in unit_segments(block.get("additional_text") or ""):
+        if kind == "text":
+            if first_text and people:
+                first, _, rest = value.partition("\n\n")
+                out.append(_narrative_body_html(first))
+                out.append(render_attendance_html({"title": "", "intro": block.get("attendance_intro") or "The following persons attended the survey:",
+                                                   "rows": people}))
+                out.append(_narrative_body_html(rest))
             else:
-                parts.append("<p>" + "<br>".join(html.escape(l) for l in lines) + "</p>")
-        out.append(f'<div class="narrative-block">{"".join(parts)}</div>')
+                out.append(_narrative_body_html(value))
+            first_text = False
+        else:
+            t = unit_table(block, value)
+            if t:
+                out.append(_grid_html(t["columns"], t["rows"], f"{value}-table", t.get("total", False)))
+    summary = (block.get("_computed") or {}).get("weight_summary")
+    if summary:
+        out.append(f'<h2 class="block-heading">{html.escape(summary["title"])}</h2>')
+        out.append(_grid_html(summary["columns"], summary["rows"], "weight-summary", True))
+    return "\n".join(x for x in out if x)
+
+
+def _grid_html(columns: List[str], rows: List[List[str]], css: str, bold_last: bool = False) -> str:
+    head = "".join(f"<th>{html.escape(h)}</th>" for h in columns)
+    body = "".join(
+        ("<tr class=\"total-row\">" if bold_last and i == len(rows) - 1 else "<tr>")
+        + "".join(f"<td>{html.escape(str(v))}</td>" for v in r) + "</tr>"
+        for i, r in enumerate(rows))
+    return f'<table class="data-table {css}"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+
+
+def render_gc_table_html(block: Dict[str, Any]) -> str:
+    """A general cargo report table: containers & seals, weather, summary of reserve."""
+    t = (block.get("_computed") or {}).get("table")
+    if not t:
+        return ""
+    out = [f'<h2 class="block-heading">{html.escape(t["title"])}</h2>'] if t.get("title") else []
+    out.append(_grid_html(t["columns"], t["rows"], f"gc-{block.get('kind')}-table", t.get("total", False)))
     return "\n".join(out)
 
 
@@ -634,11 +744,14 @@ def render_parties_html(block: Dict[str, Any]) -> str:
 
 def render_attendance_html(block: Dict[str, Any]) -> str:
     """Render attendance block as 3-column table."""
-    rows = block.get("rows", [])
+    rows = [r for r in block.get("rows", []) if any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing"))]
     if not rows:
         return ""
-    out = [
-        '<h2 class="block-heading">Attendance at Survey</h2>',
+    title = block.get("title", "Attendance at Survey")
+    out = [f'<h2 class="block-heading">{html.escape(title)}</h2>'] if title else []
+    if block.get("intro"):
+        out.append(f'<p>{html.escape(block["intro"])}</p>')
+    out += [
         '<table class="preview-table">',
         '<thead><tr><th>Name</th><th>Designation</th><th>Representing</th></tr></thead>',
         '<tbody>'
@@ -830,6 +943,10 @@ def render_html(block_state: Dict[str, Any]) -> str:
             rendered = render_unit_group_html(b, bcomp, assets)
         elif btype == "temperature_recorders":
             rendered = render_recorders_html(b)
+        elif btype == "survey_unit":
+            rendered = render_survey_unit_html(b)
+        elif btype == "gc_table":
+            rendered = render_gc_table_html(b)
 
         if not rendered:
             continue

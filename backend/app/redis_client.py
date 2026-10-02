@@ -51,6 +51,9 @@ async def get_redis_client() -> aioredis.Redis:
         except Exception:
             _real_redis_instance = None
 
+    if _fake_redis_instance is not None:
+        return _fake_redis_instance
+
     try:
         client = aioredis.from_url(
             settings.REDIS_URL,

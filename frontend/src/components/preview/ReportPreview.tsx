@@ -30,6 +30,9 @@ import {
 } from './blocks';
 import { getDownloadDocxUrl, getDownloadPdfUrl, getPreviewHtmlUrl } from '../../api/client';
 import { previewPhotos, PreviewPhoto } from './blocks/PhotoPlateBlock';
+import { SurveyUnitBlock } from './blocks/SurveyUnitBlock';
+import { GridTableBlock } from './blocks/GridTableBlock';
+import { reportTable, weightSummary } from '../../utils/gcTables';
 import { layoutOf, photoPages as photoPages_ } from '../../utils/photoLayout';
 
 export interface ReportPreviewProps {
@@ -71,13 +74,19 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
   const blocks: any[] = (computedState?.blocks || []).filter((b: any) => b?.included !== false);
   const metadata = computedState?.metadata || report?.block_state?.metadata || {};
   const repNum = reportNumber || report?.report_number || metadata?.number || 'QC-DRAFT';
+  // Running header as in the client's reports: "FINAL SURVEY REPORT NO. M-…".
+  const isQc = (metadata?.family || report?.family) === 'QC_REPORT';
+  const stage = String(metadata?.state || report?.state || 'FINAL').toUpperCase() === 'PRELIMINARY' ? 'PRELIMINARY' : 'FINAL';
+  const headerLabel = `${stage} SURVEY REPORT`;
   const assets = computedState?.assets || {};
 
   // Separate blocks for realistic pagination:
   // Page 1: Overview & Survey Data
   // Page 2+: Evidence (photos), Documentation (annexures), Legal (fixed_text)
+  // General cargo: the WEIGHT FINAL SUMMARY follows the last survey paragraph.
+  const lastUnitId = [...blocks].reverse().find((b) => b.type === 'survey_unit')?.id;
   const page1Blocks = blocks.filter((b) =>
-    ['parties', 'attendance', 'particulars', 'timeline', 'narrative', 'measurements', 'table', 'reconciliation', 'inventory', 'unit_group', 'temperature_recorders'].includes(b.type)
+    ['parties', 'attendance', 'particulars', 'timeline', 'narrative', 'measurements', 'table', 'reconciliation', 'inventory', 'unit_group', 'temperature_recorders', 'survey_unit', 'gc_table'].includes(b.type)
   );
   const photoBlocks = blocks.filter((b) => b.type === 'photo_plate');
   const fixedTextBlocks = blocks.filter((b) => b.type === 'fixed_text');
@@ -293,6 +302,8 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
             pageNumber={1}
             totalPages={totalPages}
             reportNumber={repNum}
+            reportLabel={headerLabel}
+            isQc={isQc}
           >
             <div className="text-center my-1.5">
               {editable && onBlockStateChange ? (
@@ -391,6 +402,12 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
               if (b.type === 'unit_group') {
                 return <UnitGroupBlock key={b.id} block={b} reportId={report?.id} />;
               }
+              if (b.type === 'survey_unit') {
+                return <SurveyUnitBlock key={b.id} block={b} summary={b.id === lastUnitId ? weightSummary(blocks) : null} />;
+              }
+              if (b.type === 'gc_table') {
+                return <GridTableBlock key={b.id} table={reportTable(b)} testId={`gc-${b.kind}-table`} />;
+              }
               if (b.type === 'temperature_recorders') {
                 return <RecordersBlock key={b.id} block={b} reportId={report?.id} />;
               }
@@ -426,6 +443,8 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
               pageNumber={pageNum}
               totalPages={totalPages}
               reportNumber={repNum}
+              reportLabel={headerLabel}
+              isQc={isQc}
               photoPage
             >
               <PhotoPlateBlock
