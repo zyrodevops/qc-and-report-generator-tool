@@ -761,8 +761,13 @@ export async function readScan(
 
 export interface ParticularsProposal {
   label: string;
-  value: string;
+  value: any;
   source?: string;
+  type?: string;
+  headers?: string[];
+  rows?: any[];
+  items?: any[];
+  footer?: string;
 }
 
 export interface DocumentsReadResult {

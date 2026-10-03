@@ -34,6 +34,7 @@ import { SurveyUnitBlock } from './blocks/SurveyUnitBlock';
 import { GridTableBlock } from './blocks/GridTableBlock';
 import { reportTable, weightSummary } from '../../utils/gcTables';
 import { layoutOf, photoPages as photoPages_ } from '../../utils/photoLayout';
+import { clauseContextFrom } from '../../utils/clauseContext';
 
 export interface ReportPreviewProps {
   report?: any;
@@ -79,6 +80,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
   const stage = String(metadata?.state || report?.state || 'FINAL').toUpperCase() === 'PRELIMINARY' ? 'PRELIMINARY' : 'FINAL';
   const headerLabel = `${stage} SURVEY REPORT`;
   const assets = computedState?.assets || {};
+  const clauseContext = useMemo(() => clauseContextFrom(blockState), [blockState]);
 
   // Separate blocks for realistic pagination:
   // Page 1: Overview & Survey Data
@@ -368,8 +370,9 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
                     block={b}
                     onChange={onBlockChange}
                     editable={editable}
+                    clauseContext={clauseContext}
+                    isFormEditor={false}
                   />
-
                 );
               }
               if (b.type === 'measurements') {

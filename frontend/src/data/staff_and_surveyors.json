@@ -1,0 +1,452 @@
+{
+  "consignees": [
+    {
+      "company": "Gajumal Mulchand Fruits Pvt. Ltd",
+      "name": "Mr. Rajesh Kumar",
+      "designation": "QC Manager",
+      "representing": "Gajumal Mulchand Fruits Pvt. Ltd - (Consignee's)"
+    },
+    {
+      "company": "IFC International",
+      "name": "Mr. Rajesh Kumar",
+      "designation": "QC Manager",
+      "representing": "IFC International - (Consignee's)"
+    },
+    {
+      "company": "JB Exports",
+      "name": "Mr. Rajesh Kumar",
+      "designation": "QC Manager",
+      "representing": "JB Exports - (Consignee's)"
+    },
+    {
+      "company": "HGS International",
+      "name": "Mr. Dharmendra Kumar",
+      "designation": "QC In-Charge",
+      "representing": "HGS International - (Consignee's)"
+    },
+    {
+      "company": "Jaitra Overseas",
+      "name": "Mr. Harsh Jaiswal",
+      "designation": "Proprietor",
+      "representing": "Jaitra Overseas - (Consignee's)"
+    },
+    {
+      "company": "Kamdhenu Foods",
+      "name": "Mr. Salim Tamboli",
+      "designation": "Proprietor",
+      "representing": "Kamdhenu Foods - (Consignee's)"
+    },
+    {
+      "company": "Mahira International",
+      "name": "Mr. Vikas Kumar",
+      "designation": "QC In-Charge",
+      "representing": "Mahira International - (Consignee's)"
+    },
+    {
+      "company": "Anusaya Fresh",
+      "name": "Mt. Prathamesh Misal",
+      "designation": "QC Manager",
+      "representing": "Anusaya Fresh - (Consignee's)"
+    },
+    {
+      "company": "Mauli International",
+      "name": "Mt. Prathamesh Misal",
+      "designation": "QC Manager",
+      "representing": "Mauli International - (Consignee's)"
+    },
+    {
+      "company": "Sunmoon International",
+      "name": "Mt. Prathamesh Misal",
+      "designation": "QC Manager",
+      "representing": "Sunmoon International - (Consignee's)"
+    },
+    {
+      "company": "NGK Trading Company Pvt. Ltd",
+      "name": "Mr. Ramesh Kadam",
+      "designation": "QC In-Charge",
+      "representing": "NGK Trading Company Pvt. Ltd - (Consignee's)"
+    },
+    {
+      "company": "Avantagarde Fruit Traders LLP",
+      "name": "Mr. Ramesh Kadam",
+      "designation": "QC In-Charge",
+      "representing": "Avantagarde Fruit Traders LLP - (Consignee's)"
+    },
+    {
+      "company": "RB Fruitech Pvt. Ltd",
+      "name": "Mr. Kunal Kakde",
+      "designation": "Quality Executive",
+      "representing": "RB Fruitech Pvt. Ltd - (Consignee's)"
+    },
+    {
+      "company": "RB Impex",
+      "name": "Mr. Kunal Kakde",
+      "designation": "Quality Executive",
+      "representing": "RB Impex - (Consignee's)"
+    },
+    {
+      "company": "Reliance Retail Ltd",
+      "name": "Mr. Yogi Pokal",
+      "designation": "Quality Manager",
+      "representing": "Reliance Retail Ltd - (Consignee's)"
+    },
+    {
+      "company": "Reliance Retail Ltd",
+      "name": "Mr. Chetan Khatre",
+      "designation": "QC In-Charge",
+      "representing": "Reliance Retail Ltd - (Consignee's)"
+    },
+    {
+      "company": "Shree Balaji Fruits Pvt.Ltd",
+      "name": "Mr. Mazar Abbas",
+      "designation": "QC In-Charge",
+      "representing": "Shree Balaji Fruits Pvt.Ltd - (Consignee's)"
+    },
+    {
+      "company": "Viands Exim Pvt. Ltd",
+      "name": "Mr. Amit Kumar",
+      "designation": "QC In-Charge",
+      "representing": "Viands Exim Pvt. Ltd - (Consignee's)"
+    },
+    {
+      "company": "Vande Fresh",
+      "name": "Mr. Manjeet Kumar",
+      "designation": "Sales Manager",
+      "representing": "Vande Fresh - (Consignee's)"
+    },
+    {
+      "company": "West -In Avo Pvt. Ltd",
+      "name": "Mr. Xavier",
+      "designation": "QC In-Charge",
+      "representing": "West -In Avo Pvt. Ltd - (Consignee's)"
+    },
+    {
+      "company": "Avolinx Trading Partners",
+      "name": "Mr. Rahul Kant",
+      "designation": "Partner",
+      "representing": "Avolinx Trading Partners - (Consignee's)"
+    },
+    {
+      "company": "Parivid Impex International",
+      "name": "Mr. Buddhabhushan Gaikwad",
+      "designation": "Warehouse In-Charge",
+      "representing": "Parivid Impex International - (Consignee's)"
+    },
+    {
+      "company": "Hellraw Agro LLP",
+      "name": "Mr. Pankaj Kumar Gupta",
+      "designation": "Warehouse In-Charge",
+      "representing": "Hellraw Agro LLP - (Consignee's)"
+    },
+    {
+      "company": "Aayush Impex",
+      "name": "Mr. Vinayak Pawar",
+      "designation": "QC In-Charge",
+      "representing": "Aayush Impex - (Consignee's)"
+    },
+    {
+      "company": "Aditya Agro Fresh",
+      "name": "Mr. Vinayak Pawar",
+      "designation": "QC In-Charge",
+      "representing": "Aditya Agro Fresh - (Consignee's)"
+    },
+    {
+      "company": "Fresh Fruit Alliances Pvt.Ltd",
+      "name": "Mr. Jay Gujar",
+      "designation": "QC In-Charge",
+      "representing": "Fresh Fruit Alliances Pvt.Ltd - (Consignee's)"
+    },
+    {
+      "company": "MKC Agro Fresh Limited",
+      "name": "Mr. Shakeel Ansari",
+      "designation": "QC In-Charge",
+      "representing": "MKC Agro Fresh Limited - (Consignee's)"
+    },
+    {
+      "company": "HSA Traders Pvt. Ltd",
+      "name": "Mr. Kishan Singh",
+      "designation": "QC In-Charge",
+      "representing": "HSA Traders Pvt. Ltd - (Consignee's)"
+    },
+    {
+      "company": "Saanvi Fresh Fruit",
+      "name": "Mr. Kishan Singh",
+      "designation": "QC In-Charge",
+      "representing": "Saanvi Fresh Fruit - (Consignee's)"
+    },
+    {
+      "company": "RGS Exim Pro",
+      "name": "Mr. Kishan Singh",
+      "designation": "QC In-Charge",
+      "representing": "RGS Exim Pro - (Consignee's)"
+    },
+    {
+      "company": "Fresh Harvest",
+      "name": "Mr. Kishan Singh",
+      "designation": "QC In-Charge",
+      "representing": "Fresh Harvest - (Consignee's)"
+    },
+    {
+      "company": "NP Traders",
+      "name": "Mr. Kishan Singh",
+      "designation": "QC In-Charge",
+      "representing": "NP Traders - (Consignee's)"
+    },
+    {
+      "company": "Gyan Fruits",
+      "name": "Mr. Rajendra Ambre",
+      "designation": "Sales Manager",
+      "representing": "Gyan Fruits - (Consignee's)"
+    },
+    {
+      "company": "Taj Traders",
+      "name": "Mr. Rajendra Ambre",
+      "designation": "Sales Manager",
+      "representing": "Taj Traders - (Consignee's)"
+    },
+    {
+      "company": "Archana Enterprises",
+      "name": "Mr. Rajendra Ambre",
+      "designation": "Sales Manager",
+      "representing": "Archana Enterprises - (Consignee's)"
+    },
+    {
+      "company": "Hari Agro Products",
+      "name": "Mr. Rajendra Ambre",
+      "designation": "Sales Manager",
+      "representing": "Hari Agro Products - (Consignee's)"
+    },
+    {
+      "company": "Nexgen Fresh Pvt. Ltd",
+      "name": "Mr. Satish Sharma",
+      "designation": "Managing Director",
+      "representing": "Nexgen Fresh Pvt. Ltd - (Consignee's)"
+    },
+    {
+      "company": "Apex Royal International LLP",
+      "name": "Mr. Pankaj Kumar Gupta",
+      "designation": "Sales Head",
+      "representing": "Apex Royal International LLP - (Consignee's)"
+    },
+    {
+      "company": "RK & Co.",
+      "name": "Mr. Rajesh Mishra",
+      "designation": "QC In-Charge",
+      "representing": "RK & Co. - (Consignee's)"
+    },
+    {
+      "company": "RK Global",
+      "name": "Mr. Rithik Motwani",
+      "designation": "Proprietor",
+      "representing": "RK Global - (Consignee's)"
+    },
+    {
+      "company": "Laxmi Exterprises",
+      "name": "Mr. Abhinav Gupta",
+      "designation": "Proprietor",
+      "representing": "Laxmi Exterprises - (Consignee's)"
+    },
+    {
+      "company": "Ashima Impex",
+      "name": "Mr. Jitender Pal",
+      "designation": "QC In-Charge",
+      "representing": "Ashima Impex - (Consignee's)"
+    },
+    {
+      "company": "Sarlachem India Pvt.Ltd",
+      "name": "Mr. Jitender Pal",
+      "designation": "QC In-Charge",
+      "representing": "Sarlachem India Pvt.Ltd - (Consignee's)"
+    },
+    {
+      "company": "Pawnai Ventures Pvt.Ltd",
+      "name": "Mr. Meghraj Shinde",
+      "designation": "QC In-Charge",
+      "representing": "Pawnai Ventures Pvt.Ltd - (Consignee's)"
+    },
+    {
+      "company": "Head Impex",
+      "name": "Mr. Saad Damani",
+      "designation": "QC Manager",
+      "representing": "Head Impex - (Consignee's)"
+    },
+    {
+      "company": "Asara Enterprises",
+      "name": "Mr. Najeeb Shariff",
+      "designation": "QC Manager",
+      "representing": "Asara Enterprises - (Consignee's)"
+    },
+    {
+      "company": "Natal International Pvt. Ltd",
+      "name": "Mr. Rahul",
+      "designation": "Supervisor",
+      "representing": "Natal International Pvt. Ltd - (Consignee's)"
+    },
+    {
+      "company": "Royalasia Marketing International",
+      "name": "Mr. Kedar Saroj",
+      "designation": "Quality Executive",
+      "representing": "Royalasia Marketing International - (Consignee's)"
+    },
+    {
+      "company": "Fresh N Fresh",
+      "name": "Mr. D. Vijaykumar",
+      "designation": "CEO",
+      "representing": "Fresh N Fresh - (Consignee's Customers)"
+    },
+    {
+      "company": "KDS International",
+      "name": "Mr. Rushikesh Yadav",
+      "designation": "QC In-Charge",
+      "representing": "KDS International - (Consignees)"
+    },
+    {
+      "company": "Firangi Fresh",
+      "name": "Mr. Rajesh Kumar",
+      "designation": "QC Manager",
+      "representing": "Firangi Fresh - (Consignees)"
+    },
+    {
+      "company": "Ridhi Sidhi Fresh Fruits",
+      "name": "Mr. Amit Kumar",
+      "designation": "Quality In-Charge",
+      "representing": "Ridhi Sidhi Fresh Fruits - (Consignees)"
+    }
+  ],
+  "shipping_lines": [
+    {
+      "name": "Mr. Nripen Das",
+      "designation": "Line Surveyor",
+      "representing": "NMCI Inspections & Survey Co. Pvt. Ltd (On behalf of Shipping Line)",
+      "line": "General"
+    },
+    {
+      "name": "Mr. Nikhil Patel",
+      "designation": "Line Surveyor",
+      "representing": "NMCI Inspections & Survey Co. Pvt. Ltd (On behalf of Shipping Line)",
+      "line": "General"
+    },
+    {
+      "name": "Mr. Santosh Chorge",
+      "designation": "Line Surveyor",
+      "representing": "Purohit & Ashar Marine Services Pvt.Ltd (Appointed by Wan Hai Line's and their P & I Club)",
+      "line": "Wan Hai"
+    },
+    {
+      "name": "Mr. Rupesh Dhotre",
+      "designation": "Line Surveyor",
+      "representing": "Master Marine Services Pvt.Ltd (On behalf of Shipping Line)",
+      "line": "General"
+    },
+    {
+      "name": "Mr. Zahoor Ahmed",
+      "designation": "Line Surveyor",
+      "representing": "Master Marine Services Pvt.Ltd (On behalf of Shipping Line)",
+      "line": "General"
+    },
+    {
+      "name": "Mr. Sudhakar Manjrekar",
+      "designation": "Line Surveyor",
+      "representing": "Master Marine Services Pvt.Ltd (On behalf of Shipping Line)",
+      "line": "General"
+    },
+    {
+      "name": "Mr. Rajkumar Paswan",
+      "designation": "Surveyor",
+      "representing": "Seatech Marine Surveyors & Consultants Pvt.Ltd (On behalf of P&I Club / Wan Hai lines)",
+      "line": "Wan Hai"
+    },
+    {
+      "name": "Mr. Santosh Chavan",
+      "designation": "Line Surveyor",
+      "representing": "Subcont Surveyors Pvt.Ltd (On behalf of OOCL Line)",
+      "line": "OOCL"
+    }
+  ],
+  "shippers": [
+    {
+      "name": "Mr. Santosh Gawde",
+      "designation": "Shipper Surveyor",
+      "representing": "SGS India Pvt Ltd (On behalf of Shipper)"
+    },
+    {
+      "name": "Mr. Jungbahadur Rao",
+      "designation": "Surveyor",
+      "representing": "Zorro QC (On behalf of Shipper)"
+    },
+    {
+      "name": "Mr. Sameer Bargir",
+      "designation": "Surveyor",
+      "representing": "Bismillah Marine Inspections and Survey Services (On behalf of Shipper)"
+    }
+  ],
+  "cargo_insurers": [
+    {
+      "name": "Mr. Shekhar Bhosale",
+      "designation": "Surveyor",
+      "representing": "ACSL Marine Surveyors LLC ( On behalf of Cargo Underwriters)"
+    },
+    {
+      "name": "Mr. Shekhar Bhosale",
+      "designation": "Surveyor",
+      "representing": "ATJ Insurance Surveyors and Loss Assessors Pvt.Ltd ( On behalf of Shipper's Cargo Insurer)"
+    },
+    {
+      "name": "Mr. Uttam Naik",
+      "designation": "Surveyor",
+      "representing": "Gladstone Agencies Ltd (On behalf of W K Webster (International) Pte. Ltd - Representing the Cargo Insurer)"
+    },
+    {
+      "name": "Mr. Uttam Naik",
+      "designation": "Surveyor",
+      "representing": "Gladstone Agencies Ltd (Representing on behalf of the Cargo Insurer)"
+    },
+    {
+      "name": "Mr. Uttam Naik",
+      "designation": "Surveyor",
+      "representing": "Gladstone Agencies Ltd (On behalf of DP Survey Group, N.V)"
+    },
+    {
+      "name": "Mr. Sanjay Andhale",
+      "designation": "Senior Surveyor",
+      "representing": "Wilson Surveyors and Adjusters Pvt.Ltd (On behalf of Cargo Insurer)"
+    },
+    {
+      "name": "Mr. Chandraprakash Gound",
+      "designation": "Surveyor",
+      "representing": "Intertek India Pvt.Ltd (On behalf of Cargo Insurer)"
+    },
+    {
+      "name": "Mr. Anis Naik",
+      "designation": "Insurance Surveyor",
+      "representing": "DTA Marine Inspections and Survey Services Pvt.Ltd (Representing on behalf of Lead Marine Services Pvt.Ltd, who acting on behalf of the Cargo Underwriters)"
+    }
+  ],
+  "mca_surveyors": [
+    {
+      "name": "Mr. Baburao Bhosale",
+      "designation": "Surveyor",
+      "representing": "Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)"
+    },
+    {
+      "name": "Mr. Shekhar Bhosale",
+      "designation": "Surveyor",
+      "representing": "Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)"
+    },
+    {
+      "name": "Mr. Krushak Jadhav",
+      "designation": "Surveyor",
+      "representing": "Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)"
+    },
+    {
+      "name": "Mr. Nishant Banekar",
+      "designation": "Surveyor",
+      "representing": "Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)"
+    },
+    {
+      "name": "Mr. Uttam Khedekar",
+      "designation": "Surveyor",
+      "representing": "Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)"
+    }
+  ]
+}

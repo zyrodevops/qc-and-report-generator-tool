@@ -274,7 +274,16 @@ def render_narrative(doc: Document, block: Dict[str, Any]) -> None:
     if section:
         doc.add_heading(section, level=2)
     _narrative_body(doc, block.get("additional_text") or "")
-    doc.add_paragraph()
+    
+    people = [r for r in block.get("attendance") or [] if any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing"))]
+    if people:
+        render_attendance(doc, {
+            "title": "",
+            "intro": block.get("attendance_intro") or "The following persons attended the survey:",
+            "rows": people
+        })
+    else:
+        doc.add_paragraph()
 
 
 def _narrative_body(doc: Document, clause_text: str) -> None:

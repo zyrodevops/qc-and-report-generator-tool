@@ -1,0 +1,933 @@
+[
+  {
+    "id": "cs_001",
+    "city": "MUMBAI",
+    "name": "Prabhu Hira Ice and Cold Storage Ltd. (Unit 1)",
+    "clean_name": "Prabhu Hira Ice and Cold Storage Ltd",
+    "address": "10/11 MAFCO A.P.M. Yard, Sector 18, Opposite Sanpada Railway Station, Vashi Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_002",
+    "city": "MUMBAI",
+    "name": "Snow World Cold Storage LLP (Prabhu Hira Unit 2)",
+    "clean_name": "Snow World Cold Storage LLP",
+    "address": "Plot No. 3/2, MAFCO A.P.M. Yard, Sector 18, Opposite Sanpada Railway Station, Vashi Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_003",
+    "city": "MUMBAI",
+    "name": "Prabhu Hira Agro Cold Storage LLP (Unit 3)",
+    "clean_name": "Prabhu Hira Agro Cold Storage LLP",
+    "address": "Plot No. 44 (1-5), MAPMC Market, Sector 18, Vashi Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_004",
+    "city": "MUMBAI",
+    "name": "Prabhu Hira Cold Chain LLP (Unit 4)",
+    "clean_name": "Prabhu Hira Cold Chain LLP",
+    "address": "B-1, MAFCO A.P.M. Yard, Sector 18, Vashi Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_005",
+    "city": "MUMBAI",
+    "name": "Satyaraj Cold Fresh LLP (Prabhu Hira Unit 5)",
+    "clean_name": "Satyaraj Cold Fresh LLP",
+    "address": "Plot No. 2, MAPMC, Sector 19F, Vashi, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_006",
+    "city": "MUMBAI",
+    "name": "U.P. Cold Storage (UP Cold Chain Hub)",
+    "clean_name": "U.P. Cold Storage",
+    "address": "Near Sanpada Subway / Sanpada Railway Station, Sector 18, Vashi Turbhe MIDC, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_007",
+    "city": "MUMBAI",
+    "name": "Savla Foods & Cold Storage Pvt. Ltd. (Main Complex)",
+    "clean_name": "Savla Foods & Cold Storage Pvt. Ltd",
+    "address": "Plot No. D-39, TTC Industrial Area, MIDC, Opposite Turbhe Telephone Exchange, Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_008",
+    "city": "MUMBAI",
+    "name": "Savla Foods & Cold Storage Pvt. Ltd. (Unit 2 / Modern Packhouse)",
+    "clean_name": "Savla Foods & Cold Storage Pvt. Ltd",
+    "address": "Plot No. D-514, TTC Industrial Area, MIDC Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_009",
+    "city": "MUMBAI",
+    "name": "Eskimo Cold Storage (Unit 1 / Mahape)",
+    "clean_name": "Eskimo Cold Storage",
+    "address": "Plot No. A-824/1, TTC Industrial Area, MIDC Mahape / Kopar Khairane, Navi Mumbai, Maharashtra 400710"
+  },
+  {
+    "id": "cs_010",
+    "city": "MUMBAI",
+    "name": "Eskimo Cold Storage (Unit 2 / Kopar Khairane)",
+    "clean_name": "Eskimo Cold Storage",
+    "address": "Plot No. A-822, Thane-Belapur Road, TTC Industrial Area, MIDC Kopar Khairane, Navi Mumbai, Maharashtra 400710"
+  },
+  {
+    "id": "cs_011",
+    "city": "MUMBAI",
+    "name": "Millennium Cold Store / Millennium Cold Storage",
+    "clean_name": "Millennium Cold Store / Millennium Cold Storage",
+    "address": "Plot No. 37, Sector 18, Near Sanpada Subway / MAFCO Yard, Vashi / Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_012",
+    "city": "MUMBAI",
+    "name": "Unit 1: Supreme Cold Storage",
+    "clean_name": "Supreme Cold Storage",
+    "address": "Plot No. C-8/4, TTC Industrial Area, Opp. PIL (NOCIL Rubber Division), Behind Savita Chemicals, Pawane, Thane-Belapur Road, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_013",
+    "city": "MUMBAI",
+    "name": "Unit 2: Supreme Fresh",
+    "clean_name": "Supreme Fresh",
+    "address": "Plot No. C-23, Village Pawane, TTC Industrial Area, Pawneshwar Marg, Turbhe MIDC / Pawne, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_014",
+    "city": "MUMBAI",
+    "name": "GD Coldzone LLP",
+    "clean_name": "GD Coldzone LLP",
+    "address": "Plot No. C-166/1 & 2, South Central Road, Pawne Village, TTC MIDC Industrial Area, Mahape / Pawne, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_015",
+    "city": "MUMBAI",
+    "name": "P M Cold Storage",
+    "clean_name": "P M Cold Storage",
+    "address": "Plot No. A-824/2, Khairane Bonkode Village Marg, TTC MIDC Industrial Area, Khairane / Kopar Khairane, Navi Mumbai, Maharashtra 400710"
+  },
+  {
+    "id": "cs_016",
+    "city": "MUMBAI",
+    "name": "Shree Sadhak Stockage / Freshmax (Cold Storage Facility)",
+    "clean_name": "Shree Sadhak Stockage / Freshmax",
+    "address": "Plot No. A-781, TTC Industrial Area, MIDC, Khairane Village, Near MIDC Fire Brigade / Reliance DAKC, Kopar Khairane / Mahape, Navi Mumbai, Maharashtra 400709"
+  },
+  {
+    "id": "cs_017",
+    "city": "MUMBAI",
+    "name": "Royal Cold Chain / Royal Cold Storage",
+    "clean_name": "Royal Cold Chain / Royal Cold Storage",
+    "address": "Plot No. D-16/1, TTC Industrial Area, MIDC, South Central Road, Turbhe / Sanpada, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_018",
+    "city": "MUMBAI",
+    "name": "GHK Cold Storage",
+    "clean_name": "GHK Cold Storage",
+    "address": "Plot No. 40/1 & 40/2, MAFCO Yard, Sector 18, Opp. Sanpada Railway Station / Near APMC Market, Vashi / Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_019",
+    "city": "MUMBAI",
+    "name": "Millennium Cold Chain",
+    "clean_name": "Millennium Cold Chain",
+    "address": "Plot No. 37, Sector 18, MAFCO APMC Market Yard, Near Sanpada Subway, Vashi / Turbhe, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_020",
+    "city": "MUMBAI",
+    "name": "Santosh Warehousing Complex",
+    "clean_name": "Santosh Warehousing Complex",
+    "address": "Survey No. 141/2, Santosh Warehousing Complex, Village Dhansar, Near Santosh Weighbridge, Taloja-Panvel Road, Taluka Panvel, Navi Mumbai / Raigad, Maharashtra 410210"
+  },
+  {
+    "id": "cs_021",
+    "city": "MUMBAI",
+    "name": "Crescent Cold Storage Pvt. Ltd",
+    "clean_name": "Crescent Cold Storage Pvt. Ltd",
+    "address": "Plot No. A-47 & A-47/1, TTC Industrial Area, MIDC, South Central Road, Mahape, Navi Mumbai, Maharashtra 400710"
+  },
+  {
+    "id": "cs_022",
+    "city": "MUMBAI",
+    "name": "R Cold Storage",
+    "clean_name": "R Cold Storage",
+    "address": "Plot No. D-1, Gala No. 34, Nishigandha Industrial Estate, Indira Nagar Circle, TTC MIDC Industrial Area, Opposite Everest Nivara, Turbhe / Sanpada, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_023",
+    "city": "MUMBAI",
+    "name": "Rishi Ice & Cold Storage Pvt. Ltd",
+    "clean_name": "Rishi Ice & Cold Storage Pvt. Ltd",
+    "address": "Plot No. D-35 (Pt) / D-202, South Central Road, TTC Industrial Area, MIDC Turbhe, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_024",
+    "city": "MUMBAI",
+    "name": "Snowman Logistics",
+    "clean_name": "Snowman Logistics",
+    "address": "Plot No. M-8, Taloja Industrial Area, MIDC, Near Bombay Beer Factory / BEL, Taloja, Taluka Panvel, Navi Mumbai / Raigad, Maharashtra 410206"
+  },
+  {
+    "id": "cs_025",
+    "city": "MUMBAI",
+    "name": "Snowman Logistics (Turbhe Facility)",
+    "clean_name": "Snowman Logistics",
+    "address": "Plot No. D-303, TTC Industrial Area, MIDC Turbhe, Opposite Sanpada Railway Station, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_026",
+    "city": "MUMBAI",
+    "name": "S. K. Cold Storage",
+    "clean_name": "S. K. Cold Storage",
+    "address": "Plot No. 38, MAFCO APM Yard, Sector 18, Opp. Sanpada Railway Station / Near Subway, Turbhe / Vashi, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_027",
+    "city": "MUMBAI",
+    "name": "Sancheti Cold Storage / Logistics",
+    "clean_name": "Sancheti Cold Storage / Logistics",
+    "address": "MAFCO APM Yard, Sector 18, Opp. Sanpada Railway Station, Turbhe MIDC / Vashi, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_028",
+    "city": "MUMBAI",
+    "name": "M. J. Cold Storage & Logistech",
+    "clean_name": "M. J. Cold Storage & Logistech",
+    "address": "Plot No. 41 & 42, MAFCO Yard, Sector 18, Turbhe / Vashi, Navi Mumbai, Maharashtra 400703"
+  },
+  {
+    "id": "cs_029",
+    "city": "MUMBAI",
+    "name": "K & B Exports & Cold Chain",
+    "clean_name": "K & B Exports & Cold Chain",
+    "address": "Plot No. D-224, TTC Industrial Area, MIDC Turbhe, Turbhe Naka, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_030",
+    "city": "MUMBAI",
+    "name": "Dels Cold Storage",
+    "clean_name": "Dels Cold Storage",
+    "address": "Plot No. D-363, TTC MIDC Industrial Area, Turbhe, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_031",
+    "city": "MUMBAI",
+    "name": "Ganraj Cold Store",
+    "clean_name": "Ganraj Cold Store",
+    "address": "Plot No. D-112, TTC MIDC Industrial Area, Turbhe, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_032",
+    "city": "MUMBAI",
+    "name": "Fair 'N' Fresh Storage Solutions LLP",
+    "clean_name": "Fair 'N' Fresh Storage Solutions LLP",
+    "address": "Plot No. C-165, TTC Industrial Area, MIDC Pawne, Turbhe-Pawne Road, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_033",
+    "city": "MUMBAI",
+    "name": "RGA Fresh (Suri Fresh Unit)",
+    "clean_name": "RGA Fresh",
+    "address": "Plot No. C-112, Pawane Village MIDC Road, TTC Industrial Area, Pawne, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_034",
+    "city": "MUMBAI",
+    "name": "JWL Cold Store Pvt. Ltd. (JWC Logistics Mega Cold Hub)",
+    "clean_name": "JWL Cold Store Pvt. Ltd",
+    "address": "Survey No. 15 to 45, National Highway 4B (JNPT-Panvel Highway), Village Padeghar, Taluka Panvel, Raigad / Navi Mumbai, Maharashtra 410206"
+  },
+  {
+    "id": "cs_035",
+    "city": "MUMBAI",
+    "name": "Radhakrishna Foodland Cold Chain Hub (Kalamboli)",
+    "clean_name": "Radhakrishna Foodland Cold Chain Hub",
+    "address": "Plot No. 1637/1638, Foodland Complex, Mumbai-Pune Highway Corridor, Kalamboli, Navi Mumbai, Maharashtra 410218"
+  },
+  {
+    "id": "cs_036",
+    "city": "MUMBAI",
+    "name": "J M Baxi Mumbai CFS & Warehousing Logistics Park",
+    "clean_name": "J M Baxi Mumbai CFS & Warehousing Logistics Park",
+    "address": "Sector 8, Dronagiri Node, Opposite Bhendkhal Village, P.O. Box No. 5 (JNPT Corridor), Taluka Uran, District Raigad, Navi Mumbai, Maharashtra 400707"
+  },
+  {
+    "id": "cs_037",
+    "city": "MUMBAI",
+    "name": "Alps Ice & Cold Storage Pvt. Ltd",
+    "clean_name": "Alps Ice & Cold Storage Pvt. Ltd",
+    "address": "Plot No. 30, APMC Yard / MAFCO Compound, Sector 18, Vashi / Turbhe, Navi Mumbai 400703"
+  },
+  {
+    "id": "cs_038",
+    "city": "MUMBAI",
+    "name": "A. A. Cold Storage & Ice Factory Pvt. Ltd",
+    "clean_name": "A. A. Cold Storage & Ice Factory Pvt. Ltd",
+    "address": "MAFCO Market / Sector 18 & Nerul corridor, Navi Mumbai"
+  },
+  {
+    "id": "cs_039",
+    "city": "MUMBAI",
+    "name": "A. A. Cold Storage & Ice Factory Pvt. Ltd. (Amratlal Ashok Kumar)",
+    "clean_name": "A. A. Cold Storage & Ice Factory Pvt. Ltd",
+    "address": "MAFCO Market / Sector 18 & Nerul corridor, Navi Mumbai"
+  },
+  {
+    "id": "cs_040",
+    "city": "MUMBAI",
+    "name": "Prime Fresh Limited (Navi Mumbai Hub) - Krushi Wholesale Mart",
+    "clean_name": "Prime Fresh Limited - Krushi Wholesale Mart",
+    "address": "Plot Nos. 17-20, Sector 19, APMC Market-1, Vashi, Navi Mumbai - 400703"
+  },
+  {
+    "id": "cs_041",
+    "city": "MUMBAI",
+    "name": "Sanmargg Agro Cold Chain Facility - APMC Market-1",
+    "clean_name": "Sanmargg Agro Cold Chain Facility - APMC Market-1",
+    "address": "Sector 19, Vashi / Turbhe MIDC, Navi Mumbai 400703"
+  },
+  {
+    "id": "cs_042",
+    "city": "MUMBAI",
+    "name": "Bhanu Ice & Cold Storage Pvt. Ltd",
+    "clean_name": "Bhanu Ice & Cold Storage Pvt. Ltd",
+    "address": "TTC Industrial Area, Turbhe MIDC, Navi Mumbai 400703"
+  },
+  {
+    "id": "cs_043",
+    "city": "MUMBAI",
+    "name": "Agro Fresh Cold Storage / Himfresh",
+    "clean_name": "Agro Fresh Cold Storage / Himfresh",
+    "address": "TTC Industrial Area, MIDC Turbhe / Pawane corridor, Navi Mumbai 400705"
+  },
+  {
+    "id": "cs_044",
+    "city": "MUMBAI",
+    "name": "Darshan Cold Storage & Ice Factory",
+    "clean_name": "Darshan Cold Storage & Ice Factory",
+    "address": "TTC Industrial Area, MIDC Turbhe, Navi Mumbai 400703"
+  },
+  {
+    "id": "cs_045",
+    "city": "MUMBAI",
+    "name": "Amigo Cold Storage",
+    "clean_name": "Amigo Cold Storage",
+    "address": "TTC MIDC Industrial Area, South Central Road, Turbhe / Pawane, Navi Mumbai 400705"
+  },
+  {
+    "id": "cs_046",
+    "city": "MUMBAI",
+    "name": "Crystal Logistic Cool Chain Ltd. (Turbhe Hub)",
+    "clean_name": "Crystal Logistic Cool Chain Ltd",
+    "address": "TTC Industrial Area, Turbhe MIDC, Navi Mumbai 400705"
+  },
+  {
+    "id": "cs_047",
+    "city": "MUMBAI",
+    "name": "Coldex Logistics Cold Chain Facility",
+    "clean_name": "Coldex Logistics Cold Chain Facility",
+    "address": "MIDC Industrial Area, Taloja, Taluka Panvel, Raigad 410208"
+  },
+  {
+    "id": "cs_048",
+    "city": "MUMBAI",
+    "name": "Blue Ocean Line Pvt. Ltd. (Cold Hub)",
+    "clean_name": "Blue Ocean Line Pvt. Ltd",
+    "address": "MIDC Industrial Area, Phase II, Taloja, Navi Mumbai 410208"
+  },
+  {
+    "id": "cs_049",
+    "city": "MUMBAI",
+    "name": "Sai Seema Agro Cold Storage",
+    "clean_name": "Sai Seema Agro Cold Storage",
+    "address": "Taloja MIDC / Panvel Industrial Belt, Navi Mumbai 410208"
+  },
+  {
+    "id": "cs_050",
+    "city": "MUMBAI",
+    "name": "Iceage Cold Storage Pvt. Ltd",
+    "clean_name": "Iceage Cold Storage Pvt. Ltd",
+    "address": "Taloja Industrial Area, MIDC, Navi Mumbai / Raigad 410208"
+  },
+  {
+    "id": "cs_051",
+    "city": "MUMBAI",
+    "name": "Gateway Distriparks (GDL Cold Chain / CFS Facility)",
+    "clean_name": "Gateway Distriparks",
+    "address": "Sector 1, Dronagiri Node / JNPT Maritime Corridor, Taluka Uran, Raigad 400707"
+  },
+  {
+    "id": "cs_052",
+    "city": "MUMBAI",
+    "name": "Allcargo Logistics Cold / Temperature-Controlled CFS",
+    "clean_name": "Allcargo Logistics Cold / Temperature-Controlled CFS",
+    "address": "Container Freight Station corridor, Koproli / Uran, Raigad 400707"
+  },
+  {
+    "id": "cs_053",
+    "city": "MUMBAI",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Digha Cold Storage Facility located at Opposite Digha Talav, Digha Naka, Dighe, Thane-Belapur Road, Navi Mumbai, Maharashtra 400708"
+  },
+  {
+    "id": "cs_054",
+    "city": "MUMBAI",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Turbhe Facility & Logistics Hub located at Plot No. 11, MIDC Industrial Area, Turbhe Naka, Thane-Belapur Road, Navi Mumbai, Maharashtra 400705"
+  },
+  {
+    "id": "cs_055",
+    "city": "MUMBAI",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Near Kalamboli / Panvel Logistics Corridor, Raigad, Navi Mumbai, Maharashtra 410206 / 410218"
+  },
+  {
+    "id": "cs_056",
+    "city": "PUNE",
+    "name": "Agronirmiti Cold Storage",
+    "clean_name": "Agronirmiti Cold Storage",
+    "address": "Post Jategaon Khurd, Taluka-Shirur, District, opposite Konkan Kanya Agri Tourism, Jategaon Khurd, Maharashtra 412208"
+  },
+  {
+    "id": "cs_057",
+    "city": "CHENNAI",
+    "name": "Snowman Logistics Limited (Unit 1 & 2)",
+    "clean_name": "Snowman Logistics Limited",
+    "address": "Survey No. 262/10 A, Mevalurkuppam, Thandalam Village, Valarpuram Post, Sriperumbudur Taluk, Kanchipuram District, Tamil Nadu 602105"
+  },
+  {
+    "id": "cs_058",
+    "city": "CHENNAI",
+    "name": "Snowman Logistics Limited (Unit 3)",
+    "clean_name": "Snowman Logistics Limited",
+    "address": "Survey No. 199/9, 200/2, Mevalurkuppam, Thandalam Village, Valarpuram Post, Sriperumbudur Taluk, Kanchipuram District, Tamil Nadu 602105"
+  },
+  {
+    "id": "cs_059",
+    "city": "CHENNAI",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Near Empee Distilleries / Bangalore Highway (NH 48), Chembarambakkam, Chennai, Tamil Nadu 600123"
+  },
+  {
+    "id": "cs_060",
+    "city": "CHENNAI",
+    "name": "Coldman Logistics Pvt. Ltd",
+    "clean_name": "Coldman Logistics Pvt. Ltd",
+    "address": "Survey No. 255/1, Sitheri / Satharai Village, Thiruvallur-Sriperumbudur High Road, Thiruvallur District, Tamil Nadu 631203"
+  },
+  {
+    "id": "cs_061",
+    "city": "CHENNAI",
+    "name": "Wester Farm Fresh Cold Storage (Western Farmfresh Pvt. Ltd.)",
+    "clean_name": "Wester Farm Fresh Cold Storage",
+    "address": "No. 37, Varadharajapuram, Near BSNL Telephone Exchange, Poonamallee, Chennai, Tamil Nadu 600056"
+  },
+  {
+    "id": "cs_062",
+    "city": "CHENNAI",
+    "name": "Hima Cold Chainz",
+    "clean_name": "Hima Cold Chainz",
+    "address": "No. 73/2B, 4B & 74/2B, Mettupalayam Main Road, Mettupalayam, Thiruverkadu, Poonamallee Taluk, Chennai, Tamil Nadu 600077"
+  },
+  {
+    "id": "cs_063",
+    "city": "CHENNAI",
+    "name": "Gopala Krishna Cold Storages Survey",
+    "clean_name": "Gopala Krishna Cold Storages Survey",
+    "address": "Nos. 751, 752, 753, Government Hospital Road, Nemam, Poonamallee / Tiruvallur Road, Chennai, Tamil Nadu 600124"
+  },
+  {
+    "id": "cs_064",
+    "city": "CHENNAI",
+    "name": "Pioneer Coldstore & Logistics",
+    "clean_name": "Pioneer Coldstore & Logistics",
+    "address": "No. 12/2, Pallavan Nagar Main Road, Maduravoyal, Near Koyambedu Bypass, Chennai, Tamil Nadu 600095"
+  },
+  {
+    "id": "cs_065",
+    "city": "CHENNAI",
+    "name": "Sharada Krupa Cold Storage Pvt. Ltd",
+    "clean_name": "Sharada Krupa Cold Storage Pvt. Ltd",
+    "address": "No. 152/34, G.N.T. Main Road, Madhavaram, Chennai, Tamil Nadu 600110"
+  },
+  {
+    "id": "cs_066",
+    "city": "CHENNAI",
+    "name": "Maggi Cold Storage Pvt. Ltd",
+    "clean_name": "Maggi Cold Storage Pvt. Ltd",
+    "address": "Survey No. 74/1, Jeeva Jothi Illam Salai, Pulliline Village, Madhavaram-Red Hills Road, Chennai, Tamil Nadu 600060"
+  },
+  {
+    "id": "cs_067",
+    "city": "CHENNAI",
+    "name": "Lakshmi Saai Agri Cold Storage Pvt. Ltd",
+    "clean_name": "Lakshmi Saai Agri Cold Storage Pvt. Ltd",
+    "address": "Plant: GNT Road Corridor, Padiyanallur / Red Hills, Chennai 600052"
+  },
+  {
+    "id": "cs_068",
+    "city": "CHENNAI",
+    "name": "APM Terminals Inland Services (CFS Cold Storage)",
+    "clean_name": "APM Terminals Inland Services",
+    "address": "Plot No. 78, Inside APM Terminals Inland Services Container Freight Station, Minjur-Ennore Expressway, Minjur, Chennai, Tamil Nadu 601203"
+  },
+  {
+    "id": "cs_069",
+    "city": "CHENNAI",
+    "name": "Dazzle Cold Chain Solutions",
+    "clean_name": "Dazzle Cold Chain Solutions",
+    "address": "Plot No. 46, South Phase, Ambattur Industrial Estate, Ambattur, Chennai, Tamil Nadu 600058"
+  },
+  {
+    "id": "cs_070",
+    "city": "CHENNAI",
+    "name": "S.B.P. Cold Storage Pvt. Ltd",
+    "clean_name": "S.B.P. Cold Storage Pvt. Ltd",
+    "address": "No. 5, Kasturi Bai Street, Vandavasi, Tiruvannamalai / Chennai Outer Distribution Belt, Tamil Nadu 604408"
+  },
+  {
+    "id": "cs_071",
+    "city": "BANGALORE",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Shop No. A-9, APMC Fruit Market, Singena Agrahara, Huskur Road, Electronic City post, Bengaluru, Karnataka 560099"
+  },
+  {
+    "id": "cs_072",
+    "city": "BANGALORE",
+    "name": "Snowman Logistics Limited (Virgonagar Hub)",
+    "clean_name": "Snowman Logistics Limited",
+    "address": "No. 54, Old Madras Road, Near Avalahalli Police Station, Virgonagar Post, Bidarahalli Hobli, Bengaluru, Karnataka 560049"
+  },
+  {
+    "id": "cs_073",
+    "city": "BANGALORE",
+    "name": "Coldman Logistics Pvt. Ltd",
+    "clean_name": "Coldman Logistics Pvt. Ltd",
+    "address": "Survey No. 138, Bommenahalli Village, Bidarahalli Hobli, Off Old Madras Road, Bengaluru, Karnataka 560049"
+  },
+  {
+    "id": "cs_074",
+    "city": "BANGALORE",
+    "name": "ColdStar Logistics Pvt. Ltd",
+    "clean_name": "ColdStar Logistics Pvt. Ltd",
+    "address": "Plot No. 12L, Chokkahalli, Hoskote Industrial Area, Industrial Gate Road, Hoskote, Bengaluru Rural, Karnataka 562114"
+  },
+  {
+    "id": "cs_075",
+    "city": "BANGALORE",
+    "name": "SAFAL Market Cold Storage (NDDB / KMF)",
+    "clean_name": "SAFAL Market Cold Storage",
+    "address": "Mother Dairy Foods Processing Complex, Safal Market, Kannamangala Village, Near Kadugodi, Hoskote Taluk, Bengaluru Rural, Karnataka 560067"
+  },
+  {
+    "id": "cs_076",
+    "city": "BANGALORE",
+    "name": "Balala Tourist Hotel Cold Storage Division",
+    "clean_name": "Balala Tourist Hotel Cold Storage Division",
+    "address": "Plot No. 18/B, Veerasandra Industrial Area, Electronic City Phase 1, Anekal Taluk, Bengaluru, Karnataka 560100"
+  },
+  {
+    "id": "cs_077",
+    "city": "BANGALORE",
+    "name": "Himalaya Cold Storage",
+    "clean_name": "Himalaya Cold Storage",
+    "address": "Plot No. 52/F, Bommasandra Industrial Area, Anekal Taluk, Hosur Road, Bengaluru, Karnataka 560099"
+  },
+  {
+    "id": "cs_078",
+    "city": "BANGALORE",
+    "name": "M.R.C. Cold Storage",
+    "clean_name": "M.R.C. Cold Storage",
+    "address": "Plot No. 211, Bommasandra Industrial Area, 1st Phase, Hosur Main Road, Bengaluru, Karnataka 560099"
+  },
+  {
+    "id": "cs_079",
+    "city": "BANGALORE",
+    "name": "KN Cold Storage",
+    "clean_name": "KN Cold Storage",
+    "address": "Plot No. B-45, 3rd Main Road, 1st Cross, Bommasandra Industrial Area, Bengaluru, Karnataka 560099"
+  },
+  {
+    "id": "cs_080",
+    "city": "BANGALORE",
+    "name": "Ishwar Cold Storage",
+    "clean_name": "Ishwar Cold Storage",
+    "address": "Plot No. 147, RK Township, Bommasandra-Jigani Link Road, Bommasandra Industrial Area, Bengaluru, Karnataka 560099"
+  },
+  {
+    "id": "cs_081",
+    "city": "BANGALORE",
+    "name": "Kaveri Cold Storage",
+    "clean_name": "Kaveri Cold Storage",
+    "address": "APMC / RMC Yard, Sub-Yard Sector, Yeshwanthpur, Bengaluru North, Karnataka 560022"
+  },
+  {
+    "id": "cs_082",
+    "city": "BANGALORE",
+    "name": "Chethan Cold Storage Unit",
+    "clean_name": "Chethan Cold Storage Unit",
+    "address": "APMC Yard, BDA Block 2, Yeshwanthpur, Bengaluru, Karnataka 560022"
+  },
+  {
+    "id": "cs_083",
+    "city": "BANGALORE",
+    "name": "Sneha Agro Cold Storage",
+    "clean_name": "Sneha Agro Cold Storage",
+    "address": "No. 47, Vishwanagar, Near BGS School, Nagarur, Dasanapura Hobli, Nelamangala Taluk, Bengaluru, Karnataka 562123"
+  },
+  {
+    "id": "cs_084",
+    "city": "BANGALORE",
+    "name": "Bonus Cold Storage Solutions",
+    "clean_name": "Bonus Cold Storage Solutions",
+    "address": "No. 28/8, Vajarahalli, Pillahalli Road, Nelamangala, Bengaluru Rural, Karnataka 562123"
+  },
+  {
+    "id": "cs_085",
+    "city": "BANGALORE",
+    "name": "New Cold Bharat Reefer Logistics Hub",
+    "clean_name": "New Cold Bharat Reefer Logistics Hub",
+    "address": "Madanayakanahalli, Tumkur Highway (NH 48), Nelamangala, Bengaluru, Karnataka 562123"
+  },
+  {
+    "id": "cs_086",
+    "city": "KOLKATA",
+    "name": "Yaduka Agrotech Limited (Cold Storage / Facility)",
+    "clean_name": "Yaduka Agrotech Limited",
+    "address": "Plot No. B2, National Highway 6 (NH 6 / NH 16), WBIDC Food Park, Dhulagori, Sankrail, District: Howrah, West Bengal 711302, India"
+  },
+  {
+    "id": "cs_087",
+    "city": "KOLKATA",
+    "name": "Snowman Logistics Limited (Howrah Hub)",
+    "clean_name": "Snowman Logistics Limited",
+    "address": "Mouza Tentul Kuli, J.L. No. 53, Opposite Kolkata West International City, Near Salap More, NH 6 (NH 16), Pakuria, Domjur, Howrah, West Bengal 711114"
+  },
+  {
+    "id": "cs_088",
+    "city": "KOLKATA",
+    "name": "Snowman Logistics Limited (Dankuni Hub)",
+    "clean_name": "Snowman Logistics Limited",
+    "address": "C/o Modular Food Park Ltd., Dag No. 261 & 262, Near Dankuni Dakshin Rajyadharpur, Serampore, NH 2 (NH 19) Bypass, Hooghly District, West Bengal 712203"
+  },
+  {
+    "id": "cs_089",
+    "city": "KOLKATA",
+    "name": "Glacier Smith Cold Chain (B.P. Poddar Group)",
+    "clean_name": "Glacier Smith Cold Chain",
+    "address": "P-40/2/1, Hide Road, Near Garden Reach / Tikiapara Connectivity, Kolkata, West Bengal 700043"
+  },
+  {
+    "id": "cs_090",
+    "city": "KOLKATA",
+    "name": "Kolkata Port Trust (KoPT) Cold Storage / Speedways Logistics Facility",
+    "clean_name": "Kolkata Port Trust Cold Storage / Speedways Logistics Facility",
+    "address": "Plot P-13, Transport Depot Road, Near Kolkata Dock System, Taratala, Kolkata, West Bengal 700088"
+  },
+  {
+    "id": "cs_091",
+    "city": "KOLKATA",
+    "name": "Storefresh Logitech LLP (Metiabruz Hub)",
+    "clean_name": "Storefresh Logitech LLP",
+    "address": "Garden Reach Road, Rajabagan Dockyard, Metiabruz, Kolkata, West Bengal 700044"
+  },
+  {
+    "id": "cs_092",
+    "city": "KOLKATA",
+    "name": "Essex Marine Pvt. Ltd. (Cold Chain Unit)",
+    "clean_name": "Essex Marine Pvt. Ltd",
+    "address": "No. 3, Pagladanga Road, Tangra (Near EM Bypass corridor), Kolkata, West Bengal 700015"
+  },
+  {
+    "id": "cs_093",
+    "city": "KOLKATA",
+    "name": "Manicktala Cold Storage Pvt. Ltd",
+    "clean_name": "Manicktala Cold Storage Pvt. Ltd",
+    "address": "No. 23, Canal West Road, Shyambazar / Manicktala, Kolkata, West Bengal 700004"
+  },
+  {
+    "id": "cs_094",
+    "city": "KOLKATA",
+    "name": "Ice & Cold Storage Ltd",
+    "clean_name": "Ice & Cold Storage Ltd",
+    "address": "No. 23/1, Canal West Road, Shyambazar, Kolkata, West Bengal 700004"
+  },
+  {
+    "id": "cs_095",
+    "city": "KOLKATA",
+    "name": "Kalman Cold Storage",
+    "clean_name": "Kalman Cold Storage",
+    "address": "No. 18, Mirza Ghalib Street (Free School Street), Park Street Area, Kolkata, West Bengal 700016"
+  },
+  {
+    "id": "cs_096",
+    "city": "KOLKATA",
+    "name": "Snowtek Cold Chain Facilities",
+    "clean_name": "Snowtek Cold Chain Facilities",
+    "address": "No. 189, B.L. Paul Street, Chini Kothi Lane, Baranagar, Kolkata, West Bengal 700036"
+  },
+  {
+    "id": "cs_097",
+    "city": "KOLKATA",
+    "name": "Energy Agro Pvt. Ltd. (Cold Chain)",
+    "clean_name": "Energy Agro Pvt. Ltd",
+    "address": "Nababpur Road, Madanpur Krishnapur, Near Khaspur, Barasat, North 24 Parganas, Kolkata, West Bengal 700128"
+  },
+  {
+    "id": "cs_098",
+    "city": "KOLKATA",
+    "name": "Eastern Cold Storage & Agro Distribution",
+    "clean_name": "Eastern Cold Storage & Agro Distribution",
+    "address": "Jessore Road, Near Kolkata Airport Gate No. 2, Rajbari Colony, Dum Dum, Kolkata, West Bengal 700081"
+  },
+  {
+    "id": "cs_099",
+    "city": "DELHI / NCR",
+    "name": "SIA Foods & Cold Storage LLP (SIA CA Cold Storage)",
+    "clean_name": "SIA Foods & Cold Storage LLP",
+    "address": "Plot No. 568, Food Park, HSIIDC Industrial Estate, Sector 38, Rai, Sonipat, Haryana 131029"
+  },
+  {
+    "id": "cs_100",
+    "city": "DELHI / NCR",
+    "name": "DS Cold Storage Chain",
+    "clean_name": "DS Cold Storage Chain",
+    "address": "Sector 50, Nathupur, Sonipat, Haryana 131029, India"
+  },
+  {
+    "id": "cs_101",
+    "city": "DELHI / NCR",
+    "name": "Anusaya Fresh India Pvt. Ltd",
+    "clean_name": "Anusaya Fresh India Pvt. Ltd",
+    "address": "Shop No. A 28 / A 30, Safal Market, Survey No. 99, Kannamangala Farm, Whitefield-Hoskote Highway, Khaji Sonnenahalli, Kannamangala, Bengaluru, Karnataka 560067, India"
+  },
+  {
+    "id": "cs_102",
+    "city": "DELHI / NCR",
+    "name": "Delhi Cold Storage and Deep Freezer Pvt. Ltd",
+    "clean_name": "Delhi Cold Storage and Deep Freezer Pvt. Ltd",
+    "address": "Office / Unit: 15-16, New Subzi Mandi, Azadpur Fruit Market, Azadpur, North West Delhi 110033"
+  },
+  {
+    "id": "cs_103",
+    "city": "DELHI / NCR",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Near Major Warehousing & Industrial Zone / APMC Mandi, New Delhi 110033 / 110036"
+  },
+  {
+    "id": "cs_104",
+    "city": "DELHI / NCR",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Near International Horticulture Market (IHM) Corridor, Ganaur, Sonipat District, Haryana 131101"
+  },
+  {
+    "id": "cs_105",
+    "city": "DELHI / NCR",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Industrial Area, Zirakpur / Chandigarh Hub, Punjab 140603"
+  },
+  {
+    "id": "cs_106",
+    "city": "DELHI / NCR",
+    "name": "IG International Pvt. Ltd",
+    "clean_name": "IG International Pvt. Ltd",
+    "address": "Vishwakarma Industrial Area (VKI) / Muhana Mandi Zone, Jaipur, Rajasthan 302013 / 302029"
+  },
+  {
+    "id": "cs_107",
+    "city": "DELHI / NCR",
+    "name": "Jolly Ice & Cold Storage Pvt. Ltd. (Jolly Farm Fresh)",
+    "clean_name": "Jolly Ice & Cold Storage Pvt. Ltd",
+    "address": "C-45, Lawrence Road Industrial Area, next to Britannia Industries, Delhi 110035"
+  },
+  {
+    "id": "cs_108",
+    "city": "DELHI / NCR",
+    "name": "Himachal Cold Storage",
+    "clean_name": "Himachal Cold Storage",
+    "address": "B-15, Lawrence Road Industrial Area, Rampura, Tri Nagar / Lawrence Road, New Delhi 110035"
+  },
+  {
+    "id": "cs_109",
+    "city": "DELHI / NCR",
+    "name": "Hindustan Ice & Cold Storage",
+    "clean_name": "Hindustan Ice & Cold Storage",
+    "address": "Plot No. 12, G.T. Karnal Road Industrial Area, Near Azadpur Subzi Mandi, Delhi 110033"
+  },
+  {
+    "id": "cs_110",
+    "city": "DELHI / NCR",
+    "name": "SURIfresh Cold Chain Hub (Suri Agro Fresh)",
+    "clean_name": "SURIfresh Cold Chain Hub",
+    "address": "Plot No. 576, Food Zone, HSIIDC Industrial Estate, Sector 38, Rai, Sonipat, Haryana 131029"
+  },
+  {
+    "id": "cs_111",
+    "city": "DELHI / NCR",
+    "name": "Kundli Cold Storage / Mitra Cold Storage",
+    "clean_name": "Kundli Cold Storage / Mitra Cold Storage",
+    "address": "Plot No. 28, Phase-1, HSIIDC Industrial Area, Kundli, Sonipat, Haryana 131028"
+  },
+  {
+    "id": "cs_112",
+    "city": "DELHI / NCR",
+    "name": "G J Cold Storage Pvt. Ltd",
+    "clean_name": "G J Cold Storage Pvt. Ltd",
+    "address": "Pyau Maniyari Road, Near Narela Border, HSIIDC Kundli, Sonipat, Haryana 131028"
+  },
+  {
+    "id": "cs_113",
+    "city": "DELHI / NCR",
+    "name": "Dev Bhumi Cold Chain (DB Cold)",
+    "clean_name": "Dev Bhumi Cold Chain",
+    "address": "Plot No. 433-434, Food Park, Phase-1, HSIIDC Industrial Estate, Rai, Sonipat, Haryana 131029"
+  },
+  {
+    "id": "cs_114",
+    "city": "DELHI / NCR",
+    "name": "Coldman Logistics Pvt. Ltd",
+    "clean_name": "Coldman Logistics Pvt. Ltd",
+    "address": "Survey No. 43/1 & 44/2, Bilaspur-Tauru Road, Near NH 48, Bilaspur, Gurugram, Haryana 122413"
+  },
+  {
+    "id": "cs_115",
+    "city": "DELHI / NCR",
+    "name": "Snowman Logistics Limited (Dharuhera Mega Hub)",
+    "clean_name": "Snowman Logistics Limited",
+    "address": "Plot No. 13 & 14, Sector 7, HSIIDC Growth Centre, Industrial Estate, Bawal / Dharuhera, Rewari District, Haryana 123501"
+  },
+  {
+    "id": "cs_116",
+    "city": "GUJARAT",
+    "name": "Kamal Cold Storage",
+    "clean_name": "Kamal Cold Storage",
+    "address": "National Highway No. 8 (NH 8 / NH 48), Village Mogar, Anand, Gujarat 388340, India"
+  },
+  {
+    "id": "cs_117",
+    "city": "GUJARAT",
+    "name": "Snowman Logistics Limited (Ahmedabad Hub)",
+    "clean_name": "Snowman Logistics Limited",
+    "address": "Plot No. 329, Near Multi-Pack Plast Pvt. Ltd., Sarkhej-Bavla Road, Changodar, Ahmedabad, Gujarat 382213"
+  },
+  {
+    "id": "cs_118",
+    "city": "GUJARAT",
+    "name": "Coldman Logistics Pvt. Ltd",
+    "clean_name": "Coldman Logistics Pvt. Ltd",
+    "address": "Survey No. 809, Mouje Bidaj, Bareja-Kheda Road, NH 8 (Ahmedabad-Vadodara Corridor), Bidaj, Kheda District, Gujarat 387120"
+  },
+  {
+    "id": "cs_119",
+    "city": "GUJARAT",
+    "name": "S. K. Cold Storage",
+    "clean_name": "S. K. Cold Storage",
+    "address": "Shop No. 52, Chimanbhai Patel APMC Market Yard, Vasna-Sarkhej Road, Ahmedabad, Gujarat 380055"
+  },
+  {
+    "id": "cs_120",
+    "city": "GUJARAT",
+    "name": "Guru Cold Storage Pvt. Ltd",
+    "clean_name": "Guru Cold Storage Pvt. Ltd",
+    "address": "Opposite Indus Hospital, Near Adani CNG Pump, Sabarmati, Ahmedabad, Gujarat 380005"
+  },
+  {
+    "id": "cs_121",
+    "city": "GUJARAT",
+    "name": "Gujarat Agro Industries Corporation (Perishable Cargo Hub)",
+    "clean_name": "Gujarat Agro Industries Corporation",
+    "address": "Center for Perishable & General Cargo (CPC), Near Indian Oil Pump, Air Cargo Complex, Old Airport, Bhargav Road, Meghaninagar, Ahmedabad, Gujarat 380016"
+  },
+  {
+    "id": "cs_122",
+    "city": "GUJARAT",
+    "name": "Apps Cold Solution LLP",
+    "clean_name": "Apps Cold Solution LLP",
+    "address": "Plot Nos. 73 & 92, Vibrant Industrial Park-2, Zak-Kadadra Road, Vahelal, Ahmedabad, Gujarat 382330"
+  },
+  {
+    "id": "cs_123",
+    "city": "GUJARAT",
+    "name": "Snowman Logistics Limited (Surat / Hazira Hub)",
+    "clean_name": "Snowman Logistics Limited",
+    "address": "Plot No. A/33, Ichhapore GIDC, Opposite HPCL Gas Bottling Plant, Near ONGC, Chorasi Taluka, Hazira Road, Surat, Gujarat 394510"
+  },
+  {
+    "id": "cs_124",
+    "city": "GUJARAT",
+    "name": "Surat Cold Storage & Ice Factory",
+    "clean_name": "Surat Cold Storage & Ice Factory",
+    "address": "Plot No. 42-45, GIDC Industrial Estate, Khatodara, Surat, Gujarat 395002"
+  },
+  {
+    "id": "cs_125",
+    "city": "GUJARAT",
+    "name": "APMC Kosamba Cold Chain & Processing Facility",
+    "clean_name": "APMC Kosamba Cold Chain & Processing Facility",
+    "address": "Kosamba APMC Market Yard, Mangrol Taluka, Surat District, Gujarat 394120"
+  },
+  {
+    "id": "cs_126",
+    "city": "GUJARAT",
+    "name": "Baroda Cold Storage Pvt. Ltd",
+    "clean_name": "Baroda Cold Storage Pvt. Ltd",
+    "address": "Plot No. 714/2, GIDC Industrial Estate, Makarpura, Vadodara, Gujarat 390010"
+  },
+  {
+    "id": "cs_127",
+    "city": "GUJARAT",
+    "name": "Gujarat Agro Banana Packhouse & Cold Storage",
+    "clean_name": "Gujarat Agro Banana Packhouse & Cold Storage",
+    "address": "GIDC Industrial Estate, Jhagadia, Bharuch District, Gujarat 393110"
+  },
+  {
+    "id": "cs_128",
+    "city": "GUJARAT",
+    "name": "Shree Ambica Cold Storage",
+    "clean_name": "Shree Ambica Cold Storage",
+    "address": "NH 48 Bypass, Near Golden Chokdi, Harni-Waghodia Ring Road, Vadodara, Gujarat 390022"
+  },
+  {
+    "id": "cs_129",
+    "city": "GUJARAT",
+    "name": "Kutch Cold Chain Pvt. Ltd",
+    "clean_name": "Kutch Cold Chain Pvt. Ltd",
+    "address": "Survey No. 254/1, Near Mithirohar Village, NH 8A, Gandhidham, Kutch, Gujarat 370201"
+  },
+  {
+    "id": "cs_130",
+    "city": "GUJARAT",
+    "name": "Adani Logistics Cold Chain Facility",
+    "clean_name": "Adani Logistics Cold Chain Facility",
+    "address": "Mundra Port & Special Economic Zone (APSEZ), Near Container Terminal, Mundra, Kutch, Gujarat 370421"
+  },
+  {
+    "id": "cs_131",
+    "city": "GUJARAT",
+    "name": "Gandhidham Marine Cold Storages",
+    "clean_name": "Gandhidham Marine Cold Storages",
+    "address": "Plot No. 18, GIDC Industrial Estate, Sector 9, Gandhidham, Kutch, Gujarat 370201"
+  },
+  {
+    "id": "cs_132",
+    "city": "GUJARAT",
+    "name": "Gujarat Agro Integrated Potato Cold Storage",
+    "clean_name": "Gujarat Agro Integrated Potato Cold Storage",
+    "address": "Deesa-Palanpur Highway, Deesa, Banaskantha District, Gujarat 385535"
+  },
+  {
+    "id": "cs_133",
+    "city": "GUJARAT",
+    "name": "Bajarang Cold Storage",
+    "clean_name": "Bajarang Cold Storage",
+    "address": "Highway Road, Near APMC Market, Deesa, Banaskantha District, Gujarat 385535"
+  }
+]

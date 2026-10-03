@@ -49,15 +49,15 @@ export const ReconciliationBlock: React.FC<ReconciliationBlockProps> = ({ block 
       <h2 className="text-[11pt] font-bold text-[#00387A] uppercase border-b border-gray-300 pb-1 mb-2 tracking-wide">
         {title}
       </h2>
-      <table className="w-full border-collapse border border-gray-300 text-[9pt]">
+      <table className="w-full border-collapse border border-gray-400 text-[9pt]">
         <thead>
-          <tr className="bg-[#00387A] text-white font-bold">
-            <th className="p-1.5 border border-gray-300 text-left">Container / Item</th>
-            <th className="p-1.5 border border-gray-300 text-right">Gross Wt (kg)</th>
-            <th className="p-1.5 border border-gray-300 text-right">Tare (kg)</th>
-            <th className="p-1.5 border border-gray-300 text-right">Found Net (kg)</th>
-            <th className="p-1.5 border border-gray-300 text-right">Declared (kg)</th>
-            <th className="p-1.5 border border-gray-300 text-right">Difference (kg)</th>
+          <tr className="border-b border-gray-400 bg-white">
+            <th className="p-1.5 border border-gray-400 text-left font-bold text-gray-900">Container / Item</th>
+            <th className="p-1.5 border border-gray-400 text-right font-bold text-gray-900">Gross Wt (kg)</th>
+            <th className="p-1.5 border border-gray-400 text-right font-bold text-gray-900">Tare (kg)</th>
+            <th className="p-1.5 border border-gray-400 text-right font-bold text-gray-900">Found Net (kg)</th>
+            <th className="p-1.5 border border-gray-400 text-right font-bold text-gray-900">Declared (kg)</th>
+            <th className="p-1.5 border border-gray-400 text-right font-bold text-gray-900">Difference (kg)</th>
           </tr>
         </thead>
         <tbody>
@@ -68,13 +68,13 @@ export const ReconciliationBlock: React.FC<ReconciliationBlockProps> = ({ block 
               diffStr += ' (' + r.direction + ')';
             }
             return (
-              <tr key={i} className="border-b border-gray-300 hover:bg-slate-50">
-                <td className="p-1.5 border-r border-gray-300 font-medium text-gray-900">{r.subject}</td>
-                <td className="p-1.5 border-r border-gray-300 text-right text-gray-700">{r.gross || '-'}</td>
-                <td className="p-1.5 border-r border-gray-300 text-right text-gray-700">{tare}</td>
-                <td className="p-1.5 border-r border-gray-300 text-right font-medium text-gray-900">{r.found_net || '-'}</td>
-                <td className="p-1.5 border-r border-gray-300 text-right text-gray-700">{r.reference || '-'}</td>
-                <td className="p-1.5 border-gray-300 text-right font-bold text-gray-900">{diffStr}</td>
+              <tr key={i} className="border-b border-gray-400 hover:bg-slate-50/50">
+                <td className="p-1.5 border border-gray-400 font-medium text-gray-900">{r.subject}</td>
+                <td className="p-1.5 border border-gray-400 text-right text-gray-800">{r.gross || '-'}</td>
+                <td className="p-1.5 border border-gray-400 text-right text-gray-800">{tare}</td>
+                <td className="p-1.5 border border-gray-400 text-right font-medium text-gray-900">{r.found_net || '-'}</td>
+                <td className="p-1.5 border border-gray-400 text-right text-gray-800">{r.reference || '-'}</td>
+                <td className="p-1.5 border border-gray-400 text-right font-bold text-gray-900">{diffStr}</td>
               </tr>
             );
           })}

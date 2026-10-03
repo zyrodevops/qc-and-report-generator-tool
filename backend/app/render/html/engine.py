@@ -386,6 +386,17 @@ def render_narrative_html(block: Dict[str, Any]) -> str:
     body = _narrative_body_html(clause_text)
     if body:
         out.append(body)
+    
+    people = [r for r in block.get("attendance") or [] if any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing"))]
+    if people:
+        att = render_attendance_html({
+            "title": "",
+            "intro": block.get("attendance_intro") or "The following persons attended the survey:",
+            "rows": people
+        })
+        if att:
+            out.append(att)
+            
     return "\n".join(out)
 
 

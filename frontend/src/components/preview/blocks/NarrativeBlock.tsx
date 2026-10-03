@@ -1,6 +1,9 @@
-import React, { useRef, useLayoutEffect } from 'react';
+import React, { useRef, useLayoutEffect, useEffect } from 'react';
 import { ClausePicker, WithBlanks, detectSectionFromHeading } from '../../clauses/ClausePicker';
 import { NotesWriter } from '../../clauses/NotesWriter';
+import { ColdStorageSelector } from '../../clauses/ColdStorageSelector';
+import { ApplicationAttendance } from '../../clauses/ApplicationAttendance';
+import { getDefaultAttendance, lookupConsigneeStaff } from '../../../utils/staffLookup';
 import type { ClauseContext } from '../../../api/client';
 import { BLANK_PATTERN } from '../../../utils/clauseContext';
 
@@ -14,6 +17,8 @@ export interface NarrativeBlockProps {
   heading?: string;
   /** Which wording to offer, when the heading does not say (a general cargo survey paragraph). */
   clauseSection?: string;
+  /** True when rendered in the Form Editor tab, false in A4 HTML Preview. */
+  isFormEditor?: boolean;
 }
 
 export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
@@ -23,6 +28,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   clauseContext,
   heading,
   clauseSection,
+  isFormEditor = false,
 }) => {
   const sectionTitle = heading || block?._heading || block?.section || 'ATTENDANCE & CIRCUMSTANCES';
   const text = block?.additional_text || '';
@@ -104,6 +110,83 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   const sectionSlug = clauseSection || detectSectionFromHeading(sectionTitle);
   const blanks = text.match(BLANK_PATTERN) || [];
 
+  // Standard cold storage text from latest reports is pre-populated in Application section for all fruits
+  // (Previously restricted list kept commented out per request):
+  // const commodityKey = (clauseContext?.commodity || '').toLowerCase();
+  // const isCuratedFruit = ['apple', 'plum', 'mandarin', 'pear', 'grapes', 'grape'].includes(commodityKey);
+  // const hideClausePicker = isCuratedFruit && sectionSlug === 'application';
+  const hideClausePicker = sectionSlug === 'application';
+
+  const consigneeName = String(clauseContext?.values?.consignee || '');
+  const vesselName = String(clauseContext?.values?.vessel || '');
+
+  // Pre-populate Paragraph 1 Application section with standard cold storage template for all fruits if empty
+  useEffect(() => {
+    if (sectionSlug === 'application' && !text.trim() && onChange) {
+      const defaultText =
+        "Pursuant to the Consignee's request and subsequent appointment, we attended the Consignee's nominated cold storage facility, M/s [Cold Storage Name] ([Cold Storage Address]), on [Survey Date], to carry out an inspection of the subject consignment.";
+      onChange({ ...block, additional_text: defaultText });
+    }
+  }, [sectionSlug, text]);
+
+  // Auto-populate or sync attendance for Application section
+  useEffect(() => {
+    if (sectionSlug === 'application' && onChange) {
+      if (!block.attendance || block.attendance.length === 0) {
+        const defaultRows = getDefaultAttendance(consigneeName);
+        onChange({
+          ...block,
+          attendance: defaultRows,
+          attendance_intro: block.attendance_intro || 'The following persons attended the survey:',
+        });
+      } else if (consigneeName) {
+        const matched = lookupConsigneeStaff(consigneeName);
+        if (matched.length > 0) {
+          // Check if current attendance already contains this matched staff
+          const alreadyHasStaff = matched.every((m) =>
+            (block.attendance || []).some(
+              (r: any) =>
+                r.name.trim().toLowerCase() === m.name.trim().toLowerCase() &&
+                r.representing.trim().toLowerCase() === m.representing.trim().toLowerCase()
+            )
+          );
+          if (!alreadyHasStaff) {
+            // Keep MCA surveyor and any non-consignee joint surveyors, replace old consignee staff
+            const nonConsigneeRows = (block.attendance || []).filter((r: any) => {
+              const rep = (r.representing || '').toLowerCase();
+              const isMCA = rep.includes('marine cargo agencies') || r.name?.includes('Baburao');
+              const isLineOrShipper =
+                rep.includes('shipping line') ||
+                rep.includes('shipper') ||
+                rep.includes('insurer') ||
+                rep.includes('underwriter') ||
+                rep.includes('wan hai') ||
+                rep.includes('oocl');
+              return isMCA || isLineOrShipper;
+            });
+            if (
+              !nonConsigneeRows.some(
+                (r: any) =>
+                  (r.representing || '').toLowerCase().includes('marine cargo agencies') ||
+                  r.name?.includes('Baburao')
+              )
+            ) {
+              nonConsigneeRows.push({
+                name: 'Mr. Baburao Bhosale',
+                designation: 'Surveyor',
+                representing: 'Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)',
+              });
+            }
+            onChange({
+              ...block,
+              attendance: [...matched, ...nonConsigneeRows],
+            });
+          }
+        }
+      }
+    }
+  }, [sectionSlug, consigneeName]);
+
   // Split and highlight bracketed photo references (Photo Nos?...)
   const renderFormattedText = (content: string) => {
     const parts = content.split(/(\(Photo Nos?\. [^\)]+\))/g);
@@ -130,7 +213,20 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       )}
       {editable && onChange ? (
         <>
-          {clauseContext && (
+          {/* Standard wording option cards: ONLY in Form Editor */}
+          {/* Option card picker for Paragraph 1 (Application) kept commented out per user request:
+          {isFormEditor && clauseContext && sectionSlug === 'application' && (
+            <ClausePicker
+              sectionHeading={sectionTitle}
+              section={clauseSection}
+              context={clauseContext}
+              added={addedTopics}
+              onAdd={handleAddTopic}
+              onRemove={handleRemoveTopic}
+            />
+          )}
+          */}
+          {isFormEditor && clauseContext && !hideClausePicker && (
             <ClausePicker
               sectionHeading={sectionTitle}
               section={clauseSection}
@@ -141,19 +237,60 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
             />
           )}
 
+          {/* Cold storage facility selector & auto-fill ONLY in Form Editor */}
+          {isFormEditor && sectionSlug === 'application' && (
+            <ColdStorageSelector
+              currentText={text}
+              onUpdateText={(updatedText) =>
+                onChange({
+                  ...block,
+                  additional_text: updatedText,
+                  surveyor_edited: true,
+                })
+              }
+            />
+          )}
+
           <textarea
             ref={textareaRef}
             value={text}
             onChange={handleTextChange}
             placeholder={
-              sectionSlug === 'general'
-                ? 'Type this section…'
-                : 'Type this section, or add standard wording above…'
+              isFormEditor
+                ? hideClausePicker
+                  ? 'Fill in the blanks and edit this section…'
+                  : sectionSlug === 'general'
+                  ? 'Type this section…'
+                  : 'Type this section, or add standard wording above…'
+                : ''
             }
-            className="w-full bg-transparent border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white focus:outline-none rounded p-1 text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text"
+            className={`w-full bg-transparent outline-none rounded text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text ${
+              isFormEditor
+                ? 'border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white p-1'
+                : 'border-none p-0 focus:bg-blue-50/30'
+            }`}
           />
 
-          {clauseContext?.commodity === 'GENERAL_CARGO' && sectionSlug !== 'general' && (
+          {sectionSlug === 'application' && (
+            <ApplicationAttendance
+              rows={block.attendance || []}
+              intro={block.attendance_intro || 'The following persons attended the survey:'}
+              consigneeName={consigneeName}
+              vesselName={vesselName}
+              editable={true}
+              isFormEditor={isFormEditor}
+              onChange={(newRows, newIntro) =>
+                onChange({
+                  ...block,
+                  attendance: newRows,
+                  attendance_intro: newIntro,
+                  surveyor_edited: true,
+                })
+              }
+            />
+          )}
+
+          {isFormEditor && clauseContext?.commodity === 'GENERAL_CARGO' && sectionSlug !== 'general' && (
             <NotesWriter
               section={sectionSlug}
               context={clauseContext}
@@ -167,7 +304,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
             />
           )}
 
-          {clauseContext && blanks.length > 0 && (
+          {clauseContext && blanks.length > 0 && isFormEditor && (
             <div className="mt-1 text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
               {blanks.length} blank{blanks.length > 1 ? 's' : ''} to fill in:{' '}
               <WithBlanks text={blanks.join(' ')} />
@@ -183,8 +320,19 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
           ) : (
             <p>{renderFormattedText(text)}</p>
           )}
+
+          {sectionSlug === 'application' && block.attendance && block.attendance.length > 0 && (
+            <ApplicationAttendance
+              rows={block.attendance}
+              intro={block.attendance_intro || 'The following persons attended the survey:'}
+              editable={false}
+              isFormEditor={false}
+              onChange={() => {}}
+            />
+          )}
         </div>
       )}
     </div>
   );
 };
+

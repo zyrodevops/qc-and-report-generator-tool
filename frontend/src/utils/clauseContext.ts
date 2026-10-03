@@ -21,6 +21,14 @@ export function clauseContextFrom(blockState: any): ClauseContext {
   const containerNo = real(container?.value).match(/[A-Z]{4}\s?\d{6,7}/)?.[0];
   if (containerNo) values.container_no = containerNo.replace(/\s/g, '');
 
+  const consigneeRow = (particulars?.rows || []).find((r: any) => /consignee/i.test(r.label || ''));
+  const consigneeVal = real(consigneeRow?.value);
+  if (consigneeVal) values.consignee = consigneeVal;
+
+  const vesselRow = (particulars?.rows || []).find((r: any) => /vessel/i.test(r.label || ''));
+  const vesselVal = real(vesselRow?.value);
+  if (vesselVal) values.vessel = vesselVal;
+
   const measurements = blocks.find((b) => b.type === 'measurements');
   for (const row of measurements?.rows || []) {
     const subject = String(row.subject || '').toLowerCase();

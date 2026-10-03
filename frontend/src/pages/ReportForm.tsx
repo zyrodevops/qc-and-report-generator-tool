@@ -732,6 +732,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                     editable={true}
                     clauseContext={clauseContext}
                     heading={headings[block.id]}
+                    isFormEditor={true}
                   />
                 ) : (
                   <div className="pr-28">

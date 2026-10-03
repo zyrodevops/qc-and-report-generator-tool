@@ -215,17 +215,23 @@ def _build_blocks_for_commodity(
         ],
     })
 
-    # ── Narrative sections start empty ────────────────────────────────────
-    # Written from the client's own clauses (the picker on each section) or
-    # typed. Starting them with sample prose meant a report could be signed
-    # with paragraphs, and figures, that described nobody's shipment.
+    # ── Narrative sections: standard application text for all fruits ──
+    standard_application_text = (
+        "Pursuant to the Consignee's request and subsequent appointment, we attended the Consignee's "
+        "nominated cold storage facility, M/s [Cold Storage Name] ([Cold Storage Address]), "
+        "on [Survey Date], to carry out an inspection of the subject consignment."
+    )
+
+    from app.seeds.staff_lookup import get_default_attendance
 
     # ── Block 2: PARAGRAPH 1 — APPLICATION ────────────────────────────────
     blocks.append({
         "id": "b_para1",
         "type": "narrative",
         "section": "PARAGRAPH 1: APPLICATION",
-        "additional_text": "",
+        "additional_text": standard_application_text,
+        "attendance_intro": "The following persons attended the survey:",
+        "attendance": get_default_attendance(),
     })
 
     # ── Block 3: PARAGRAPH 2 — CIRCUMSTANCES OF LOSS ──────────────────────
