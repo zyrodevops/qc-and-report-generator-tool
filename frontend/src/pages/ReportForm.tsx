@@ -25,6 +25,7 @@ import { ReportPreview } from '../components/preview/ReportPreview';
 import { NarrativeBlock } from '../components/preview/blocks/NarrativeBlock';
 import { RecordersBlock } from '../components/preview/blocks/RecordersBlock';
 import { clauseContextFrom, fillNamedBlanks, findBlanks, generalCargoValues } from '../utils/clauseContext';
+import { normalizeVoyageAsync } from '../utils/portNormalizer';
 import { ShipmentDocuments } from '../components/documents/ShipmentDocuments';
 import { CoverEditor } from '../components/generalCargo/CoverEditor';
 import { LossTypePicker } from '../components/generalCargo/LossTypePicker';
@@ -695,6 +696,17 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                               const newRows = [...block.rows];
                               newRows[rIdx] = { ...newRows[rIdx], value: [e.target.value] };
                               handleBlockChange({ ...block, rows: newRows });
+                            }}
+                            onBlur={async (e) => {
+                              if (/voyage/i.test(label)) {
+                                const val = e.target.value;
+                                const normalized = await normalizeVoyageAsync(val);
+                                if (normalized && normalized !== val) {
+                                  const newRows = [...block.rows];
+                                  newRows[rIdx] = { ...newRows[rIdx], value: [normalized] };
+                                  handleBlockChange({ ...block, rows: newRows });
+                                }
+                              }
                             }}
                             className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
                           />

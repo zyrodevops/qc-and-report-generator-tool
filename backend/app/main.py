@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from app.config import settings
 from app.api import (
-    health, auth, reports, assets, generate, commodities, clauses, templates, documents,
+    health, auth, reports, assets, generate, commodities, clauses, templates, documents, ports,
 )
 from app.core.security import hash_password
 from app.database import async_session_factory
@@ -174,3 +174,4 @@ app.include_router(commodities.router, prefix="/api", tags=["Commodities"])
 app.include_router(clauses.router, prefix="/api", tags=["Clauses"])
 app.include_router(documents.router, prefix="/api/reports", tags=["Documents"])
 app.include_router(templates.router, prefix="/api", tags=["Templates"])
+app.include_router(ports.router, prefix="/api", tags=["Ports"])

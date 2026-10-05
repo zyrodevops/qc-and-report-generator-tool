@@ -13,6 +13,8 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.utils.port_normalizer import normalize_port_name
+
 TRANSPORT_KINDS = ("bill_of_lading", "sea_waybill", "air_waybill")
 KIND_LABELS = {
     "bill_of_lading": "Bill of Lading", "sea_waybill": "Sea Waybill", "air_waybill": "Air Waybill",
@@ -377,9 +379,9 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
         elif ship.get("flight"):
             rows.append(("Carrying Vessel / Flight", ship["flight"], src.get("flight")))
         if ship.get("port_of_loading"):
-            rows.append(("Port of Loading", title(ship["port_of_loading"]), src.get("port_of_loading")))
+            rows.append(("Port of Loading", normalize_port_name(title(ship["port_of_loading"])), src.get("port_of_loading")))
         if ship.get("port_of_discharge"):
-            rows.append(("Port of Discharge", title(ship["port_of_discharge"]), src.get("port_of_discharge")))
+            rows.append(("Port of Discharge", normalize_port_name(title(ship["port_of_discharge"])), src.get("port_of_discharge")))
         lines = ship.get("consignment") or []
         if lines:
             total = sum(l["cartons"] for l in lines if l.get("cartons"))
@@ -476,8 +478,10 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
         "source": src.get("vessel"),
     })
     # 10. Voyage as per B/L
-    pol = title(ship["port_of_loading"]) if ship.get("port_of_loading") else "[Port of Loading]"
-    pod = title(ship["port_of_discharge"]) if ship.get("port_of_discharge") else "[Port of Discharge]"
+    raw_pol = title(ship["port_of_loading"]) if ship.get("port_of_loading") else "[Port of Loading]"
+    raw_pod = title(ship["port_of_discharge"]) if ship.get("port_of_discharge") else "[Port of Discharge]"
+    pol = normalize_port_name(raw_pol)
+    pod = normalize_port_name(raw_pod)
     fruit_rows.append({
         "label": "Voyage as per B/L",
         "value": f"{pol} to {pod}",

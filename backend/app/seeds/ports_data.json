@@ -1,0 +1,490 @@
+{
+  "countries": [
+    "India",
+    "China",
+    "South Africa",
+    "Australia",
+    "New Zealand",
+    "Chile",
+    "Brazil",
+    "Brasil",
+    "Egypt",
+    "Spain",
+    "United States",
+    "USA",
+    "Netherlands",
+    "Belgium",
+    "Italy",
+    "Greece",
+    "Turkey",
+    "Ecuador",
+    "Peru",
+    "Argentina",
+    "France",
+    "Germany",
+    "United Kingdom",
+    "UK",
+    "United Arab Emirates",
+    "UAE",
+    "Saudi Arabia",
+    "Oman",
+    "Qatar",
+    "Singapore",
+    "Malaysia",
+    "Indonesia",
+    "Thailand",
+    "Vietnam",
+    "Philippines",
+    "Sri Lanka",
+    "Pakistan",
+    "Bangladesh",
+    "Canada",
+    "Mexico",
+    "Morocco",
+    "Kenya",
+    "Tanzania",
+    "Colombia",
+    "Costa Rica",
+    "Guatemala",
+    "Panama",
+    "Poland",
+    "Portugal",
+    "Israel",
+    "Japan",
+    "South Korea",
+    "Taiwan",
+    "Hong Kong",
+    "Iran",
+    "Kuwait",
+    "Bahrain",
+    "Jordan",
+    "Lebanon",
+    "Cyprus",
+    "Malta",
+    "Sweden",
+    "Norway",
+    "Denmark",
+    "Finland",
+    "Ireland"
+  ],
+  "ports": {
+    "nhava sheva": {
+      "port": "Nhava Sheva",
+      "country": "India",
+      "state": "Maharashtra"
+    },
+    "jnpt": {
+      "port": "Nhava Sheva",
+      "country": "India",
+      "state": "Maharashtra"
+    },
+    "jawaharlal nehru": {
+      "port": "Nhava Sheva",
+      "country": "India",
+      "state": "Maharashtra"
+    },
+    "jawaharlal nehru port": {
+      "port": "Nhava Sheva",
+      "country": "India",
+      "state": "Maharashtra"
+    },
+    "mumbai": {
+      "port": "Mumbai",
+      "country": "India",
+      "state": "Maharashtra"
+    },
+    "bombay": {
+      "port": "Mumbai",
+      "country": "India",
+      "state": "Maharashtra"
+    },
+    "mundra": {
+      "port": "Mundra",
+      "country": "India",
+      "state": "Gujarat"
+    },
+    "pipavav": {
+      "port": "Pipavav",
+      "country": "India",
+      "state": "Gujarat"
+    },
+    "chennai": {
+      "port": "Chennai",
+      "country": "India",
+      "state": "Tamil Nadu"
+    },
+    "madras": {
+      "port": "Chennai",
+      "country": "India",
+      "state": "Tamil Nadu"
+    },
+    "cochin": {
+      "port": "Cochin",
+      "country": "India",
+      "state": "Kerala"
+    },
+    "kochi": {
+      "port": "Cochin",
+      "country": "India",
+      "state": "Kerala"
+    },
+    "vallarpadam": {
+      "port": "Cochin",
+      "country": "India",
+      "state": "Kerala"
+    },
+    "tuticorin": {
+      "port": "Tuticorin",
+      "country": "India",
+      "state": "Tamil Nadu"
+    },
+    "v.o. chidambaranar": {
+      "port": "Tuticorin",
+      "country": "India",
+      "state": "Tamil Nadu"
+    },
+    "vo chidambaranar": {
+      "port": "Tuticorin",
+      "country": "India",
+      "state": "Tamil Nadu"
+    },
+    "kolkata": {
+      "port": "Kolkata",
+      "country": "India",
+      "state": "West Bengal"
+    },
+    "calcutta": {
+      "port": "Kolkata",
+      "country": "India",
+      "state": "West Bengal"
+    },
+    "haldia": {
+      "port": "Haldia",
+      "country": "India",
+      "state": "West Bengal"
+    },
+    "hazira": {
+      "port": "Hazira",
+      "country": "India",
+      "state": "Gujarat"
+    },
+    "kattupalli": {
+      "port": "Kattupalli",
+      "country": "India",
+      "state": "Tamil Nadu"
+    },
+    "krishnapatnam": {
+      "port": "Krishnapatnam",
+      "country": "India",
+      "state": "Andhra Pradesh"
+    },
+    "visakhapatnam": {
+      "port": "Visakhapatnam",
+      "country": "India",
+      "state": "Andhra Pradesh"
+    },
+    "vizag": {
+      "port": "Visakhapatnam",
+      "country": "India",
+      "state": "Andhra Pradesh"
+    },
+    "mormugao": {
+      "port": "Mormugao",
+      "country": "India",
+      "state": "Goa"
+    },
+    "goa": {
+      "port": "Mormugao",
+      "country": "India",
+      "state": "Goa"
+    },
+    "new mangalore": {
+      "port": "New Mangalore",
+      "country": "India",
+      "state": "Karnataka"
+    },
+    "mangalore": {
+      "port": "Mangalore",
+      "country": "India",
+      "state": "Karnataka"
+    },
+    "kamarajar": {
+      "port": "Kamarajar",
+      "country": "India",
+      "state": "Tamil Nadu"
+    },
+    "ennore": {
+      "port": "Ennore",
+      "country": "India",
+      "state": "Tamil Nadu"
+    },
+    "kandla": {
+      "port": "Kandla",
+      "country": "India",
+      "state": "Gujarat"
+    },
+    "deendayal": {
+      "port": "Deendayal",
+      "country": "India",
+      "state": "Gujarat"
+    },
+    "cape town": {
+      "port": "Cape Town",
+      "country": "South Africa"
+    },
+    "durban": {
+      "port": "Durban",
+      "country": "South Africa"
+    },
+    "port elizabeth": {
+      "port": "Port Elizabeth",
+      "country": "South Africa"
+    },
+    "coega": {
+      "port": "Coega",
+      "country": "South Africa"
+    },
+    "ngqura": {
+      "port": "Ngqura",
+      "country": "South Africa"
+    },
+    "dalian": {
+      "port": "Dalian",
+      "country": "China"
+    },
+    "shekou": {
+      "port": "Shekou",
+      "country": "China"
+    },
+    "qingdao": {
+      "port": "Qingdao",
+      "country": "China"
+    },
+    "shanghai": {
+      "port": "Shanghai",
+      "country": "China"
+    },
+    "ningbo": {
+      "port": "Ningbo",
+      "country": "China"
+    },
+    "shenzhen": {
+      "port": "Shenzhen",
+      "country": "China"
+    },
+    "xiamen": {
+      "port": "Xiamen",
+      "country": "China"
+    },
+    "guangzhou": {
+      "port": "Guangzhou",
+      "country": "China"
+    },
+    "tianjin": {
+      "port": "Tianjin",
+      "country": "China"
+    },
+    "chiwan": {
+      "port": "Chiwan",
+      "country": "China"
+    },
+    "nansha": {
+      "port": "Nansha",
+      "country": "China"
+    },
+    "yantian": {
+      "port": "Yantian",
+      "country": "China"
+    },
+    "valparaiso": {
+      "port": "Valparaiso",
+      "country": "Chile"
+    },
+    "san antonio": {
+      "port": "San Antonio",
+      "country": "Chile"
+    },
+    "iquique": {
+      "port": "Iquique",
+      "country": "Chile"
+    },
+    "melbourne": {
+      "port": "Melbourne",
+      "country": "Australia"
+    },
+    "sydney": {
+      "port": "Sydney",
+      "country": "Australia"
+    },
+    "brisbane": {
+      "port": "Brisbane",
+      "country": "Australia"
+    },
+    "fremantle": {
+      "port": "Fremantle",
+      "country": "Australia"
+    },
+    "adelaide": {
+      "port": "Adelaide",
+      "country": "Australia"
+    },
+    "port chalmers": {
+      "port": "Port Chalmers",
+      "country": "New Zealand"
+    },
+    "tauranga": {
+      "port": "Tauranga",
+      "country": "New Zealand"
+    },
+    "napier": {
+      "port": "Napier",
+      "country": "New Zealand"
+    },
+    "auckland": {
+      "port": "Auckland",
+      "country": "New Zealand"
+    },
+    "lyttelton": {
+      "port": "Lyttelton",
+      "country": "New Zealand"
+    },
+    "navegantes": {
+      "port": "Navegantes",
+      "country": "Brazil",
+      "state": "SC"
+    },
+    "santos": {
+      "port": "Santos",
+      "country": "Brazil",
+      "state": "SP"
+    },
+    "paranagua": {
+      "port": "Paranagua",
+      "country": "Brazil",
+      "state": "PR"
+    },
+    "rio grande": {
+      "port": "Rio Grande",
+      "country": "Brazil",
+      "state": "RS"
+    },
+    "itajai": {
+      "port": "Itajai",
+      "country": "Brazil",
+      "state": "SC"
+    },
+    "suape": {
+      "port": "Suape",
+      "country": "Brazil",
+      "state": "PE"
+    },
+    "alexandria": {
+      "port": "Alexandria",
+      "country": "Egypt"
+    },
+    "port said": {
+      "port": "Port Said",
+      "country": "Egypt"
+    },
+    "damietta": {
+      "port": "Damietta",
+      "country": "Egypt"
+    },
+    "valencia": {
+      "port": "Valencia",
+      "country": "Spain"
+    },
+    "algeciras": {
+      "port": "Algeciras",
+      "country": "Spain"
+    },
+    "barcelona": {
+      "port": "Barcelona",
+      "country": "Spain"
+    },
+    "rotterdam": {
+      "port": "Rotterdam",
+      "country": "Netherlands"
+    },
+    "antwerp": {
+      "port": "Antwerp",
+      "country": "Belgium"
+    },
+    "piraeus": {
+      "port": "Piraeus",
+      "country": "Greece"
+    },
+    "mersin": {
+      "port": "Mersin",
+      "country": "Turkey"
+    },
+    "istanbul": {
+      "port": "Istanbul",
+      "country": "Turkey"
+    },
+    "izmir": {
+      "port": "Izmir",
+      "country": "Turkey"
+    },
+    "guayaquil": {
+      "port": "Guayaquil",
+      "country": "Ecuador"
+    },
+    "callao": {
+      "port": "Callao",
+      "country": "Peru"
+    },
+    "paita": {
+      "port": "Paita",
+      "country": "Peru"
+    },
+    "buenos aires": {
+      "port": "Buenos Aires",
+      "country": "Argentina"
+    },
+    "jebel ali": {
+      "port": "Jebel Ali",
+      "country": "UAE"
+    },
+    "salalah": {
+      "port": "Salalah",
+      "country": "Oman"
+    },
+    "colombo": {
+      "port": "Colombo",
+      "country": "Sri Lanka"
+    },
+    "singapore": {
+      "port": "Singapore",
+      "country": "Singapore"
+    },
+    "port klang": {
+      "port": "Port Klang",
+      "country": "Malaysia"
+    },
+    "tanjung pelepas": {
+      "port": "Tanjung Pelepas",
+      "country": "Malaysia"
+    },
+    "bangkok": {
+      "port": "Bangkok",
+      "country": "Thailand"
+    },
+    "laem chabang": {
+      "port": "Laem Chabang",
+      "country": "Thailand"
+    },
+    "ho chi minh": {
+      "port": "Ho Chi Minh",
+      "country": "Vietnam"
+    },
+    "hai phong": {
+      "port": "Hai Phong",
+      "country": "Vietnam"
+    },
+    "manila": {
+      "port": "Manila",
+      "country": "Philippines"
+    }
+  }
+}

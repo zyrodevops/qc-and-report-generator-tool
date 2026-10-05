@@ -48,6 +48,7 @@ interface Props {
   onClose: () => void;
   /** Gets the server's new state and version, so the page's next save does not conflict. */
   onSuccess: (updatedBlockState: any, version: number) => void;
+  onApply?: () => Promise<unknown> | void;
   blockId?: string;
   commodity?: string;
   /** 'spreadsheet' when opened from Import CSV / Excel. */
@@ -97,6 +98,7 @@ export const VerificationWorkbench: React.FC<Props> = ({
   isOpen,
   onClose,
   onSuccess,
+  onApply,
   blockId,
   commodity,
   sourceHint = 'any',
@@ -467,6 +469,9 @@ export const VerificationWorkbench: React.FC<Props> = ({
     setApplying(true);
     setError(null);
     try {
+      if (onApply) {
+        await onApply();
+      }
       const result = await applyTallyGrid(reportId, {
         headers,
         table: {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { normalizeVoyageAsync } from '../../../utils/portNormalizer';
 
 export interface ParticularsBlockProps {
   block: any;
@@ -202,6 +203,15 @@ export const ParticularsBlock: React.FC<ParticularsBlockProps> = ({
                         type="text"
                         value={valStr}
                         onChange={(e) => handleValueChange(idx, e.target.value)}
+                        onBlur={async (e) => {
+                          if (/voyage/i.test(label)) {
+                            const val = e.target.value;
+                            const normalized = await normalizeVoyageAsync(val);
+                            if (normalized && normalized !== val) {
+                              handleValueChange(idx, normalized);
+                            }
+                          }
+                        }}
                         className="w-full h-full bg-transparent px-3 py-1.5 border-none outline-none hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 text-xs text-slate-900 font-sans transition-colors cursor-text"
                       />
                     )

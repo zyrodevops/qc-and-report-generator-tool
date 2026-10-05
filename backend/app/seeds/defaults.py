@@ -235,11 +235,69 @@ def _build_blocks_for_commodity(
     })
 
     # ── Block 3: PARAGRAPH 2 — CIRCUMSTANCES OF LOSS ──────────────────────
+    note_text = ""
+    ck = commodity_key.lower()
+    if ck in ("apple", "pear"):
+        fruit_name = "Pear" if ck == "pear" else "Apple"
+        para2_text = (
+            f"We were apprised that subsequent to its discharge from the vessel [Vessel Name & Voyage No.] "
+            f"at [Port of Discharge], on [Discharge Date], the 40' Reefer container No. [Container No.], "
+            f"conveying the subject cargo, was transferred to the designated Container Freight Station (CFS) "
+            f"for the purpose of customs formalities and ultimate delivery.\n\n"
+            f"Following the culmination of customs procedures, the aforementioned container was loaded onto a "
+            f"trailer truck, dispatched, and transported via road. It was reported to have been delivered to the "
+            f"consignees' cold storage facility on [Delivery Date], ostensibly in an externally sound condition. "
+            f"We were further given to comprehend that during the destuffing and subsequent inspection, the "
+            f"consignees' Quality Control Team identified that the {fruit_name} fruits had sustained damage. "
+            f"Consequently, we were contacted and formally requested to undertake the survey."
+        )
+    elif ck in ("mandarin", "mandarins"):
+        para2_text = (
+            "It was reported to us that after landing from the vessel [Vessel Name & Voyage No.] "
+            "at [Port of Discharge] on [Discharge Date], the subject 1x40’ Reefer Container No. [Container No.] "
+            "carrying the subject cargo was gated out and shifted to the nominated Container Freight Station (CFS) "
+            "for customs formalities and delivery. On completion of custom formalities, the subject container was "
+            "loaded onto the trailer truck, dispatched, road transported and was said to have been delivered at "
+            "the consignees’ cold storage in an apparently sound condition.\n\n"
+            "We were further given to understand that during destuffing and checking, the consignees’ QC team "
+            "found mandarin fruits in a damaged condition. Hence, we were contacted and requested to conduct the survey."
+        )
+        note_text = (
+            "Upon our arrival, we noted that the container was no longer available on site. "
+            "The consignees advised us that the container was released to avoid detention charges."
+        )
+    elif ck in ("grape", "grapes"):
+        para2_text = (
+            "It was reported to us that after discharge from the carrying vessel [Vessel Name & Voyage No.] "
+            "at [Port of Discharge] on [Discharge Date], the subject 1x40’ Reefer Container No. [Container No.] "
+            "carrying the subject cargo was drayed by truck and received at the inland depot / CFS for customs "
+            "formalities and delivery. On completion of customs formalities, the subject container was dispatched, "
+            "road transported, and was said to have been delivered at the consignees’ cold storage in an apparently "
+            "sound condition on [Delivery Date].\n\n"
+            "We were further given to understand that during destuffing and checking, the consignees’ QC team "
+            "found fresh grape fruits in a damaged condition. Hence, we were contacted and requested to conduct the survey."
+        )
+    elif ck in ("plum", "plums"):
+        para2_text = (
+            "It was reported that following discharge from the vessel [Vessel Name & Voyage No.] "
+            "at [Port of Discharge], on [Discharge Date], the 1x40’ High Cube refrigerated container "
+            "(No. [Container No.]) carrying the subject cargo was shifted to the nominated Container Freight Station "
+            "(CFS) for customs clearance and subsequent delivery. Upon completion of customs formalities, the "
+            "container was loaded onto a road trailer, dispatched, and delivered at the Consignee’s nominated cold "
+            "storage facility on [Delivery Date] in an externally sound condition.\n\n"
+            "We were further informed that during opening the container and initial inspection of the cargo from the "
+            "door end, the Consignee’s Quality Control (QC) In-Charge found the fresh plums in a severely deteriorated "
+            "condition, exhibiting extensive rotting and fungal decay. Consequently, our attendance was requested to "
+            "conduct a survey to ascertain the nature, extent, and cause of the reported damage."
+        )
+    else:
+        para2_text = ""
+
     blocks.append({
         "id": "b_para2",
         "type": "narrative",
         "section": "PARAGRAPH 2: CIRCUMSTANCES OF LOSS",
-        "additional_text": "",
+        "additional_text": para2_text,
     })
 
     # ── Note block (Container & site condition) ───────────────────────────
@@ -247,15 +305,110 @@ def _build_blocks_for_commodity(
         "id": "b_note",
         "type": "narrative",
         "section": "NOTE:",
-        "additional_text": "",
+        "additional_text": note_text,
     })
 
     # ── Block 4: PARAGRAPH 2.1 — OUR SURVEY ──────────────────────────────
+    if ck == "apple":
+        para2_1_text = (
+            "The consignee's end buyer representative, [Representative Name], presented [Total Boxes] boxes "
+            "across [N] counts on various pallets for our survey. These were stored in cold storage room "
+            "number [Room No.], where the ambient temperature was recorded as [Room Temp °C].\n\n"
+            "THE CONDITION FOUND OF APPLE FRUITS:\n\n"
+            "The pulp temperature of the Apple fruits was measured inside the cold room using a digital "
+            "thermometer and registered in the range of [Pulp Temp Min °C] to [Pulp Temp Max °C].\n\n"
+            "From different locations within the cold room, [Sample Boxes] boxes across [N] counts were randomly "
+            "selected and opened for detailed examination. Upon unpacking and inspection, the Apple fruits inside "
+            "the cartons exhibited a mixture of conditions, including sound, and various degrees of rotten.\n\n"
+            "The pressure of the randomly selected various Apple fruits across [N] counts were measured using a "
+            "penetrometer, and the following average values were recorded for the sound apples:\n"
+            "• Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
+            "The Apple fruits were cut, and the following pulp conditions were observed:\n"
+            "• Sound apples: The pulp was consistently hard and white.\n"
+            "• Bruised apples: While the overall pulp remained firm, the bruised areas were noted to be soft and brown in colour.\n"
+            "• The sugar brix for the aforementioned counts was measured and found to be in the range of [Brix Min %] to [Brix Max %].\n\n"
+            "During our inspection, [Sample Boxes] boxes out of the [Total Boxes] boxes (under [N] counts) were separated into the following categories. "
+            "The details for each category are provided below:"
+        )
+    elif ck == "pear":
+        para2_1_text = (
+            "The consignee's representative, [Representative Name], presented [Total Boxes] boxes across available "
+            "[N] counts for our survey. These were stored in cold storage room number [Room No.], where the "
+            "ambient temperature was recorded as [Room Temp °C].\n\n"
+            "THE CONDITION FOUND OF PEAR FRUITS:\n\n"
+            "The pulp temperature of the Pear fruits was measured inside the cold room using a digital "
+            "thermometer and registered in the range of [Pulp Temp Min °C] to [Pulp Temp Max °C].\n\n"
+            "From different locations within the cold room, [Sample Boxes] boxes across [N] counts were randomly "
+            "selected and opened for detailed examination. Upon unpacking and inspection, the Pear fruits inside "
+            "the cartons exhibited a mixture of conditions, including sound and in a rotten condition in various degrees.\n\n"
+            "The pressure of the Pear fruits under [N] counts was measured using a penetrometer, and the following "
+            "average values were recorded for the sound Pears:\n"
+            "• Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
+            "The Pear fruits were cut, and the following pulp conditions were observed:\n"
+            "• Sound Pears: The pulp was consistently hard.\n"
+            "• The sugar brix for the above counts was measured and found to be in the range of [Brix Min %] to [Brix Max %].\n\n"
+            "During our inspection, [Sample Boxes] boxes out of the [Total Boxes] boxes (under [N] counts) were separated "
+            "into the following categories. The details for each category are provided below:"
+        )
+    elif ck in ("mandarin", "mandarins"):
+        para2_1_text = (
+            "The consignees’ representative [Representative Name], produced before us the [Total Cartons] cartons "
+            "under [N] sizes for our survey, stored inside the cold storage no. [Room No.]. Cold room display "
+            "temperature was found maintained at [Room Temp °C].\n\n"
+            "The pulp temperature of the fresh mandarin fruits was checked by means of a digital thermometer inside "
+            "the cold room and was found in the range of [Pulp Temp Min °C] to [Pulp Temp Max °C].\n\n"
+            "Thereafter, a total of [Sample Boxes] cartons was randomly selected from various pallets / different "
+            "locations inside the cold room and were opened for our detailed survey, when we found the mandarin fruits "
+            "inside the cartons with mixture of sound, soft/pressed, mechanical injury, rotten spot, and in a rotten "
+            "condition in various degrees.\n\n"
+            "• Upon cutting the mandarin fruits, the pulp was found juicy.\n"
+            "• Brix was checked and was found in the range of [Brix Min %] to [Brix Max %].\n\n"
+            "Based on our survey findings, upon segregation of mandarin fruits from the [Sample Boxes] cardboard boxes, "
+            "we can conclude that the mandarin fruits were found with the following defects:"
+        )
+    elif ck in ("grape", "grapes"):
+        para2_1_text = (
+            "The consignee’s representative, [Representative Name], presented for inspection the [Total Boxes] boxes "
+            "stored inside cold room No. [Room No.]. The cold room's temperature display indicated [Room Temp °C].\n\n"
+            "The pulp temperature of the grapes was checked using a digital probe thermometer inside the cold room "
+            "within the boxes, whereby the temperature was recorded in the range of [Pulp Temp Min °C] to [Pulp Temp Max °C].\n\n"
+            "Thereafter, a total of [Sample Boxes] boxes from the cold room were randomly selected from various stacks "
+            "at different locations of the cold room and were opened for our survey when we found the grapes inside the "
+            "boxes with a mixture of sound, soft, and in a rotten condition in varying degrees.\n\n"
+            "• Upon cutting the sound berries, the pulp was found hard and partially white.\n"
+            "• Upon cutting the soft berries, the pulp was found soft and dark in colour.\n"
+            "• The average sugar brix of the grapes was checked and found in the range of [Brix Min %] to [Brix Max %].\n"
+            "• Grape’s berries size was checked using a vernier caliper and was found in the range of [Berry Size Min mm] to [Berry Size Max mm].\n\n"
+            "During our inspection, [Sample Boxes] boxes out of the [Total Boxes] boxes were segregated into the following "
+            "categories. The category wise details are given below:"
+        )
+    elif ck in ("plum", "plums"):
+        para2_1_text = (
+            "The Consignees’ representative [Representative Name] produced before us the subject 40’ Reefer Container "
+            "No. [Container No.] for our survey. Upon checking the same, the details noted are as follows:\n\n"
+            "• The refrigerated container [Container No.], laden with fresh plums, was inspected at the cold storage "
+            "unloading ramp and was found structurally sound with standard wear and tear, fully plugged into the electrical "
+            "main, and actively powered on.\n"
+            "• Reefer operational parameters registered a set point of [Set Temp °C], supply air temperature of [Supply Temp °C], "
+            "and return air temperature of [Return Temp °C].\n"
+            "• Pulp temperatures drawn inside the container across different locations using a digital probe thermometer "
+            "ranged from [Pulp Temp Min °C] to [Pulp Temp Max °C].\n"
+            "• Under continuous surveyor supervision, 100% destuffing of the consignment comprising [Total Cartons] cartons "
+            "was completed and transferred directly into the cold storage facility.\n"
+            "• A representative sample of [Sample Boxes] cartons was drawn across the stow for detailed segregation and "
+            "defect classification.\n\n"
+            "Pulp condition after cutting & the Taste:\n"
+            "• Cross-sectional cutting of representative fruit specimens revealed internal breakdown, water-soaking, and deep flesh browning.\n"
+            "• Organoleptic evaluation indicated severe textural degradation; the pulp was mushy, lacked characteristic varietal firmness, and had acquired an offensive, fermented taste."
+        )
+    else:
+        para2_1_text = ""
+
     blocks.append({
         "id": "b_para2_1",
         "type": "narrative",
         "section": "PARAGRAPH 2.1: OUR SURVEY",
-        "additional_text": "",
+        "additional_text": para2_1_text,
     })
 
     # ── Block 5: On-site Measurements ─────────────────────────────────────
@@ -265,13 +418,18 @@ def _build_blocks_for_commodity(
     # "Starch Iodine Index" and "Berry Firmness" that used to be seeded here
     # appear in none of them, so they are gone. Brix and pressure start ticked
     # or unticked by fruit, and the surveyor can change either.
+    # For curated fruits (apple, pear, mandarin, grapes, plum), these measurements
+    # are integrated directly into Paragraph 2.1 narrative prose per client practice,
+    # so the standalone table starts unticked (included=False) for preview/DOCX.
     from app.ingest.tally.categories import lookup_fruit
 
     fruit = lookup_fruit(commodity_key) or {}
+    measurements_included = ck not in ("apple", "pear", "mandarin", "mandarins", "grape", "grapes", "plum", "plums")
     blocks.append({
         "id": "b_measurements",
         "type": "measurements",
         "title": "On-Site Physical & Instrumental Measurements",
+        "included": measurements_included,
         "rows": [
             {"subject": "Pulp Temperature", "method": "Digital Probe Thermometer",
              "min": "", "max": "", "unit": "°C", "included": True},

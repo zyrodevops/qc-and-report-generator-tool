@@ -505,6 +505,7 @@ export const TableGrid: React.FC<TableBlockProps> = ({
           reportId={reportId}
           isOpen={workbench !== null}
           onClose={() => setWorkbench(null)}
+          onApply={onApply}
           blockId={block.id}
           commodity={commodity}
           sourceHint={workbench === 'spreadsheet' ? 'spreadsheet' : 'any'}

@@ -5,7 +5,21 @@ import { ColdStorageSelector } from '../../clauses/ColdStorageSelector';
 import { ApplicationAttendance } from '../../clauses/ApplicationAttendance';
 import { getDefaultAttendance, lookupConsigneeStaff } from '../../../utils/staffLookup';
 import type { ClauseContext } from '../../../api/client';
-import { BLANK_PATTERN } from '../../../utils/clauseContext';
+import {
+  BLANK_PATTERN,
+  buildCircumstancesText,
+  buildMandarinCircumstances,
+  buildGrapesCircumstances,
+  buildPlumCircumstances,
+  fillCircumstancesBlanks,
+  MANDARIN_NOTE_TEXT,
+  buildAppleOurSurvey,
+  buildPearOurSurvey,
+  buildMandarinOurSurvey,
+  buildGrapesOurSurvey,
+  buildPlumOurSurvey,
+  fillOurSurveyBlanks,
+} from '../../../utils/clauseContext';
 
 export interface NarrativeBlockProps {
   block: any;
@@ -110,12 +124,11 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   const sectionSlug = clauseSection || detectSectionFromHeading(sectionTitle);
   const blanks = text.match(BLANK_PATTERN) || [];
 
-  // Standard cold storage text from latest reports is pre-populated in Application section for all fruits
-  // (Previously restricted list kept commented out per request):
-  // const commodityKey = (clauseContext?.commodity || '').toLowerCase();
-  // const isCuratedFruit = ['apple', 'plum', 'mandarin', 'pear', 'grapes', 'grape'].includes(commodityKey);
-  // const hideClausePicker = isCuratedFruit && sectionSlug === 'application';
-  const hideClausePicker = sectionSlug === 'application';
+  const commodityKey = (clauseContext?.commodity || '').toLowerCase();
+  // Option cards hidden for curated fruits (apple, grapes, plum, pear, mandarin) per user instruction (kept preserved in code)
+  const isCuratedFruit = ['apple', 'grapes', 'grape', 'plum', 'pear', 'mandarin'].includes(commodityKey);
+  const hideClausePicker = sectionSlug === 'application' || isCuratedFruit;
+  const isCircumstances = sectionSlug === 'circumstances_of_loss' || /circumstance/i.test(sectionTitle);
 
   const consigneeName = String(clauseContext?.values?.consignee || '');
   const vesselName = String(clauseContext?.values?.vessel || '');
@@ -128,6 +141,73 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       onChange({ ...block, additional_text: defaultText });
     }
   }, [sectionSlug, text]);
+
+  // Pre-populate Paragraph 2 Circumstances of Loss for Apple, Pear, Mandarin, Grapes & Plum
+  const isMandarin = ['mandarin', 'mandarins'].includes(commodityKey);
+  const isGrapes = ['grape', 'grapes'].includes(commodityKey);
+  const isPlum = ['plum', 'plums'].includes(commodityKey);
+  const isCircumstancesFruit = ['apple', 'pear', 'mandarin', 'mandarins', 'grape', 'grapes', 'plum', 'plums'].includes(commodityKey);
+  useEffect(() => {
+    if (isCircumstancesFruit && isCircumstances && onChange) {
+      if (!text.trim() && clauseContext) {
+        let defaultText = '';
+        if (isMandarin) {
+          defaultText = buildMandarinCircumstances(clauseContext);
+        } else if (isGrapes) {
+          defaultText = buildGrapesCircumstances(clauseContext);
+        } else if (isPlum) {
+          defaultText = buildPlumCircumstances(clauseContext);
+        } else {
+          defaultText = buildCircumstancesText(clauseContext, commodityKey === 'pear' ? 'Pear' : 'Apple');
+        }
+        onChange({ ...block, additional_text: defaultText });
+      } else if (text.includes('[') && clauseContext) {
+        const filled = fillCircumstancesBlanks(text, clauseContext);
+        if (filled !== text) {
+          onChange({ ...block, additional_text: filled });
+        }
+      }
+    }
+  }, [commodityKey, isMandarin, isGrapes, isPlum, isCircumstancesFruit, isCircumstances, text, clauseContext]);
+
+  // Pre-populate Note block for Mandarin (Reports M-165 & M-166)
+  const isNoteBlock = block.id === 'b_note' || sectionSlug === 'note' || /^note:?$/i.test(sectionTitle.trim());
+  useEffect(() => {
+    if (isMandarin && isNoteBlock && !text.trim() && onChange) {
+      onChange({ ...block, additional_text: MANDARIN_NOTE_TEXT });
+    }
+  }, [isMandarin, isNoteBlock, text]);
+
+  // Pre-populate Paragraph 2.1 Our Survey for Apple, Pear, Mandarin, Grapes & Plum
+  const isOurSurvey =
+    block.id === 'b_para2_1' ||
+    sectionSlug === 'survey_findings' ||
+    /paragraph 2\.1|our survey/i.test(sectionTitle);
+  const isOurSurveyFruit = ['apple', 'pear', 'mandarin', 'mandarins', 'grape', 'grapes', 'plum', 'plums'].includes(commodityKey);
+  useEffect(() => {
+    if (isOurSurveyFruit && isOurSurvey && onChange) {
+      if (!text.trim() && clauseContext) {
+        let defaultText = '';
+        if (isMandarin) {
+          defaultText = buildMandarinOurSurvey(clauseContext);
+        } else if (isGrapes) {
+          defaultText = buildGrapesOurSurvey(clauseContext);
+        } else if (isPlum) {
+          defaultText = buildPlumOurSurvey(clauseContext);
+        } else if (commodityKey === 'pear') {
+          defaultText = buildPearOurSurvey(clauseContext);
+        } else {
+          defaultText = buildAppleOurSurvey(clauseContext);
+        }
+        onChange({ ...block, additional_text: defaultText });
+      } else if (text.includes('[') && clauseContext) {
+        const filled = fillOurSurveyBlanks(text, clauseContext);
+        if (filled !== text) {
+          onChange({ ...block, additional_text: filled });
+        }
+      }
+    }
+  }, [commodityKey, isMandarin, isGrapes, isPlum, isOurSurveyFruit, isOurSurvey, text, clauseContext]);
 
   // Auto-populate or sync attendance for Application section
   useEffect(() => {
@@ -214,8 +294,8 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       {editable && onChange ? (
         <>
           {/* Standard wording option cards: ONLY in Form Editor */}
-          {/* Option card picker for Paragraph 1 (Application) kept commented out per user request:
-          {isFormEditor && clauseContext && sectionSlug === 'application' && (
+          {/* Option card picker for curated fruits (apple, grapes, plum, pear, mandarin) kept commented out per user request:
+          {isFormEditor && clauseContext && isCuratedFruit && (
             <ClausePicker
               sectionHeading={sectionTitle}
               section={clauseSection}

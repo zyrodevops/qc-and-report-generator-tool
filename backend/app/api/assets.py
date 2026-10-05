@@ -707,8 +707,12 @@ async def apply_tally_ocr(
                             row["value"] = headers["container_number"]
                             row["provenance"] = "surveyor_verified"
                     elif ("consignee" in lbl or "party" in lbl or "applicant" in lbl) and headers.get("party_name"):
-                        row["value"] = headers["party_name"]
-                        row["provenance"] = "surveyor_verified"
+                        current_val = row.get("value")
+                        curr_str = str(current_val[0] if isinstance(current_val, list) and current_val else current_val or "").strip()
+                        # Only fill if currently empty or a placeholder, never overwrite an existing consignee
+                        if not curr_str or curr_str.startswith("[") or "information not furnished" in curr_str.lower():
+                            row["value"] = [headers["party_name"]] if isinstance(current_val, list) else headers["party_name"]
+                            row["provenance"] = "surveyor_verified"
                     elif "survey" in lbl and "date" in lbl and headers.get("survey_date"):
                         row["value"] = headers["survey_date"]
                         row["provenance"] = "surveyor_verified"
