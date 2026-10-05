@@ -3,7 +3,8 @@ import { ClausePicker, WithBlanks, detectSectionFromHeading } from '../../clause
 import { NotesWriter } from '../../clauses/NotesWriter';
 import { ColdStorageSelector } from '../../clauses/ColdStorageSelector';
 import { ApplicationAttendance } from '../../clauses/ApplicationAttendance';
-import { getDefaultAttendance, lookupConsigneeStaff } from '../../../utils/staffLookup';
+import { defaultSurveyor, getDefaultAttendance, isMcaAttendee, lookupConsigneeStaff } from '../../../utils/staffLookup';
+import { useReferenceData } from '../../../utils/referenceData';
 import type { ClauseContext } from '../../../api/client';
 import {
   BLANK_PATTERN,
@@ -299,6 +300,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   const isCircumstances = sectionSlug === 'circumstances_of_loss' || /circumstance/i.test(sectionTitle);
 
   const consigneeName = String(clauseContext?.values?.consignee || '');
+  const referenceReady = useReferenceData();
   const vesselName = String(clauseContext?.values?.vessel || '');
 
   // Pre-populate Paragraph 1 Application section with standard cold storage template for all fruits if empty
@@ -664,8 +666,9 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   };
 
   // Auto-populate or sync attendance for Application section
+  // (runs again once the staff list has arrived from the server)
   useEffect(() => {
-    if (sectionSlug === 'application' && onChange) {
+    if (sectionSlug === 'application' && onChange && referenceReady) {
       if (!block.attendance || block.attendance.length === 0) {
         const defaultRows = getDefaultAttendance(consigneeName);
         onChange({
@@ -688,7 +691,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
             // Keep MCA surveyor and any non-consignee joint surveyors, replace old consignee staff
             const nonConsigneeRows = (block.attendance || []).filter((r: any) => {
               const rep = (r.representing || '').toLowerCase();
-              const isMCA = rep.includes('marine cargo agencies') || r.name?.includes('Baburao');
+              const isMCA = isMcaAttendee(r);
               const isLineOrShipper =
                 rep.includes('shipping line') ||
                 rep.includes('shipper') ||
@@ -698,18 +701,9 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
                 rep.includes('oocl');
               return isMCA || isLineOrShipper;
             });
-            if (
-              !nonConsigneeRows.some(
-                (r: any) =>
-                  (r.representing || '').toLowerCase().includes('marine cargo agencies') ||
-                  r.name?.includes('Baburao')
-              )
-            ) {
-              nonConsigneeRows.push({
-                name: 'Mr. Baburao Bhosale',
-                designation: 'Surveyor',
-                representing: 'Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)',
-              });
+            const surveyor = defaultSurveyor();
+            if (surveyor && !nonConsigneeRows.some(isMcaAttendee)) {
+              nonConsigneeRows.push(surveyor);
             }
             onChange({
               ...block,
@@ -719,7 +713,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
         }
       }
     }
-  }, [sectionSlug, consigneeName]);
+  }, [sectionSlug, consigneeName, referenceReady]);
 
   // Split and highlight bracketed photo references (Photo Nos?...)
   const renderFormattedText = (content: string) => {

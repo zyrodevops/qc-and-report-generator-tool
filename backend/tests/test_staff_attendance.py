@@ -1,48 +1,104 @@
+"""
+Attendance from the private staff list, and the reference-data endpoint.
+
+The real lists are not in git (backend/private, see app.seeds.private_data),
+so these tests write made-up lists to a temporary folder.
+"""
+
+import json
+
 import docx
 import pytest
-from app.seeds.staff_lookup import lookup_consignee_staff, get_default_attendance
+from fastapi.testclient import TestClient
+
+from app.config import settings
+from app.main import app
 from app.render.docx.engine import render_narrative
 from app.render.html.engine import render_narrative_html
+from app.seeds import private_data, staff_lookup
+from app.seeds.staff_lookup import get_default_attendance, lookup_consignee_staff
 
-def test_lookup_consignee_staff():
-    # 1. Hari Agro Products
-    hari = lookup_consignee_staff("Hari Agro Products")
-    assert len(hari) >= 1
-    assert any("Rajendra Ambre" in m["name"] for m in hari)
+FIRM = "Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)"
 
-    # 2. Reliance Retail Ltd
-    reliance = lookup_consignee_staff("M/s Reliance Retail Limited, Navi Mumbai")
-    assert len(reliance) == 2
-    assert any("Yogi Pokal" in m["name"] for m in reliance)
-    assert any("Chetan Khatre" in m["name"] for m in reliance)
+STAFF = {
+    "consignees": [
+        {"company": "Alpha Orchards Pvt. Ltd", "name": "Mr. Test One", "designation": "Sales Manager",
+         "representing": "Alpha Orchards Pvt. Ltd - (Consignees)"},
+        {"company": "Beta Retail Limited", "name": "Mr. Test Two", "designation": "QC Manager",
+         "representing": "Beta Retail Limited - (Consignees)"},
+        {"company": "Beta Retail Limited", "name": "Mr. Test Three", "designation": "Store Manager",
+         "representing": "Beta Retail Limited - (Consignees)"},
+        {"company": "Gamma & Co", "name": "Mr. Test Four", "designation": "Owner",
+         "representing": "Gamma & Co - (Consignees)"},
+    ],
+    "shipping_lines": [],
+    "shippers": [],
+    "cargo_insurers": [],
+    "mca_surveyors": [
+        {"name": "Mr. Firm Surveyor", "designation": "Surveyor", "representing": FIRM},
+        {"name": "Mr. Second Surveyor", "designation": "Surveyor", "representing": FIRM},
+    ],
+}
+COLD_STORAGES = [
+    {"id": "cs_001", "city": "TESTCITY", "name": "Test Cold Store (Unit 1)",
+     "clean_name": "Test Cold Store", "address": "1 Test Road, Test City 400001"},
+]
 
-    # 3. NGK Trading
-    ngk = lookup_consignee_staff("NGK Trading Company Pvt. Ltd")
-    assert len(ngk) >= 1
-    assert any("Ramesh Kadam" in m["name"] for m in ngk)
 
-    # 4. RK & Co
-    rk = lookup_consignee_staff("RK & Co.")
-    assert len(rk) >= 1
-    assert any("Rajesh Mishra" in m["name"] for m in rk)
+@pytest.fixture
+def private_lists(tmp_path, monkeypatch):
+    (tmp_path / private_data.STAFF_FILE).write_text(json.dumps(STAFF), encoding="utf-8")
+    (tmp_path / private_data.COLD_STORAGE_FILE).write_text(json.dumps(COLD_STORAGES), encoding="utf-8")
+    monkeypatch.setattr(settings, "PRIVATE_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(staff_lookup, "_CACHE", None)
+    yield tmp_path
+    staff_lookup._CACHE = None
 
-    # 5. Firangi Fresh
-    firangi = lookup_consignee_staff("Firangi Fresh")
-    assert len(firangi) >= 1
-    assert any("Rajesh Kumar" in m["name"] for m in firangi)
 
-def test_get_default_attendance():
-    # Without consignee: has MCA surveyor
+def test_lookup_consignee_staff(private_lists):
+    alpha = lookup_consignee_staff("Alpha Orchards")
+    assert [m["name"] for m in alpha] == ["Mr. Test One"]
+
+    beta = lookup_consignee_staff("M/s Beta Retail Limited, Navi Mumbai")
+    assert {m["name"] for m in beta} == {"Mr. Test Two", "Mr. Test Three"}
+
+    gamma = lookup_consignee_staff("Gamma & Co.")
+    assert [m["name"] for m in gamma] == ["Mr. Test Four"]
+
+    assert lookup_consignee_staff("Unknown Importers") == []
+    assert lookup_consignee_staff("[Consignee]") == []
+
+
+def test_get_default_attendance(private_lists):
+    # Without consignee: the firm's first surveyor only
     att_default = get_default_attendance("")
-    assert len(att_default) == 1
-    assert "Baburao Bhosale" in att_default[0]["name"]
-    assert "Marine Cargo Agencies" in att_default[0]["representing"]
+    assert att_default == [{"name": "Mr. Firm Surveyor", "designation": "Surveyor", "representing": FIRM}]
 
-    # With consignee: has client staff + MCA surveyor
-    att_hari = get_default_attendance("Hari Agro Products")
-    assert len(att_hari) == 2
-    assert "Rajendra Ambre" in att_hari[0]["name"]
-    assert "Baburao Bhosale" in att_hari[1]["name"]
+    # With consignee: their staff, then the firm's surveyor
+    att = get_default_attendance("Alpha Orchards Pvt. Ltd")
+    assert [r["name"] for r in att] == ["Mr. Test One", "Mr. Firm Surveyor"]
+
+
+def test_missing_lists_give_empty_attendance(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "PRIVATE_DATA_DIR", str(tmp_path / "absent"))
+    monkeypatch.setattr(staff_lookup, "_CACHE", None)
+    assert get_default_attendance("Alpha Orchards") == []
+    assert private_data.load_cold_storages() == []
+    staff_lookup._CACHE = None
+
+
+def test_reference_data_needs_login(private_lists):
+    client = TestClient(app)
+    assert client.get("/api/reference-data").status_code == 401
+
+    login = client.post("/api/auth/login", json={"email": "surveyor@example.com", "password": "Password123!"})
+    assert login.status_code == 200
+    res = client.get("/api/reference-data", headers={"Authorization": f"Bearer {login.json()['token']}"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["staff"]["mca_surveyors"][0]["name"] == "Mr. Firm Surveyor"
+    assert data["cold_storages"][0]["clean_name"] == "Test Cold Store"
+
 
 def test_render_narrative_docx_and_html():
     block = {
@@ -52,16 +108,9 @@ def test_render_narrative_docx_and_html():
         "additional_text": "Pursuant to the Consignee's request and subsequent appointment...",
         "attendance_intro": "The following persons attended the survey:",
         "attendance": [
-            {
-                "name": "Mr. Rajendra Ambre",
-                "designation": "Sales Manager",
-                "representing": "Hari Agro Products - (Consignees)",
-            },
-            {
-                "name": "Mr. Baburao Bhosale",
-                "designation": "Surveyor",
-                "representing": "Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)",
-            },
+            {"name": "Mr. Test One", "designation": "Sales Manager",
+             "representing": "Alpha Orchards Pvt. Ltd - (Consignees)"},
+            {"name": "Mr. Firm Surveyor", "designation": "Surveyor", "representing": FIRM},
         ],
     }
 
@@ -74,7 +123,7 @@ def test_render_narrative_docx_and_html():
     headers = [c.text for c in table.rows[0].cells]
     assert headers == ["Name", "Designation", "Representing"]
     row1 = [c.text for c in table.rows[1].cells]
-    assert "Rajendra Ambre" in row1[0]
+    assert "Test One" in row1[0]
     assert "Sales Manager" in row1[1]
 
     # HTML
@@ -82,5 +131,5 @@ def test_render_narrative_docx_and_html():
     assert "PARAGRAPH 1: APPLICATION" in html
     assert "The following persons attended the survey:" in html
     assert "preview-table" in html
-    assert "Rajendra Ambre" in html
-    assert "Baburao Bhosale" in html
+    assert "Test One" in html
+    assert "Firm Surveyor" in html

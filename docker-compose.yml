@@ -63,6 +63,8 @@ services:
     volumes:
       - ./backend/storage:/app/storage
       - ./templates:/app/templates
+      # The client's private lists (not in git); see PRIVATE_DATA_DIR in .env.example
+      - ./backend/private:/app/private:ro
     depends_on:
       db:
         condition: service_healthy

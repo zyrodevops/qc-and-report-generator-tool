@@ -37,6 +37,8 @@ cp .env.example .env
 
 *(Optional)* Configure your `.env` file if custom database credentials or port numbers are needed.
 
+**Private lists (not in git):** copy `staff_and_surveyors.json` and `cold_storage_locations.json` into `backend/private/` (or the folder set in `PRIVATE_DATA_DIR`). They fill the attendance table and the cold storage search, and are sent only to logged-in users. Without them those two lists are empty; everything else works.
+
 ---
 
 ### 2. Start Infrastructure Services (Database & Redis)

@@ -1,14 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, MapPin, Building2, Check, X, Sparkles } from 'lucide-react';
-import coldStorageData from '../../data/cold_storage_locations.json';
+import { ColdStorageLocation, getColdStorages, useReferenceData } from '../../utils/referenceData';
 
-export interface ColdStorageLocation {
-  id: string;
-  city: string;
-  name: string;
-  clean_name: string;
-  address: string;
-}
+export type { ColdStorageLocation } from '../../utils/referenceData';
 
 export interface ColdStorageSelectorProps {
   currentText: string;
@@ -55,7 +49,9 @@ export function applyColdStorageToText(currentText: string, loc: ColdStorageLoca
 }
 
 export const ColdStorageSelector: React.FC<ColdStorageSelectorProps> = ({ currentText, onUpdateText }) => {
-  const locations: ColdStorageLocation[] = coldStorageData as ColdStorageLocation[];
+  // Re-renders with the list once it has arrived from the server.
+  useReferenceData();
+  const locations: ColdStorageLocation[] = getColdStorages();
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -123,7 +119,7 @@ export const ColdStorageSelector: React.FC<ColdStorageSelectorProps> = ({ curren
               setIsOpen(true);
             }}
             onFocus={() => setIsOpen(true)}
-            placeholder="Search cold storage to auto-fill address (133 registered locations in Mumbai, Pune, Delhi, etc.)…"
+            placeholder={`Search cold storage to auto-fill address (${locations.length} registered locations in Mumbai, Pune, Delhi, etc.)…`}
             className="w-full pl-7 pr-7 py-1 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder:text-slate-400 text-slate-700"
           />
           {query && (

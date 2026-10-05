@@ -124,6 +124,12 @@ class Settings(BaseSettings):
     # wording, so it lives outside the repository. Empty means no pickers.
     CORPUS_DIR: str = os.getenv("CORPUS_DIR", "")
 
+    # The client's own lists (staff and surveyors, cold storages). They hold
+    # real names, so they are kept out of git and out of the browser bundle:
+    # copied onto the server and served only to logged-in users. Empty means
+    # backend/private. A missing file means the list is empty, nothing breaks.
+    PRIVATE_DATA_DIR: str = os.getenv("PRIVATE_DATA_DIR", "")
+
     # CORS Allowed Origins
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

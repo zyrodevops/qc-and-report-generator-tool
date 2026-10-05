@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import {
   Attendee,
-  staffData,
+  defaultSurveyor,
+  isMcaAttendee,
   lookupConsigneeStaff,
   suggestShippingLineSurveyors,
   getDefaultAttendance,
 } from '../../utils/staffLookup';
+import { getStaffData, useReferenceData } from '../../utils/referenceData';
 
 interface ApplicationAttendanceProps {
   rows: Attendee[];
@@ -40,6 +42,8 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<'shipping' | 'shipper' | 'insurer' | 'mca'>('shipping');
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  useReferenceData();
+  const staffData = getStaffData();
 
   const isJoint = intro.toLowerCase().includes('joint');
 
@@ -116,7 +120,7 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
     // Keep MCA surveyor and any joint surveyors, replace previous consignee rows
     const nonConsigneeRows = rows.filter((r) => {
       const rep = (r.representing || '').toLowerCase();
-      const isMCA = rep.includes('marine cargo agencies') || r.name.toLowerCase().includes('baburao');
+      const isMCA = isMcaAttendee(r);
       const isLineOrShipper =
         rep.includes('shipping line') ||
         rep.includes('shipper') ||
@@ -126,12 +130,9 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
         rep.includes('oocl');
       return isMCA || isLineOrShipper;
     });
-    if (!nonConsigneeRows.some((r) => (r.representing || '').toLowerCase().includes('marine cargo agencies') || r.name.toLowerCase().includes('baburao'))) {
-      nonConsigneeRows.push({
-        name: 'Mr. Baburao Bhosale',
-        designation: 'Surveyor',
-        representing: 'Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)',
-      });
+    const surveyor = defaultSurveyor();
+    if (surveyor && !nonConsigneeRows.some(isMcaAttendee)) {
+      nonConsigneeRows.push(surveyor);
     }
     onChange([...matchedConsigneeStaff, ...nonConsigneeRows], intro);
   };
@@ -345,7 +346,7 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
                         type="text"
                         value={row.representing}
                         onChange={(e) => handleUpdateRow(idx, 'representing', e.target.value)}
-                        placeholder="e.g. Hari Agro Products - (Consignees)"
+                        placeholder="e.g. ABC Fruits Pvt. Ltd - (Consignees)"
                         className="w-full p-1 bg-transparent border-none outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 rounded text-slate-700"
                       />
                     ) : (

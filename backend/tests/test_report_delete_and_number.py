@@ -2,6 +2,7 @@
 Tests for Report Deletion, Custom Report Numbers, and Sequence Reset.
 """
 
+import os
 import uuid
 import pytest
 from fastapi.testclient import TestClient
@@ -122,6 +123,13 @@ def test_reset_sequence(auth_client):
     auth_client.delete(f"/api/reports/{create_res.json()['id']}")
 
 
+# The tests run against the app's own database, so "Delete All" here deletes
+# every real report too (it did once). Run it only on purpose, on a scratch
+# database: ALLOW_DELETE_ALL_TEST=1 pytest tests/test_report_delete_and_number.py
+@pytest.mark.skipif(
+    os.getenv("ALLOW_DELETE_ALL_TEST") != "1",
+    reason="deletes every report in the database; set ALLOW_DELETE_ALL_TEST=1 on a scratch database",
+)
 def test_delete_all_reports(auth_client):
     # 1. Create two test reports
     r1 = auth_client.post(

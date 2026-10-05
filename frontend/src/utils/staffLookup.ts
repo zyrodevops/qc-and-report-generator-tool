@@ -1,4 +1,6 @@
-import staffDataRaw from '../data/staff_and_surveyors.json';
+import { getStaffData } from './referenceData';
+
+export type { StaffSurveyorData } from './referenceData';
 
 export interface Attendee {
   name: string;
@@ -7,15 +9,23 @@ export interface Attendee {
   line?: string;
 }
 
-export interface StaffSurveyorData {
-  consignees: { company: string; name: string; designation: string; representing: string }[];
-  shipping_lines: { company?: string; name: string; designation: string; representing: string; line: string }[];
-  shippers: { name: string; designation: string; representing: string }[];
-  cargo_insurers: { name: string; designation: string; representing: string }[];
-  mca_surveyors: { name: string; designation: string; representing: string }[];
+/** The firm's own surveyor added to every attendance table (first on the list). */
+export function defaultSurveyor(): Attendee | null {
+  const s = getStaffData().mca_surveyors[0];
+  return s ? { name: s.name, designation: s.designation, representing: s.representing } : null;
 }
 
-export const staffData: StaffSurveyorData = staffDataRaw as StaffSurveyorData;
+/** A row for the firm's own surveyor (kept when the consignee's staff are swapped). */
+export function isMcaAttendee(row: { name?: string; representing?: string }): boolean {
+  if ((row.representing || '').toLowerCase().includes('marine cargo agencies')) return true;
+  const name = bareName(row.name);
+  return !!name && getStaffData().mca_surveyors.some((s) => bareName(s.name) === name);
+}
+
+/** "Mr. A. Kumar " → "a. kumar", so a name typed with or without the title still matches. */
+function bareName(name?: string): string {
+  return (name || '').trim().toLowerCase().replace(/^(mr|mrs|ms|dr|capt)\.?\s+/, '');
+}
 
 function cleanStr(s: string): string {
   let res = (s || '').toLowerCase();
@@ -33,7 +43,7 @@ export function lookupConsigneeStaff(consigneeName: string): Attendee[] {
   const cleanedInput = cleanStr(consigneeName);
   if (!cleanedInput) return [];
 
-  const consignees = staffData.consignees || [];
+  const consignees = getStaffData().consignees || [];
 
   // 1. Exact cleaned match
   const exact = consignees.filter((c) => cleanStr(c.company) === cleanedInput);
@@ -93,11 +103,8 @@ export function getDefaultAttendance(consigneeName = ''): Attendee[] {
     list.push(m);
   }
   // Default MCA surveyor
-  list.push({
-    name: 'Mr. Baburao Bhosale',
-    designation: 'Surveyor',
-    representing: 'Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)',
-  });
+  const surveyor = defaultSurveyor();
+  if (surveyor) list.push(surveyor);
   return list;
 }
 
@@ -105,11 +112,12 @@ export function suggestShippingLineSurveyors(vesselName: string): Attendee[] {
   if (!vesselName) return [];
   const v = vesselName.toLowerCase();
   const res: Attendee[] = [];
+  const lines = getStaffData().shipping_lines;
   if (v.includes('wan hai')) {
-    const found = staffData.shipping_lines.filter((s) => s.line === 'Wan Hai');
+    const found = lines.filter((s) => s.line === 'Wan Hai');
     res.push(...found);
   } else if (v.includes('oocl')) {
-    const found = staffData.shipping_lines.filter((s) => s.line === 'OOCL');
+    const found = lines.filter((s) => s.line === 'OOCL');
     res.push(...found);
   }
   return res;

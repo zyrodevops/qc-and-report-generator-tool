@@ -1,5 +1,6 @@
 import type { ClauseContext } from '../api/client';
 import { normalizePort } from './portNormalizer';
+import { isMcaAttendee } from './staffLookup';
 
 /** A value in the report that is still a placeholder is not a value. */
 const real = (v: unknown): string => {
@@ -491,7 +492,7 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
     const attList: any[] = nb.attendance || [];
     for (const att of attList) {
       const rep = (att.representing || '').toLowerCase();
-      const isMCA = rep.includes('marine cargo agencies') || (att.name || '').includes('Baburao') || (att.name || '').includes('Bhosale');
+      const isMCA = isMcaAttendee(att);
       if (!isMCA && att.name?.trim() && !consigneeRep) {
         consigneeRep = att.name.trim();
       }

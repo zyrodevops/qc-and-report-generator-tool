@@ -1,25 +1,14 @@
-import json
-import os
 import re
 from typing import List, Dict, Any, Optional
 
-_DATA_PATH = os.path.join(os.path.dirname(__file__), "staff_and_surveyors.json")
+from app.seeds.private_data import load_staff
+
 _CACHE = None
 
 def _get_data() -> Dict[str, Any]:
     global _CACHE
     if _CACHE is None:
-        if os.path.exists(_DATA_PATH):
-            with open(_DATA_PATH, "r", encoding="utf-8") as f:
-                _CACHE = json.load(f)
-        else:
-            _CACHE = {
-                "consignees": [],
-                "shipping_lines": [],
-                "shippers": [],
-                "cargo_insurers": [],
-                "mca_surveyors": [],
-            }
+        _CACHE = load_staff()
     return _CACHE
 
 def _clean_str(s: str) -> str:
@@ -101,11 +90,14 @@ def get_default_attendance(consignee_name: str = "") -> List[Dict[str, str]]:
                 "representing": m.get("representing", ""),
             })
             
-    # 2. Always add MCA Surveyor
-    rows.append({
-        "name": "Mr. Baburao Bhosale",
-        "designation": "Surveyor",
-        "representing": "Marine Cargo Agencies Pvt.Ltd (On behalf of Consignees)",
-    })
-    
+    # 2. Always add the firm's own surveyor (the first one on the list)
+    surveyors = _get_data().get("mca_surveyors") or []
+    if surveyors:
+        s = surveyors[0]
+        rows.append({
+            "name": s.get("name", ""),
+            "designation": s.get("designation", ""),
+            "representing": s.get("representing", ""),
+        })
+
     return rows
