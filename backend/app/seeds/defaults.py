@@ -167,7 +167,9 @@ def _build_blocks_for_commodity(
     is_qc: bool,
 ) -> List[Dict[str, Any]]:
     """Build the complete list of blocks for a given commodity."""
-    label = supp.get("label", commodity_key.capitalize())
+    raw_label = supp.get("label", commodity_key.capitalize())
+    clean_label = raw_label[6:].strip() if raw_label.lower().startswith("fresh ") else raw_label
+    full_label = f"Fresh {clean_label}"
 
     blocks: List[Dict[str, Any]] = []
 
@@ -182,7 +184,7 @@ def _build_blocks_for_commodity(
         "plum": "Fresh Plum packed in plastic crate / boxes, stuffed inside 40' High Cube Reefer Containers.",
         "kiwi": "Fresh Kiwi fruits packed in corrugated boxes placed on pallets and secured with straps inside 40' Reefer container.",
     }
-    packing_desc = packing_defaults.get(commodity_key.lower(), f"Fresh {label} fruits packed in standard export packaging, stuffed inside 40' Reefer container.")
+    packing_desc = packing_defaults.get(commodity_key.lower(), f"{full_label} fruits packed in standard export packaging, stuffed inside 40' Reefer container.")
 
     blocks.append({
         "id": "b_particulars",
@@ -205,9 +207,9 @@ def _build_blocks_for_commodity(
             {
                 "label": "Consignment",
                 "type": "table",
-                "headers": [f"Fresh {label} Variety", "Count / Size", "Total Boxes"],
+                "headers": [f"{full_label} Variety", "Count / Size", "Total Boxes"],
                 "rows": [
-                    {"col1": f"Fresh {label}", "col2": "[Count / Size]", "col3": "[Boxes]"}
+                    {"col1": full_label, "col2": "[Count / Size]", "col3": "[Boxes]"}
                 ],
                 "footer": "Total: [Total Boxes] Gross Weight: [Weight] kg"
             },
@@ -322,7 +324,7 @@ def _build_blocks_for_commodity(
             "the cartons exhibited a mixture of conditions, including sound, and various degrees of rotten.\n\n"
             "The pressure of the randomly selected various Apple fruits across [N] counts were measured using a "
             "penetrometer, and the following average values were recorded for the sound apples:\n"
-            "• Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
+            "• [Apple Variety] ([Count] Count): Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
             "The Apple fruits were cut, and the following pulp conditions were observed:\n"
             "• Sound apples: The pulp was consistently hard and white.\n"
             "• Bruised apples: While the overall pulp remained firm, the bruised areas were noted to be soft and brown in colour.\n"
@@ -343,7 +345,7 @@ def _build_blocks_for_commodity(
             "the cartons exhibited a mixture of conditions, including sound and in a rotten condition in various degrees.\n\n"
             "The pressure of the Pear fruits under [N] counts was measured using a penetrometer, and the following "
             "average values were recorded for the sound Pears:\n"
-            "• Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
+            "1) [Pear Variety] ([Count] Count): Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
             "The Pear fruits were cut, and the following pulp conditions were observed:\n"
             "• Sound Pears: The pulp was consistently hard.\n"
             "• The sugar brix for the above counts was measured and found to be in the range of [Brix Min %] to [Brix Max %].\n\n"

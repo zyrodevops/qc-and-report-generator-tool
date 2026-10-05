@@ -756,6 +756,11 @@ async def apply_tally_ocr(
                         row["provenance"] = "surveyor_verified"
                 b["rows"] = rows
 
+        if headers.get("pressure_readings"):
+            state.setdefault("metadata", {})["pressure_readings"] = headers["pressure_readings"]
+        if headers.get("room_no"):
+            state.setdefault("metadata", {})["room_no"] = headers["room_no"]
+
     # 3. Update the tally table block
     if rechecked:
         for b in blocks:

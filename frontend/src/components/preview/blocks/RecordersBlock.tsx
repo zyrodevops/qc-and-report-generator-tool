@@ -1,9 +1,6 @@
 import React from 'react';
 import { getRecorderChartUrl } from '../../../api/client';
 
-/** Same columns the Word / PDF output prints. */
-const COLUMNS = ['Recorder', 'Container', 'Start', 'Stop', 'Trip length', 'Highest', 'Lowest', 'Average', 'MKT'];
-
 const when = (iso?: string, raw?: string) => {
   if (iso) {
     const d = new Date(iso);
@@ -18,18 +15,68 @@ const when = (iso?: string, raw?: string) => {
 };
 const deg = (v: any) => (v === undefined || v === null || v === '' ? '' : `${v} °C`);
 
+const verticalSummaryRows = (r: any): [string, string][] => {
+  const rows: [string, string][] = [];
+  if (r.start_delay) rows.push(['Start Delay', String(r.start_delay)]);
+  if (r.interval) rows.push(['Log Interval', String(r.interval)]);
+  const startStr = when(r.start_iso, r.start);
+  if (startStr) rows.push(['First Point', startStr]);
+  const stopStr = when(r.stop_iso, r.stop);
+  if (stopStr) rows.push(['Stop Time', stopStr]);
+  if (r.data_points) rows.push(['No. of Points', String(r.data_points)]);
+  if (r.trip_length) rows.push(['Trip Length', String(r.trip_length)]);
+
+  if (r.highest_c !== undefined && r.highest_c !== null && r.highest_c !== '') {
+    let hStr = deg(r.highest_c);
+    if (r.highest_c_time) hStr += ` @${r.highest_c_time}`;
+    rows.push(['High Extreme', hStr]);
+  }
+
+  if (r.lowest_c !== undefined && r.lowest_c !== null && r.lowest_c !== '') {
+    let lStr = deg(r.lowest_c);
+    if (r.lowest_c_time) lStr += ` @${r.lowest_c_time}`;
+    rows.push(['Low Extreme', lStr]);
+  }
+
+  if (r.average_c !== undefined && r.average_c !== null && r.average_c !== '') {
+    rows.push(['Average', deg(r.average_c)]);
+  }
+
+  if (r.mkt_c !== undefined && r.mkt_c !== null && r.mkt_c !== '') {
+    rows.push(['MKT', deg(r.mkt_c)]);
+  }
+
+  if (r.alarm_status) rows.push(['Alarm Status', String(r.alarm_status)]);
+  return rows;
+};
+
+const recorderTableHeader = (r: any, idx: number) => {
+  const dev = String(r.device_id || '—').trim();
+  const cont = r.container ? ` # ${r.container}` : '';
+  const annexureLetter = String.fromCharCode(65 + idx);
+  return `Recorder Trip Sr. No. ${dev}${cont} (Copy of the temperature recording (PDF File) is attached as Annexure ${annexureLetter})`;
+};
+
 export interface RecordersBlockProps {
   block: any;
   reportId?: string;
   /** Form editor: the section and graph ticks can be changed. */
   onChange?: (updatedBlock: any) => void;
+  hideTitle?: boolean;
+  isFormEditor?: boolean;
 }
 
 /**
- * Temperature recorders: the devices' own printed summary, and a graph of
- * each recorder's readings. The graphs can be left out of the report.
+ * Temperature recorders: the devices' own printed summary as authentic vertical
+ * 2-column tables, paired container-by-container with its readings graph.
  */
-export const RecordersBlock: React.FC<RecordersBlockProps> = ({ block, reportId, onChange }) => {
+export const RecordersBlock: React.FC<RecordersBlockProps> = ({
+  block,
+  reportId,
+  onChange,
+  hideTitle,
+  isFormEditor = false,
+}) => {
   const recs: any[] = (block?.recorders || []).filter((r: any) => r.included !== false);
   if (!recs.length) return null;
   const showChart = block?.show_chart !== false;
@@ -37,59 +84,69 @@ export const RecordersBlock: React.FC<RecordersBlockProps> = ({ block, reportId,
 
   return (
     <div className="recorders-block my-2">
-      <h2 className="text-[12px] font-bold text-[#00387A] uppercase tracking-wider border-b border-slate-300 pb-1 mb-2">
-        {block.title || 'TEMPERATURE RECORDER SUMMARY'}
-      </h2>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[10px] border border-slate-300">
-          <thead className="bg-slate-100">
-            <tr>
-              {COLUMNS.map((c) => (
-                <th key={c} className="border border-slate-300 px-1.5 py-1 text-left font-semibold">{c}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {recs.map((r, i) => (
-              <tr key={r.asset_id || i}>
-                {[r.device_id, r.container, when(r.start_iso, r.start), when(r.stop_iso, r.stop), r.trip_length,
-                  deg(r.highest_c), deg(r.lowest_c), deg(r.average_c), deg(r.mkt_c)].map((v, j) => (
-                  <td key={j} className="border border-slate-300 px-1.5 py-1 font-mono whitespace-nowrap">{v ?? ''}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[9px] text-slate-500 mt-1">
-        Times as recorded by the devices{offsets.length === 1 ? ` (UTC ${offsets[0]})` : ''}.
-      </p>
-
-      {onChange && (
-        <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 mt-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={showChart}
-            onChange={(e) => onChange({ ...block, show_chart: e.target.checked })}
-          />
-          Include the temperature graph{recs.length > 1 ? 's' : ''} in the report
-        </label>
+      {!hideTitle && block.title && (
+        <h2 className="text-[12px] font-bold text-[#00387A] uppercase tracking-wider border-b border-slate-300 pb-1 mb-2">
+          {block.title}
+        </h2>
       )}
 
-      {showChart && reportId && (
-        <div className="space-y-2 mt-2">
-          {recs.map((r, i) =>
-            r.asset_id ? (
-              <img
-                key={r.asset_id || i}
-                src={getRecorderChartUrl(reportId, r.asset_id)}
-                alt={`Temperature graph, recorder ${r.device_id || ''}`}
-                className="w-full border border-slate-200 rounded"
-              />
-            ) : null,
-          )}
+      {isFormEditor && onChange && (
+        <div className="mb-3">
+          <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showChart}
+              onChange={(e) => onChange({ ...block, show_chart: e.target.checked })}
+            />
+            Include temperature graph{recs.length > 1 ? 's' : ''} paired with container summary in the report
+          </label>
         </div>
       )}
+
+      <div className="space-y-4">
+        {recs.map((r, i) => {
+          const vRows = verticalSummaryRows(r);
+          return (
+            <div key={r.asset_id || i} className="border border-slate-300 rounded overflow-hidden">
+              <div className="bg-slate-100 px-3 py-1.5 font-bold text-[11px] text-[#00387A] border-b border-slate-300">
+                {recorderTableHeader(r, i)}
+              </div>
+              <table className="w-full text-xs">
+                <tbody>
+                  {vRows.map(([param, val], j) => (
+                    <tr key={j} className={j % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
+                      <td className="w-2/5 px-3 py-1 font-semibold text-slate-700 text-[11px] border-r border-slate-200 border-b border-slate-100">
+                        {param}
+                      </td>
+                      <td className="w-3/5 px-3 py-1 text-slate-900 font-mono text-[11px] border-b border-slate-100">
+                        {val}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {showChart && reportId && r.asset_id && (
+                <div className="p-3 bg-slate-50/50 border-t border-slate-200 flex flex-col items-center">
+                  <div className="w-full flex justify-center">
+                    <img
+                      src={getRecorderChartUrl(reportId, r.asset_id)}
+                      alt={`Temperature graph, recorder ${r.device_id || ''}`}
+                      className="w-full h-auto object-contain border border-slate-300 rounded bg-white shadow-xs"
+                      style={{ maxWidth: '16cm' }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-[9px] text-slate-500 mt-2">
+        Times as recorded by the devices{offsets.length === 1 ? ` (UTC ${offsets[0]})` : ''}.
+      </p>
     </div>
   );
 };
+

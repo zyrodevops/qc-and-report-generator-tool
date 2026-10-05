@@ -332,6 +332,15 @@ def _kg(s: Optional[str]) -> Optional[str]:
     return f"{int(whole):,}" + (f".{frac}" if frac else "") + " kg"
 
 
+def _clean_fruit_title(fruit: Optional[str]) -> str:
+    if not fruit:
+        return ""
+    t = title(fruit).strip()
+    if t.lower().startswith("fresh "):
+        return t[6:].strip()
+    return t
+
+
 def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[str, Any]]:
     """
     The Particulars rows the documents can fill, worded as the client's
@@ -390,7 +399,8 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
                 what = " ".join(x for x in [l.get("variety"), f"Count {l['count']}" if l.get("count") else None] if x) or l.get("description", "")
                 parts.append(f"{what}: {l['cartons']:,} boxes")
             fruit = next((l.get("fruit") for l in lines if l.get("fruit")), None)
-            head = f"Fresh {title(fruit)} — {total:,} boxes" if fruit else f"{total:,} boxes"
+            c_fruit = _clean_fruit_title(fruit)
+            head = f"Fresh {c_fruit} — {total:,} boxes" if c_fruit else f"{total:,} boxes"
             rows.append(("Cargo Declared", head + "; " + "; ".join(parts), "invoice"))
         net, gross = _kg(ship.get("total_net_kg")), _kg(ship.get("total_gross_kg"))
         if net or gross:
@@ -517,7 +527,9 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
     # 13. Consignment
     lines = ship.get("consignment") or []
     fruit_name = next((l.get("fruit") for l in lines if l.get("fruit")), "")
-    fruit_col = f"Fresh {title(fruit_name)} Variety" if fruit_name else "Commodity / Variety"
+    c_fruit = _clean_fruit_title(fruit_name)
+    fruit_col = f"Fresh {c_fruit} Variety" if c_fruit else "Commodity / Variety"
+    default_variety = f"Fresh {c_fruit}" if c_fruit else "Fresh Fruit"
     net = _kg(ship.get("total_net_kg"))
     gross = _kg(ship.get("total_gross_kg"))
     if len(conts) > 1:
@@ -527,7 +539,7 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
             sub_rows = []
             c_tot = 0
             for l in c_lines:
-                var = l.get("variety") or l.get("description") or f"Fresh {title(fruit_name)}"
+                var = l.get("variety") or l.get("description") or default_variety
                 cnt = str(l.get("count") or l.get("size") or "-")
                 bx = l.get("cartons") or 0
                 if isinstance(bx, int):
@@ -542,7 +554,7 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
                 "label": f"Consignment # {cno}",
                 "type": "table",
                 "headers": ["Commodity", "Sizes", "Total Boxes"],
-                "rows": sub_rows or [{"col1": f"Fresh {title(fruit_name)}", "col2": "-", "col3": "-"}],
+                "rows": sub_rows or [{"col1": default_variety, "col2": "-", "col3": "-"}],
                 "footer": footer,
                 "source": "invoice / packing list",
                 "value": [footer],
@@ -551,7 +563,7 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
         sub_rows = []
         tot = 0
         for l in lines:
-            var = l.get("variety") or l.get("description") or f"Fresh {title(fruit_name)}"
+            var = l.get("variety") or l.get("description") or default_variety
             cnt = str(l.get("count") or l.get("size") or "-")
             bx = l.get("cartons") or 0
             if isinstance(bx, int):
@@ -568,7 +580,7 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
             "label": "Consignment",
             "type": "table",
             "headers": [fruit_col, "Count / Size", "Total Boxes"],
-            "rows": sub_rows or [{"col1": f"Fresh {title(fruit_name)}", "col2": "-", "col3": "-"}],
+            "rows": sub_rows or [{"col1": default_variety, "col2": "-", "col3": "-"}],
             "footer": footer,
             "source": "invoice / packing list",
             "value": [footer],
@@ -588,7 +600,7 @@ def particulars(ship: Dict[str, Any], general_cargo: bool = False) -> List[Dict[
         elif "plum" in fn:
             packing_text = "Fresh Plum packed in plastic crate / boxes, stuffed inside 40' High Cube Reefer Containers."
         else:
-            packing_text = f"Fresh {title(fruit_name)} fruits packed in standard export packaging, stuffed inside 40' Reefer container." if fruit_name else "[Packaging details as per packing list / survey]"
+            packing_text = f"Fresh {c_fruit} fruits packed in standard export packaging, stuffed inside 40' Reefer container." if c_fruit else "[Packaging details as per packing list / survey]"
     if net or gross:
         w_line = " / ".join(x for x in [net and f"Net Weight: {net}", gross and f"Gross Weight: {gross}"] if x)
         if packing_text.strip() == "[Packaging details as per packing list / survey]":

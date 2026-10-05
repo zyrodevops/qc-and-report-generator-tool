@@ -364,6 +364,12 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
                 );
               }
               if (b.type === 'narrative') {
+                const isCauseOfLoss =
+                  b.id === 'b_cause' ||
+                  b.section === 'cause_of_loss' ||
+                  /cause of loss/i.test(b.section || '');
+                const recordersBlock = isCauseOfLoss ? blocks.find((other: any) => other.type === 'temperature_recorders') : undefined;
+
                 return (
                   <NarrativeBlock
                     key={b.id}
@@ -372,6 +378,9 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
                     editable={editable}
                     clauseContext={clauseContext}
                     isFormEditor={false}
+                    recordersBlock={recordersBlock}
+                    onRecordersChange={onBlockChange}
+                    reportId={report?.id}
                   />
                 );
               }
@@ -412,6 +421,12 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
                 return <GridTableBlock key={b.id} table={reportTable(b)} testId={`gc-${b.kind}-table`} />;
               }
               if (b.type === 'temperature_recorders') {
+                const hasCauseOfLoss = blocks.some(
+                  (other: any) => other.id === 'b_cause' || /cause of loss/i.test(other.section || '')
+                );
+                if (hasCauseOfLoss) {
+                  return null;
+                }
                 return <RecordersBlock key={b.id} block={b} reportId={report?.id} />;
               }
               return null;

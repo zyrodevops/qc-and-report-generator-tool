@@ -36,6 +36,17 @@ export function clauseContextFrom(blockState: any): ClauseContext {
   const vesselVal = real(vesselRow?.value);
   if (vesselVal) values.vessel = vesselVal;
 
+  const polRow = rows.find((r: any) => /port\s+of\s+loading|loading\s+port|origin\s+port/i.test(r.label || ''));
+  const polVal = real(polRow?.value) || (blockState?.metadata as any)?.shipment?.port_of_loading;
+  if (polVal) {
+    let normPol = normalizePort(polVal);
+    if (!/port/i.test(normPol)) {
+      normPol = normPol.includes(',') ? normPol.replace(',', ' Port,') : `${normPol} Port`;
+    }
+    values.port_of_loading = normPol;
+    values.origin_port = normPol;
+  }
+
   const voyageRow = rows.find((r: any) => /voyage\s+as\s+per\s+b\/l|port\s+of\s+discharge/i.test(r.label || ''));
   const voyageVal = real(voyageRow?.value);
   if (voyageVal) {
@@ -43,6 +54,15 @@ export function clauseContextFrom(blockState: any): ClauseContext {
     if (/\bto\b/i.test(voyageVal)) {
       const parts = voyageVal.split(/\bto\b/i);
       port = parts[parts.length - 1].trim();
+      const origin = parts[0].trim();
+      if (origin && !values.port_of_loading) {
+        let normOrigin = normalizePort(origin);
+        if (!/port/i.test(normOrigin)) {
+          normOrigin = normOrigin.includes(',') ? normOrigin.replace(',', ' Port,') : `${normOrigin} Port`;
+        }
+        values.port_of_loading = normOrigin;
+        values.origin_port = normOrigin;
+      }
     }
     if (port) {
       port = normalizePort(port);
@@ -73,16 +93,63 @@ export function clauseContextFrom(blockState: any): ClauseContext {
       ? 'pressure'
       : subject.includes('berry') || subject.includes('size')
       ? 'berry'
+      : subject.includes('ambient') || subject.includes('cold room') || subject.includes('room temp') || subject.includes('storage')
+      ? 'room_temp'
       : null;
     if (!key) continue;
-    if (real(row.min)) values[`${key}_min`] = real(row.min);
-    if (real(row.max)) values[`${key}_max`] = real(row.max);
+    if (key === 'room_temp') {
+      const val = real(row.min) || real(row.value);
+      if (val) values.room_temp = val;
+    } else {
+      if (real(row.min)) values[`${key}_min`] = real(row.min);
+      if (real(row.max)) values[`${key}_max`] = real(row.max);
+    }
+  }
+
+  const roomNo = (blockState?.metadata as any)?.room_no ||
+    rows.find((r: any) => /room\s*(?:no|number)/i.test(r.label || ''))?.value;
+  if (roomNo && String(roomNo).trim()) {
+    values.room_no = String(roomNo).trim();
   }
 
   // The carrying temperature from the B/L / air waybill, once the documents are applied.
   const requested = blockState?.metadata?.shipment?.requested_temperature_c;
   if (Array.isArray(requested) ? requested.length : requested !== undefined && requested !== null && requested !== '') {
-    (values as any).requested_temp = requested;
+    (values as any).requested_temp = Array.isArray(requested) ? requested[0] : requested;
+    values.set_temp = String((values as any).requested_temp);
+  }
+
+  // Temperature recorders summary extracted from blockState
+  const recBlock = blocks.find((b) => b.type === 'temperature_recorders');
+  const recList: any[] = (recBlock?.recorders || (blockState?.metadata as any)?.shipment?.recorders || []).filter(
+    (r: any) => r.included !== false
+  );
+  if (recList.length > 0) {
+    (values as any).recorders = recList;
+    const first = recList[0];
+    const devId = first.device_id || first.asset_id;
+    if (devId) {
+      values.device_id = String(devId);
+      values.serial_no = String(devId);
+      values.imei_no = String(devId);
+    }
+    if (first.trip_length) values.trip_length = String(first.trip_length);
+    if (first.average_c !== undefined && first.average_c !== null && first.average_c !== '') {
+      values.avg_temp = String(first.average_c);
+    }
+    if (first.lowest_c !== undefined && first.lowest_c !== null && first.lowest_c !== '') {
+      values.min_temp = String(first.lowest_c);
+    }
+    if (first.highest_c !== undefined && first.highest_c !== null && first.highest_c !== '') {
+      values.max_temp = String(first.highest_c);
+    }
+    if (first.mkt_c !== undefined && first.mkt_c !== null && first.mkt_c !== '') {
+      values.mkt_c = String(first.mkt_c);
+    }
+  }
+  const setPoint = recBlock?.set_point_c;
+  if (setPoint !== undefined && setPoint !== null && setPoint !== '') {
+    values.set_temp = Array.isArray(setPoint) ? String(setPoint[0]) : String(setPoint);
   }
 
   // Defects actually counted: columns with a figure above zero in any row.
@@ -90,12 +157,50 @@ export function clauseContextFrom(blockState: any): ClauseContext {
   const tables = blocks.filter((b) => b.type === 'table');
   let sampleBoxCount = 0;
   const countSet = new Set<string>();
+
+function isPlaceholderValue(val: any): boolean {
+  if (val === undefined || val === null) return true;
+  const s = String(val).trim();
+  if (!s || s === '-' || s === '–') return true;
+  if (s.startsWith('[') && s.endsWith(']')) return true;
+  if (/^(?:count\s*\/\s*size|size\s*\/\s*count|information not furnished|n\/a)$/i.test(s)) return true;
+  return false;
+}
+
+function cleanVarietyName(varName: string): string {
+  if (!varName) return '';
+  let v = varName.trim();
+  if (isPlaceholderValue(v)) return '';
+  // Strip repeated 'fresh' prefixes (e.g. 'Fresh Fresh Apple' -> 'Apple')
+  v = v.replace(/^(?:fresh\s+)+/i, '');
+  if (/granny\s*smith|granny/i.test(v)) return 'Granny';
+  if (/royal\s*gala/i.test(v)) return v.includes('NZ') ? 'NZ Fresh Apples / Royal Gala' : 'Royal Gala';
+  if (/forelle|frl/i.test(v)) return 'FRL';
+  if (/vermont|vbt/i.test(v)) return 'VBT';
+  if (/packham/i.test(v)) return 'Packham';
+  if (/abate/i.test(v)) return 'Abate';
+  if (/pink\s*lady/i.test(v)) return 'Pink Lady';
+  if (/red\s*delicious/i.test(v)) return 'Red Delicious';
+  if (/fuji/i.test(v)) return 'Fuji';
+
+  // If it's just the generic fruit name alone, return empty string
+  if (/^(?:apple|pear|mandarin|grapes?|plum|orange|kiwi)s?$/i.test(v)) {
+    return '';
+  }
+
+  // Strip leading fruit names if it's e.g. "Apple Cripps Pink"
+  v = v.replace(/^(?:apple|pear|mandarin|grapes?|plum)s?\s*[-–/:]?\s*/i, '');
+  return v.trim();
+}
+
 function isSubtotalRow(row: any, precedingRows: any[]): boolean {
-  if (precedingRows.length === 0) return false;
+  if (row.is_subtotal || row.is_grand_total) return true;
   const grp = String(row.group || '').toLowerCase();
-  if (grp.includes('total') || grp.includes('subtotal') || grp.includes('sum')) {
+  if (grp.includes('total') || grp.includes('subtotal') || grp.includes('sum') || grp.includes('percentage')) {
     return true;
   }
+  if (row.boxes_opened === 1) return false;
+  if (precedingRows.length === 0) return false;
   const getRowSum = (r: any): number => {
     if (r.stated_total && Number(r.stated_total) > 0) return Number(r.stated_total);
     let s = 0;
@@ -114,15 +219,6 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
       if (runningSum > rowTotal) break;
     }
   }
-  const rowSound = Number(row.values?.sound ?? 0);
-  if (rowSound > 0 && precedingRows.length >= 2) {
-    let runningSound = 0;
-    for (let i = precedingRows.length - 1; i >= 0; i--) {
-      runningSound += Number(precedingRows[i].values?.sound ?? 0);
-      if (runningSound === rowSound) return true;
-      if (runningSound > rowSound) break;
-    }
-  }
   return false;
 }
 
@@ -135,13 +231,20 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
     const tableRows = table.rows || [];
     if (tableRows.length > 0) {
       const preceding: any[] = [];
+      let openedSum = 0;
+      let nonSubtotalCount = 0;
       for (const r of tableRows) {
         const isSub = isSubtotalRow(r, preceding);
         preceding.push(r);
         if (isSub) continue;
 
+        nonSubtotalCount++;
+        if (r.boxes_opened && Number(r.boxes_opened) > 0) {
+          openedSum += Number(r.boxes_opened);
+        }
+
         const cVal = r.group ?? r.count ?? r.size ?? r.counts ?? r.puc;
-        if (cVal !== undefined && cVal !== null && String(cVal).trim() !== '') {
+        if (!isPlaceholderValue(cVal)) {
           const raw = String(cVal).trim();
           const n = parseInt(raw, 10);
           if (!isNaN(n) && n > 0) {
@@ -150,21 +253,15 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
             if (n <= 250) {
               countSet.add(String(n));
             }
-          } else {
+          } else if (!isPlaceholderValue(raw)) {
             countSet.add(raw);
           }
-        }
-      }
-      let openedSum = 0;
-      for (const r of tableRows) {
-        if (r.boxes_opened && Number(r.boxes_opened) > 0) {
-          openedSum += Number(r.boxes_opened);
         }
       }
       if (openedSum > 0) {
         sampleBoxCount += openedSum;
       } else {
-        sampleBoxCount += tableRows.length;
+        sampleBoxCount += nonSubtotalCount;
       }
     }
   }
@@ -180,14 +277,14 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
       const subItems: any[] = ct.rows || ct.items || [];
       for (const it of subItems) {
         const sVal = it.col2 ?? it.size ?? it.count ?? it.sizes ?? it.counts;
-        if (sVal !== undefined && sVal !== null && String(sVal).trim() !== '') {
+        if (!isPlaceholderValue(sVal)) {
           const raw = String(sVal).trim();
           const n = parseInt(raw, 10);
           if (!isNaN(n) && n > 0) {
             if (n <= 250) {
               countSet.add(String(n));
             }
-          } else {
+          } else if (!isPlaceholderValue(raw)) {
             countSet.add(raw);
           }
         }
@@ -198,11 +295,162 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
   if (sampleBoxCount > 0) {
     values.sample_boxes = String(sampleBoxCount);
   }
-  if (countSet.size > 0) {
-    values.n_count = String(countSet.size);
-    values.counts_count = `${countSet.size} counts`;
-    values.sizes_count = `${countSet.size} sizes`;
+
+  // Extract overall commodity variety from Particulars rows or Commodity Description
+  let defaultVariety = '';
+  const descRow = rows.find((r: any) => /commodity|variety|nature\s+of\s+cargo|description/i.test(r.label || ''));
+  const descVal = real(descRow?.value) || (blockState?.metadata as any)?.shipment?.commodity_description || '';
+  if (descVal) {
+    if (/granny\s*smith|granny/i.test(descVal)) defaultVariety = 'Granny';
+    else if (/royal\s*gala/i.test(descVal)) defaultVariety = descVal.includes('NZ') ? 'NZ Fresh Apples / Royal Gala' : 'Royal Gala';
+    else if (/forelle/i.test(descVal) && /vermont/i.test(descVal)) defaultVariety = 'Forelle / Vermont Beauty';
+    else if (/forelle|frl/i.test(descVal)) defaultVariety = 'FRL';
+    else if (/vermont|vbt/i.test(descVal)) defaultVariety = 'VBT';
+    else if (/packham/i.test(descVal)) defaultVariety = 'Packham';
+    else if (/pink\s*lady/i.test(descVal)) defaultVariety = 'Pink Lady';
+    else if (/red\s*delicious/i.test(descVal)) defaultVariety = 'Red Delicious';
+    else if (/fuji/i.test(descVal)) defaultVariety = 'Fuji';
   }
+  if (defaultVariety) {
+    values.variety = defaultVariety;
+  }
+
+  // 1. Build consignment count items & map from Particulars Consignment table(s) (from top uploaded documents)
+  const consignmentCountMap = new Map<string, string>();
+  const consignmentItems: Array<{ count: string; variety: string }> = [];
+  const seenConsignmentKeys = new Set<string>();
+
+  const allConsignmentTables = rows.filter((r: any) =>
+    r.type === 'table' ||
+    Boolean(r.headers) ||
+    ((r.label || '').toLowerCase().includes('consignment') && (Boolean(r.rows) || Boolean(r.items)))
+  );
+  for (const ct of allConsignmentTables) {
+    const subItems: any[] = ct.rows || ct.items || [];
+    for (const it of subItems) {
+      const cVal = it.col2 ?? it.size ?? it.count ?? it.sizes ?? it.counts;
+      const vVal = it.col1 ?? it.variety ?? it.commodity ?? defaultVariety;
+      if (!isPlaceholderValue(cVal)) {
+        const rawCount = String(cVal).trim().match(/\d+/)?.[0] || String(cVal).trim();
+        const rawVarStr = isPlaceholderValue(vVal) ? defaultVariety : String(vVal);
+        const cleanedVar = cleanVarietyName(rawVarStr);
+        if (rawCount && !consignmentCountMap.has(rawCount)) {
+          consignmentCountMap.set(rawCount, cleanedVar);
+        }
+        const key = `${cleanedVar}_${rawCount}`;
+        if (!seenConsignmentKeys.has(key)) {
+          seenConsignmentKeys.add(key);
+          consignmentItems.push({ count: rawCount, variety: cleanedVar });
+        }
+      }
+    }
+  }
+
+  // 2. From Defect Table (b_table) sampled rows:
+  const defectItems: Array<{ count: string; variety: string }> = [];
+  const seenDefectKeys = new Set<string>();
+
+  for (const table of tables) {
+    const tableRows = table.rows || [];
+    const preceding: any[] = [];
+    for (const r of tableRows) {
+      const isSub = isSubtotalRow(r, preceding);
+      preceding.push(r);
+      if (isSub) continue;
+      const rawGroup = String(r.group ?? r.count ?? r.size ?? r.counts ?? '').trim();
+      if (!rawGroup || isPlaceholderValue(rawGroup)) continue;
+
+      let rowVar = defaultVariety;
+      let rowCount = '';
+      if (/forelle|frl/i.test(rawGroup)) {
+        rowVar = 'FRL';
+        rowCount = rawGroup.match(/\d+/)?.[0] || '';
+      } else if (/vermont|vbt/i.test(rawGroup)) {
+        rowVar = 'VBT';
+        rowCount = rawGroup.match(/\d+/)?.[0] || '';
+      } else if (/packham/i.test(rawGroup)) {
+        rowVar = 'Packham';
+        rowCount = rawGroup.match(/\d+/)?.[0] || '';
+      } else {
+        const numMatch = rawGroup.match(/\b\d{2,3}\b/);
+        if (numMatch) {
+          rowCount = numMatch[0];
+          const nonDigits = rawGroup.replace(/\d+/g, '').replace(/[-–/():]/g, '').trim();
+          if (nonDigits) {
+            rowVar = cleanVarietyName(nonDigits);
+          } else if (consignmentCountMap.has(rowCount)) {
+            rowVar = consignmentCountMap.get(rowCount)!;
+          }
+        }
+      }
+
+      if (rowCount && Number(rowCount) <= 250) {
+        if (!rowVar && consignmentCountMap.has(rowCount)) {
+          rowVar = consignmentCountMap.get(rowCount)!;
+        }
+        const key = `${rowVar}_${rowCount}`;
+        if (!seenDefectKeys.has(key)) {
+          seenDefectKeys.add(key);
+          defectItems.push({ count: rowCount, variety: rowVar });
+        }
+      }
+    }
+  }
+
+  // Priority: defect table sampled counts (actual boxes opened) > consignment table (top documents) > countSet
+  let countItems: Array<{ count: string; variety: string; min?: string; max?: string }> = [];
+  if (defectItems.length > 0) {
+    countItems = defectItems;
+  } else if (consignmentItems.length > 0) {
+    countItems = consignmentItems;
+  } else if (countSet.size > 0) {
+    for (const c of countSet) {
+      countItems.push({ count: c, variety: defaultVariety });
+    }
+  }
+
+  if (countItems.length > 0) {
+    values.n_count = String(countItems.length);
+    values.counts_count = countItems.length === 1 ? '1 count' : `${countItems.length} counts`;
+    values.sizes_count = countItems.length === 1 ? '1 size' : `${countItems.length} sizes`;
+  } else if (countSet.size > 0) {
+    values.n_count = String(countSet.size);
+    values.counts_count = countSet.size === 1 ? '1 count' : `${countSet.size} counts`;
+    values.sizes_count = countSet.size === 1 ? '1 size' : `${countSet.size} sizes`;
+  }
+
+  // Attach per-count pressure readings if available (e.g. from tally sheet extraction)
+  const pReadings: any[] = (blockState?.metadata as any)?.pressure_readings || [];
+  for (const ci of countItems) {
+    const ciDigits = ci.count.replace(/\D/g, '');
+    // 1. Try matching both count and variety
+    let match = pReadings.find((pr: any) => {
+      const prDigits = String(pr.count || '').replace(/\D/g, '');
+      const cMatch =
+        (prDigits && ciDigits && prDigits === ciDigits) ||
+        String(pr.count || '').trim().toLowerCase() === ci.count.trim().toLowerCase();
+      if (!cMatch) return false;
+      if (pr.variety && ci.variety) {
+        return cleanVarietyName(String(pr.variety)) === cleanVarietyName(ci.variety);
+      }
+      return false;
+    });
+    // 2. Fallback to count alone if no exact variety match
+    if (!match) {
+      match = pReadings.find((pr: any) => {
+        const prDigits = String(pr.count || '').replace(/\D/g, '');
+        return (
+          (prDigits && ciDigits && prDigits === ciDigits) ||
+          String(pr.count || '').trim().toLowerCase() === ci.count.trim().toLowerCase()
+        );
+      });
+    }
+    if (match && match.min !== undefined && match.max !== undefined) {
+      ci.min = String(match.min);
+      ci.max = String(match.max);
+    }
+  }
+  (values as any).count_items = countItems;
 
   // Consignee representative from attendance
   let consigneeRep = '';
@@ -287,12 +535,12 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
   }
 
   const meta = blockState?.metadata || {};
-  let detectedCommodity = meta.commodity || undefined;
-  if (!detectedCommodity) {
-    const title = String(blockState?.report_title || '');
-    const match = title.match(/\b(APPLE|PEAR|PLUM|GRAPES?|MANDARINS?|ORANGE|KIWI|MANGO|BANANA)\b/i);
-    if (match) {
-      detectedCommodity = match[1].toLowerCase().replace(/s$/, '');
+  let detectedCommodity = meta.commodity ? String(meta.commodity).toLowerCase().trim().replace(/s$/, '') : undefined;
+  if (!detectedCommodity && blockState?.report_title) {
+    const title = String(blockState.report_title);
+    const titleMatch = title.match(/\b(APPLE|PEAR|PLUM|GRAPES?|MANDARINS?|ORANGE|KIWI|MANGO|BANANA)\b/i);
+    if (titleMatch) {
+      detectedCommodity = titleMatch[1].toLowerCase().replace(/s$/, '');
     }
   }
 
@@ -681,30 +929,58 @@ export function buildAppleOurSurvey(clauseContext: ClauseContext): string {
   const rep = vals.representative_name?.trim() || '[Representative Name]';
   const totalBoxes = vals.total_boxes?.trim() || '[Total Boxes]';
   const nCount = vals.n_count?.trim() || (vals.counts_count ? vals.counts_count.match(/\d+/)?.[0] : '') || '';
-  const countsCount = nCount ? `${nCount} counts` : (vals.counts_count?.trim() || '[N] counts');
+  const countsCount = nCount === '1' ? '1 count' : nCount ? `${nCount} counts` : (vals.counts_count?.trim() || '[N] counts');
   const pulpMin = vals.pulp_min?.trim();
   const pulpMax = vals.pulp_max?.trim();
   const pulpRange = pulpMin && pulpMax ? `${pulpMin}°C to ${pulpMax}°C` : '[Pulp Temp Min °C] to [Pulp Temp Max °C]';
 
-  const pressMin = vals.pressure_min?.trim();
-  const pressMax = vals.pressure_max?.trim();
-  const pressRange = pressMin && pressMax ? `Range of ${pressMin} LBS to ${pressMax} LBS.` : 'Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].';
+  const countItems: Array<{ count: string; variety?: string; min?: string; max?: string }> =
+    (vals as any).count_items || [];
+
+  let pressureBullets = '';
+  if (countItems.length > 0) {
+    pressureBullets = countItems
+      .map((ci) => {
+        const vName = ci.variety ? `${ci.variety} (${ci.count} Count)` : `(${ci.count} Count)`;
+        const range =
+          ci.min && ci.max
+            ? `Range of ${ci.min} LBS to ${ci.max} LBS.`
+            : vals.pressure_min && vals.pressure_max
+            ? `Range of ${vals.pressure_min} LBS to ${vals.pressure_max} LBS.`
+            : `Range of [${ci.count} Count Pressure Min LBS] to [${ci.count} Count Pressure Max LBS].`;
+        return `• ${vName}: ${range}`;
+      })
+      .join('\n');
+  } else {
+    const pressMin = vals.pressure_min?.trim();
+    const pressMax = vals.pressure_max?.trim();
+    const pressRange =
+      pressMin && pressMax
+        ? `Range of ${pressMin} LBS to ${pressMax} LBS.`
+        : 'Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].';
+    const appleVar = vals.variety?.trim()
+      ? `${vals.variety.trim()} ([Count] Count)`
+      : '[Apple Variety] ([Count] Count)';
+    pressureBullets = `• ${appleVar}: ${pressRange}`;
+  }
 
   const brixMin = vals.brix_min?.trim();
   const brixMax = vals.brix_max?.trim();
   const brixRange = brixMin && brixMax ? `${brixMin}% to ${brixMax}%` : '[Brix Min %] to [Brix Max %]';
 
   const sampleBoxes = vals.sample_boxes?.trim() || '[Sample Boxes]';
+  const roomNo = vals.room_no?.trim() || '[Room No.]';
+  const roomTemp = vals.room_temp?.trim() ? `${vals.room_temp.trim()}°C` : '[Room Temp °C]';
 
   return (
     `The consignee's end buyer representative, ${rep}, presented ${totalBoxes} boxes across ${countsCount} on various pallets for our survey. ` +
-    `These were stored in cold storage room number [Room No.], where the ambient temperature was recorded as [Room Temp °C].\n\n` +
+    `These were stored in cold storage room number ${roomNo}, where the ambient temperature was recorded as ${roomTemp}.\n\n` +
     `THE CONDITION FOUND OF APPLE FRUITS:\n\n` +
     `The pulp temperature of the Apple fruits was measured inside the cold room using a digital thermometer and registered in the range of ${pulpRange}.\n\n` +
     `From different locations within the cold room, ${sampleBoxes} boxes across ${countsCount} were randomly selected and opened for detailed examination. ` +
     `Upon unpacking and inspection, the Apple fruits inside the cartons exhibited a mixture of conditions, including sound, and various degrees of rotten.\n\n` +
     `The pressure of the randomly selected various Apple fruits across ${countsCount} were measured using a penetrometer, and the following average values were recorded for the sound apples:\n` +
-    `• ${pressRange}\n\n` +
+    `${pressureBullets}\n\n` +
     `The Apple fruits were cut, and the following pulp conditions were observed:\n` +
     `• Sound apples: The pulp was consistently hard and white.\n` +
     `• Bruised apples: While the overall pulp remained firm, the bruised areas were noted to be soft and brown in colour.\n` +
@@ -722,30 +998,58 @@ export function buildPearOurSurvey(clauseContext: ClauseContext): string {
   const rep = vals.representative_name?.trim() || '[Representative Name]';
   const totalBoxes = vals.total_boxes?.trim() || '[Total Boxes]';
   const nCount = vals.n_count?.trim() || (vals.counts_count ? vals.counts_count.match(/\d+/)?.[0] : '') || '';
-  const countsCount = nCount ? `${nCount} counts` : (vals.counts_count?.trim() || 'available [N] counts');
+  const countsCount = nCount === '1' ? '1 count' : nCount ? `${nCount} counts` : (vals.counts_count?.trim() || '[N] counts');
   const pulpMin = vals.pulp_min?.trim();
   const pulpMax = vals.pulp_max?.trim();
   const pulpRange = pulpMin && pulpMax ? `${pulpMin}°C to ${pulpMax}°C` : '[Pulp Temp Min °C] to [Pulp Temp Max °C]';
 
-  const pressMin = vals.pressure_min?.trim();
-  const pressMax = vals.pressure_max?.trim();
-  const pressRange = pressMin && pressMax ? `Range of ${pressMin} LBS to ${pressMax} LBS.` : 'Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].';
+  const countItems: Array<{ count: string; variety?: string; min?: string; max?: string }> =
+    (vals as any).count_items || [];
+
+  let pressureBullets = '';
+  if (countItems.length > 0) {
+    pressureBullets = countItems
+      .map((ci, idx) => {
+        const vName = ci.variety ? `${ci.variety} (${ci.count} Count)` : `(${ci.count} Count)`;
+        const range =
+          ci.min && ci.max
+            ? `Range of ${ci.min} LBS to ${ci.max} LBS.`
+            : vals.pressure_min && vals.pressure_max
+            ? `Range of ${vals.pressure_min} LBS to ${vals.pressure_max} LBS.`
+            : `Range of [${ci.count} Count Pressure Min LBS] to [${ci.count} Count Pressure Max LBS].`;
+        return `${idx + 1}) ${vName}: ${range}`;
+      })
+      .join('\n');
+  } else {
+    const pressMin = vals.pressure_min?.trim();
+    const pressMax = vals.pressure_max?.trim();
+    const pressRange =
+      pressMin && pressMax
+        ? `Range of ${pressMin} LBS to ${pressMax} LBS.`
+        : 'Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].';
+    const pearVar = vals.variety?.trim()
+      ? `${vals.variety.trim()} ([Count] Count)`
+      : '[Pear Variety] ([Count] Count)';
+    pressureBullets = `1) ${pearVar}: ${pressRange}`;
+  }
 
   const brixMin = vals.brix_min?.trim();
   const brixMax = vals.brix_max?.trim();
   const brixRange = brixMin && brixMax ? `${brixMin}% to ${brixMax}%` : '[Brix Min %] to [Brix Max %]';
 
   const sampleBoxes = vals.sample_boxes?.trim() || '[Sample Boxes]';
+  const roomNo = vals.room_no?.trim() || '[Room No.]';
+  const roomTemp = vals.room_temp?.trim() ? `${vals.room_temp.trim()}°C` : '[Room Temp °C]';
 
   return (
     `The consignee's representative, ${rep}, presented ${totalBoxes} boxes across ${countsCount} for our survey. ` +
-    `These were stored in cold storage room number [Room No.], where the ambient temperature was recorded as [Room Temp °C].\n\n` +
+    `These were stored in cold storage room number ${roomNo}, where the ambient temperature was recorded as ${roomTemp}.\n\n` +
     `THE CONDITION FOUND OF PEAR FRUITS:\n\n` +
     `The pulp temperature of the Pear fruits was measured inside the cold room using a digital thermometer and registered in the range of ${pulpRange}.\n\n` +
     `From different locations within the cold room, ${sampleBoxes} boxes across ${countsCount} were randomly selected and opened for detailed examination. ` +
     `Upon unpacking and inspection, the Pear fruits inside the cartons exhibited a mixture of conditions, including sound and in a rotten condition in various degrees.\n\n` +
     `The pressure of the Pear fruits under ${countsCount} was measured using a penetrometer, and the following average values were recorded for the sound Pears:\n` +
-    `• ${pressRange}\n\n` +
+    `${pressureBullets}\n\n` +
     `The Pear fruits were cut, and the following pulp conditions were observed:\n` +
     `• Sound Pears: The pulp was consistently hard.\n` +
     `• The sugar brix for the above counts was measured and found to be in the range of ${brixRange}.\n\n` +
@@ -772,10 +1076,12 @@ export function buildMandarinOurSurvey(clauseContext: ClauseContext): string {
   const brixRange = brixMin && brixMax ? `${brixMin}% to ${brixMax}%` : '[Brix Min %] to [Brix Max %]';
 
   const sampleBoxes = vals.sample_boxes?.trim() || '[Sample Boxes]';
+  const roomNo = vals.room_no?.trim() || '[Room No.]';
+  const roomTemp = vals.room_temp?.trim() ? `${vals.room_temp.trim()}°C` : '[Room Temp °C]';
 
   return (
     `The consignees’ representative ${rep}, produced before us the ${totalBoxes} cartons under ${sizesCount} for our survey, ` +
-    `stored inside the cold storage no. [Room No.]. Cold room display temperature was found maintained at [Room Temp °C].\n\n` +
+    `stored inside the cold storage no. ${roomNo}. Cold room display temperature was found maintained at ${roomTemp}.\n\n` +
     `The pulp temperature of the fresh mandarin fruits was checked by means of a digital thermometer inside the cold room and was found in the range of ${pulpRange}.\n\n` +
     `Thereafter, a total of ${sampleBoxes} cartons was randomly selected from various pallets / different locations inside the cold room and were opened for our detailed survey, ` +
     `when we found the mandarin fruits inside the cartons with mixture of sound, soft/pressed, mechanical injury, rotten spot, and in a rotten condition in various degrees.\n\n` +
@@ -875,6 +1181,67 @@ export function fillOurSurveyBlanks(text: string, clauseContext: ClauseContext):
   if (pressMin && pressMax && updated.includes('[Fruit Pressure Min LBS] to [Fruit Pressure Max LBS]')) {
     updated = updated.split('[Fruit Pressure Min LBS] to [Fruit Pressure Max LBS]').join(`${pressMin} LBS to ${pressMax} LBS`);
   }
+  if (pressMin && updated.includes('[Fruit Pressure Min LBS]')) {
+    updated = updated.split('[Fruit Pressure Min LBS]').join(pressMin);
+  }
+  if (pressMax && updated.includes('[Fruit Pressure Max LBS]')) {
+    updated = updated.split('[Fruit Pressure Max LBS]').join(pressMax);
+  }
+
+  const countItems: Array<{ count: string; variety?: string; min?: string; max?: string }> =
+    (vals as any).count_items || [];
+  if (countItems.length > 0) {
+    const isPear = /pear/i.test(updated);
+    const bullets = countItems
+      .map((ci, idx) => {
+        const vName = ci.variety ? `${ci.variety} (${ci.count} Count)` : `(${ci.count} Count)`;
+        const range =
+          ci.min && ci.max
+            ? `Range of ${ci.min} LBS to ${ci.max} LBS.`
+            : vals.pressure_min && vals.pressure_max
+            ? `Range of ${vals.pressure_min} LBS to ${vals.pressure_max} LBS.`
+            : `Range of [${ci.count} Count Pressure Min LBS] to [${ci.count} Count Pressure Max LBS].`;
+        return isPear ? `${idx + 1}) ${vName}: ${range}` : `• ${vName}: ${range}`;
+      })
+      .join('\n');
+
+    const placeholders = [
+      /^[•\d\)]*\s*\[Apple Variety\]\s*\(\[Count\]\s*Count\):\s*Range of \[Fruit Pressure Min LBS\] to \[Fruit Pressure Max LBS\]\./m,
+      /^[•\d\)]*\s*\[Pear Variety\]\s*\(\[Count\]\s*Count\):\s*Range of \[Fruit Pressure Min LBS\] to \[Fruit Pressure Max LBS\]\./m,
+      /^[•\d\)]*\s*Range of \[Fruit Pressure Min LBS\] to \[Fruit Pressure Max LBS\]\./m,
+    ];
+    for (const ph of placeholders) {
+      if (ph.test(updated)) {
+        updated = updated.replace(ph, bullets);
+        break;
+      }
+    }
+
+    for (const ci of countItems) {
+      const phRange = `[${ci.count} Count Pressure Min LBS] to [${ci.count} Count Pressure Max LBS]`;
+      const pMin = ci.min || vals.pressure_min;
+      const pMax = ci.max || vals.pressure_max;
+      if (pMin && pMax && updated.includes(phRange)) {
+        updated = updated.split(phRange).join(`${pMin} LBS to ${pMax} LBS`);
+      }
+      const phMin = `[${ci.count} Count Pressure Min LBS]`;
+      if (pMin && updated.includes(phMin)) {
+        updated = updated.split(phMin).join(pMin);
+      }
+      const phMax = `[${ci.count} Count Pressure Max LBS]`;
+      if (pMax && updated.includes(phMax)) {
+        updated = updated.split(phMax).join(pMax);
+      }
+    }
+  }
+
+  // Also replace any generic or remaining count pressure placeholders if overall pressure is available
+  if (vals.pressure_min && vals.pressure_max) {
+    updated = updated.replace(
+      /\[[^\s\]]+ Count Pressure Min LBS\] to \[[^\s\]]+ Count Pressure Max LBS\]/g,
+      `${vals.pressure_min} LBS to ${vals.pressure_max} LBS`
+    );
+  }
 
   const berryMin = vals.berry_min?.trim();
   const berryMax = vals.berry_max?.trim();
@@ -920,8 +1287,480 @@ export function fillOurSurveyBlanks(text: string, clauseContext: ClauseContext):
     }
   }
 
+  if (vals.room_no?.trim() && updated.includes('[Room No.]')) {
+    updated = updated.split('[Room No.]').join(vals.room_no.trim());
+  }
+
+  if (vals.room_temp?.trim() && updated.includes('[Room Temp °C]')) {
+    updated = updated.split('[Room Temp °C]').join(`${vals.room_temp.trim()}°C`);
+  }
+
   if (vals.container_no?.trim() && updated.includes('[Container No.]')) {
     updated = updated.split('[Container No.]').join(vals.container_no.trim());
+  }
+
+  return updated;
+}
+
+// ============================================================================
+// PARAGRAPH 3: CAUSE OF LOSS & TEMPERATURE RECORDERS (Apple, Pear, Mandarin, Grapes, Plum)
+// ============================================================================
+
+export type CauseCondition = 'carrier_breach' | 'cold_chain_complied' | 'no_recorder_data';
+
+/**
+ * Auto-detects the initial legal condition from uploaded documents and recorder readings.
+ */
+export function detectCauseCondition(clauseContext: ClauseContext, block?: any): CauseCondition {
+  if (block?.cause_condition) {
+    return block.cause_condition as CauseCondition;
+  }
+  const vals = clauseContext.values || {};
+  const recs: any[] = (vals as any).recorders || [];
+  if (!recs || recs.length === 0) {
+    return 'no_recorder_data';
+  }
+  const setTemp = parseFloat(vals.set_temp || (vals as any).requested_temp || '0');
+  const avgTemp = parseFloat(vals.avg_temp || '0');
+  const maxTemp = parseFloat(vals.max_temp || '0');
+  const mkt = parseFloat(vals.mkt_c || '0');
+  // Breach if average or MKT is > 1.5°C above setpoint, or peak is > 5.5°C
+  if (avgTemp - setTemp > 1.5 || mkt - setTemp > 2.0 || maxTemp > 5.5) {
+    return 'carrier_breach';
+  }
+  return 'cold_chain_complied';
+}
+
+/**
+ * Builds authentic Paragraph 3 Preamble (Carriage requested temperature & recorder intake).
+ */
+export function buildParagraph3Preamble(clauseContext: ClauseContext): string {
+  const vals = clauseContext.values || {};
+  const commodity = (clauseContext.commodity || 'Fruit').trim();
+  const capCommodity = commodity.charAt(0).toUpperCase() + commodity.slice(1).toLowerCase();
+  const containerList: string[] = (vals as any).container_nos || (vals.container_no ? [vals.container_no] : []);
+  const isMulti = containerList.length > 1;
+
+  if (isMulti) {
+    return (
+      `As per the Bill of Lading, the requested temperature for this shipment of fresh ${capCommodity} was [Set Temp]°C. ` +
+      `In the course of our investigation, we were provided with the downloaded temperature recorders installed inside the containers. ` +
+      `Reference of the recorders was made in the transport documents. Examination of the printouts revealed the following.`
+    );
+  }
+
+  return (
+    `As per the Bill of Lading, the requested temperature for this shipment of fresh ${capCommodity} was [Set Temp]°C. ` +
+    `In the course of our investigation, we were provided with the downloaded temperature recorder installed inside the container. ` +
+    `Reference of the recorder was made in the transport documents. Examination of the printouts revealed the following.`
+  );
+}
+
+/**
+ * Builds Paragraph 3 Cause of Loss for Apple (Reports M-161, M-164).
+ */
+export function buildAppleCauseOfLoss(clauseContext: ClauseContext, condition: CauseCondition = 'carrier_breach'): string {
+  const vals = clauseContext.values || {};
+  const containerList: string[] = (vals as any).container_nos || (vals.container_no ? [vals.container_no] : []);
+
+  if (condition === 'carrier_breach') {
+    return (
+      `CAUSE OF LOSS:\n\n` +
+      `The direct and proximate cause of the loss was sustained thermal abuse and cold-chain failure during transit.\n\n` +
+      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Apples strictly at [Set Temp]°C throughout the voyage.\n\n` +
+      `• Temperature Breach: Data logger records demonstrate that this required set point was never maintained, registering an average temperature of [Avg Temp]°C with peaks reaching [Max Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
+      `• Biological Effect: This continuous exposure to elevated temperatures accelerated the Apple fruits' metabolic respiration and ethylene production, leading to premature flesh softening, internal breakdown, and rapid progression of rot and decay.\n\n` +
+      `• Conclusion on Liability: The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the affected lot commercially unmerchantable and unfit for human consumption.`
+    );
+  }
+
+  if (condition === 'cold_chain_complied') {
+    const cRef = containerList.length > 1
+      ? `Reefer containers ${containerList.join(' & ')}`
+      : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
+    return (
+      `Findings & Assessment:\n\n` +
+      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
+      `Data records show a steady average of [Avg Temp]°C against the [Set Temp]°C setpoint with zero transit alarm triggers. The spike to [Max Temp]°C occurred solely post gate-out during destuffing and ambient exposure.\n\n` +
+      `Proximate Cause: Because reefer equipment operated without mechanical failure or transit temperature abuse, the cargo damage cannot be attributed to carrier mishandling or transit refrigeration breakdown. ` +
+      `The deterioration observed is attributable to inherent vice, pre-harvest factors (such as latent orchard conditions), or natural senescence.\n\n` +
+      `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as possible to avoid further damages to Apple fruits.`
+    );
+  }
+
+  // Condition 3: no_recorder_data (authentic M-161 & M-164 wording)
+  const cRef = containerList.length > 1 ? `the subject containers` : `the subject container`;
+  const serialSlot = containerList.length > 1 ? `(Serial Nos. [Serial Nos.])` : `(Serial No. [Serial No.])`;
+  return (
+    `According to the Bill of Lading, the requested temperature for this shipment of fresh Apple fruits was [Set Temp]°C. ` +
+    `During our investigation, the Consignees informed us that they were unable to download the data from the temperature recorder ${serialSlot} ` +
+    `installed inside ${cRef}. Consequently, we are unable to comment on any potential temperature anomalies that may have occurred during transit.\n\n` +
+    `Based on our physical survey findings and taking the above into consideration, we conclude as follows:\n\n` +
+    `We are of the opinion that the fresh Apple fruits likely sustained damage (shriveled and the rotten) due to temperature variations occurring during the transit and/or pre-shipment stages. ` +
+    `However, the precise stage at which the deterioration commenced cannot be definitively established due to the unavailability of the temperature data log.\n\n` +
+    `Additional contributing factors observed during the inspection include:\n` +
+    `• Mechanical injury, likely sustained during automated sorting or grading processes.\n` +
+    `• Pressure damage (bruising) indicative of improper harvesting and handling.\n` +
+    `• Pre-harvest defects, such as russet and the less-colour.`
+  );
+}
+
+/**
+ * Builds Paragraph 3 Cause of Loss for Pear (Reports M-162, M-163).
+ */
+export function buildPearCauseOfLoss(clauseContext: ClauseContext, condition: CauseCondition = 'carrier_breach'): string {
+  const vals = clauseContext.values || {};
+  const containerList: string[] = (vals as any).container_nos || (vals.container_no ? [vals.container_no] : []);
+
+  if (condition === 'carrier_breach') {
+    return (
+      `CAUSE OF LOSS:\n\n` +
+      `The direct and proximate cause of the loss was sustained thermal abuse and cold-chain failure during transit.\n\n` +
+      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Pears strictly at [Set Temp]°C throughout the voyage.\n\n` +
+      `• Temperature Breach: Datalogger records confirm that the carrier failed to maintain this required temperature, registering an average temperature of [Avg Temp]°C with peak temperatures reaching [Max Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
+      `• Biological Effect: This continuous exposure to elevated transit temperatures accelerated the Pear fruits' metabolic respiration and ethylene synthesis, triggering premature ripening, extensive flesh softening, core breakdown, and rapid fungal rot across the affected consignment.\n\n` +
+      `• Conclusion on Liability: The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the affected lot commercially unmerchantable and unfit for human consumption.`
+    );
+  }
+
+  if (condition === 'cold_chain_complied') {
+    const cRef = containerList.length > 1
+      ? `Reefer containers ${containerList.join(' & ')}`
+      : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
+    return (
+      `Findings & Assessment:\n\n` +
+      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
+      `Data records show a steady average of [Avg Temp]°C against the [Set Temp]°C setpoint with zero transit alarm triggers. The spike to [Max Temp]°C occurred solely post gate-out during destuffing and ambient exposure.\n\n` +
+      `Proximate Cause: As the carrier's reefer machinery functioned continuously without mechanical failure or thermal abuse, transit temperature breach is ruled out. ` +
+      `The deterioration observed is attributable to pre-shipment storage duration, post-harvest senescence, or latent fungal infection.\n\n` +
+      `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as possible to avoid further damages to Pear fruits.`
+    );
+  }
+
+  // Condition 3: no_recorder_data (authentic M-162 & M-163 wording)
+  const cRef = containerList.length > 1 ? `the subject containers` : `the subject container`;
+  const imeiSlot = containerList.length > 1 ? `(IMEI Nos. [IMEI Nos.])` : `(IMEI No. [IMEI No.])`;
+  return (
+    `According to the Bill of Lading, the requested temperature for this shipment of fresh Pear fruits was [Set Temp]°C. ` +
+    `During our investigation, the Consignees informed us that they were unable to download the data from the temperature recorder ${imeiSlot} ` +
+    `installed inside ${cRef}. Consequently, we are unable to comment on any potential temperature anomalies that may have occurred during transit.\n\n` +
+    `Based on our physical survey findings and taking the above into consideration, we conclude as follows:\n\n` +
+    `We are of the opinion that the fresh Pear fruits likely sustained damage (rotten) due to temperature variations occurring during the transit and/or pre-shipment stages. ` +
+    `However, the precise stage at which the deterioration commenced cannot be definitively established due to the unavailability of the temperature data log.\n\n` +
+    `Additional contributing factors observed during the inspection include:\n` +
+    `• Friction marking and surface blemishes indicative of handling.\n` +
+    `• Natural physiological senescence.`
+  );
+}
+
+/**
+ * Builds Paragraph 3 Cause of Loss for Mandarin (Reports M-165, M-166).
+ */
+export function buildMandarinCauseOfLoss(clauseContext: ClauseContext, condition: CauseCondition = 'cold_chain_complied'): string {
+  const vals = clauseContext.values || {};
+  const containerList: string[] = (vals as any).container_nos || (vals.container_no ? [vals.container_no] : []);
+
+  if (condition === 'carrier_breach') {
+    return (
+      `CAUSE OF LOSS:\n\n` +
+      `The direct and proximate cause of the loss was sustained thermal abuse and cold-chain failure during transit.\n\n` +
+      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Mandarins strictly at [Set Temp]°C throughout the voyage.\n\n` +
+      `• Temperature Breach: Datalogger records demonstrate that the carrier failed to maintain this required temperature throughout transit, registering an average temperature of [Avg Temp]°C and peak temperatures reaching [Max Temp]°C.\n\n` +
+      `• Biological Effect: This continuous exposure to elevated temperatures weakened the rind structure, accelerated moisture loss, and promoted rind breakdown, directly leading to soft/pressed fruits, rot spots, and active green/blue mold (Penicillium spp.) sporulation.\n\n` +
+      `• Conclusion on Liability: The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, directly causing cargo decay and unmerchantability.`
+    );
+  }
+
+  if (condition === 'cold_chain_complied') {
+    // Authentic M-165 & M-166 wording
+    const cRef = containerList.length > 1
+      ? `Reefer containers ${containerList.join(' & ')}`
+      : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
+    const recRef = containerList.length > 1 ? `recorders` : `recorder [Serial No.]`;
+    return (
+      `Findings & Assessment:\n\n` +
+      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge] aboard [Vessel Name & Voyage No.]. ` +
+      `Data from ${recRef} shows a steady average temperature of [Avg Temp]°C against the [Set Temp]°C setpoint, with no freezing events (minimum [Min Temp]°C) and zero transit alarm triggers. ` +
+      `The spike to [Max Temp]°C occurred solely post gate-out during destuffing and ambient exposure.\n\n` +
+      `Proximate Cause: Because reefer equipment operated without mechanical failure or transit temperature abuse, the cargo damage cannot be attributed to carrier mishandling or transit refrigeration breakdown. ` +
+      `The proximate cause of loss is attributable to inherent vice, pre-shipment factors, and natural post-harvest senescence of the fruit.\n\n` +
+      `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as possible to avoid further damages to Mandarin fruits.`
+    );
+  }
+
+  // Condition 3: no_recorder_data
+  const cRef = containerList.length > 1 ? `the subject containers` : `the subject container`;
+  const serialSlot = containerList.length > 1 ? `(Serial Nos. [Serial Nos.])` : `(Serial No. [Serial No.])`;
+  return (
+    `According to the Bill of Lading, the requested temperature for this shipment of fresh Mandarin fruits was [Set Temp]°C. ` +
+    `During our investigation, the Consignees informed us that they were unable to download the data from the temperature recorder ${serialSlot} ` +
+    `installed inside ${cRef}. Consequently, we are unable to comment on any potential temperature anomalies that may have occurred during transit.\n\n` +
+    `Based on our physical survey findings, we are of the opinion that the fresh Mandarin fruits likely sustained soft/pressed condition, rot spots, ` +
+    `and fungal decay due to temperature variations occurring during the transit and/or pre-shipment stages, though the exact onset cannot be definitively fixed without recorder logs.`
+  );
+}
+
+/**
+ * Builds Paragraph 3 Cause of Loss for Grapes (Reports M-167, M-168).
+ */
+export function buildGrapesCauseOfLoss(clauseContext: ClauseContext, condition: CauseCondition = 'carrier_breach'): string {
+  const vals = clauseContext.values || {};
+  const containerList: string[] = (vals as any).container_nos || (vals.container_no ? [vals.container_no] : []);
+
+  if (condition === 'carrier_breach') {
+    // Authentic M-167 & M-168 wording
+    const voyagePeriod = vals.trip_length ? `${vals.trip_length} voyage` : `voyage`;
+    return (
+      `CAUSE OF LOSS:\n\n` +
+      `The direct and proximate cause of the loss was sustained thermal abuse and cold-chain failure during transit.\n\n` +
+      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was required to maintain a set temperature of [Set Temp]°C with ventilation throughout the sea voyage.\n\n` +
+      `• Temperature Breach: Data logger records demonstrate that this required set point was never achieved at any stage during the ${voyagePeriod}. ` +
+      `The recorded minimum was only [Min Temp]°C, with the shipment maintaining an average temperature of [Avg Temp]°C and a Mean Kinetic Temperature (MKT) of [MKT]°C, alongside repeated high-temperature breaches exceeding 8.0°C and terminal spikes reaching [Max Temp]°C.\n\n` +
+      `• Biological Effect: Physical survey carried out upon destuffing confirmed that this extended lack of refrigeration caused severe cargo damage, accelerating the fruit's metabolic respiration, moisture loss, and physiological senescence, ` +
+      `leading directly to berry softening, rachis browning, watery breakdown, skin slippage, and active nesting of gray mold (Botrytis cinerea).\n\n` +
+      `• Conclusion on Liability: The continuous failure of the reefer machinery to deliver the required [Set Temp]°C temperature during transit represents the primary and proximate cause of damage, rendering the cargo commercially depreciated and unfit for normal marketing.`
+    );
+  }
+
+  if (condition === 'cold_chain_complied') {
+    const cRef = containerList.length > 1
+      ? `Reefer containers ${containerList.join(' & ')}`
+      : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
+    return (
+      `Findings & Assessment:\n\n` +
+      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
+      `Datalogger records demonstrate that the carrier maintained the contracted carriage temperature of [Set Temp]°C with zero transit alarm triggers.\n\n` +
+      `Proximate Cause: Because reefer equipment operated without mechanical failure or transit temperature abuse, the damage observed cannot be attributed to carrier refrigeration breakdown. ` +
+      `The proximate cause of loss is attributable to pre-harvest latent fungal spore load (Botrytis cinerea) and natural senescence, aggravated by extended voyage transit.\n\n` +
+      `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as possible to avoid further damages to Grape fruits.`
+    );
+  }
+
+  // Condition 3: no_recorder_data
+  const cRef = containerList.length > 1 ? `the subject containers` : `the subject container`;
+  const serialSlot = containerList.length > 1 ? `(Serial Nos. [Serial Nos.])` : `(Serial No. [Serial No.])`;
+  return (
+    `According to the Bill of Lading, the requested temperature for this shipment of fresh Grapes was [Set Temp]°C. ` +
+    `During our investigation, the Consignees informed us that they were unable to download the data from the temperature recorder ${serialSlot} ` +
+    `installed inside ${cRef}. Consequently, we are unable to comment on any potential temperature anomalies that may have occurred during transit.\n\n` +
+    `Based on our physical survey findings, we are of the opinion that the fresh Grapes likely sustained decay, berry softening, and stem dehydration ` +
+    `due to temperature variations occurring during transit and/or pre-shipment stages, though the exact onset cannot be definitively fixed without recorder logs.`
+  );
+}
+
+/**
+ * Builds Paragraph 3 Cause of Loss for Plum (Report M-160).
+ */
+export function buildPlumCauseOfLoss(clauseContext: ClauseContext, condition: CauseCondition = 'carrier_breach'): string {
+  const vals = clauseContext.values || {};
+  const containerList: string[] = (vals as any).container_nos || (vals.container_no ? [vals.container_no] : []);
+
+  if (condition === 'carrier_breach') {
+    // Authentic M-160 wording
+    return (
+      `CAUSE OF DAMAGE & LIABILITY ASSESSMENT:\n\n` +
+      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Plums strictly at [Set Temp]°C with fresh air exchange set at 15 m³/hr throughout the voyage.\n\n` +
+      `• Temperature Breach: Reefer datalogger records confirm that the carrier failed to maintain the required carriage temperature, showing average recorded temperatures of [Avg Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
+      `• Biological Effect: Exposure to these elevated temperatures accelerated the ripening process, caused internal breakdown with deep brown to amber flesh discoloration, dry/mealy pulp, early alcoholic fermentation notes, and rapid fungal breakdown, directly resulting in the rotting observed during destuffing.\n\n` +
+      `• Conclusion on Liability: The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the entire consignment a total loss and unfit for human consumption.`
+    );
+  }
+
+  if (condition === 'cold_chain_complied') {
+    const cRef = containerList.length > 1
+      ? `Reefer containers ${containerList.join(' & ')}`
+      : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
+    return (
+      `Findings & Assessment:\n\n` +
+      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
+      `Data logger records confirm that the reefer machinery operated without failure or transit temperature breach, maintaining an average of [Avg Temp]°C against the contracted [Set Temp]°C setpoint.\n\n` +
+      `Proximate Cause: Transit temperature abuse is ruled out. The internal breakdown, flesh browning, and senescence observed across the plum fruits are attributable to inherent vice, over-maturity at harvest, or latent physiological breakdown.\n\n` +
+      `Consignees were advised to sort and expedite sale of salvageable units to mitigate further loss.`
+    );
+  }
+
+  // Condition 3: no_recorder_data
+  const cRef = containerList.length > 1 ? `the subject containers` : `the subject container`;
+  const serialSlot = containerList.length > 1 ? `(Serial Nos. [Serial Nos.])` : `(Serial No. [Serial No.])`;
+  return (
+    `According to the Bill of Lading, the requested temperature for this shipment of fresh Plums was [Set Temp]°C. ` +
+    `During our investigation, the Consignees informed us that they were unable to download the data from the temperature recorder ${serialSlot} ` +
+    `installed inside ${cRef}. Consequently, we are unable to comment on any potential temperature anomalies that may have occurred during transit.\n\n` +
+    `Based on our physical survey findings and inspection of the cargo, we are of the opinion that the fresh Plums sustained internal breakdown, flesh browning, ` +
+    `softening, and rot due to temperature variations occurring during transit and/or pre-shipment stages. ` +
+    `However, the precise stage at which the deterioration commenced cannot be definitively established due to the unavailability of the temperature data log.`
+  );
+}
+
+/**
+ * Dispatches Paragraph 3 Cause of Loss generation to the appropriate fruit builder.
+ */
+export function buildParagraph3CauseOfLoss(clauseContext: ClauseContext, condition?: CauseCondition): string {
+  const commodity = (clauseContext.commodity || '').toLowerCase();
+  const cond = condition || detectCauseCondition(clauseContext);
+  if (commodity.includes('pear')) {
+    return buildPearCauseOfLoss(clauseContext, cond);
+  }
+  if (commodity.includes('mandarin')) {
+    return buildMandarinCauseOfLoss(clauseContext, cond);
+  }
+  if (commodity.includes('grape')) {
+    return buildGrapesCauseOfLoss(clauseContext, cond);
+  }
+  if (commodity.includes('plum')) {
+    return buildPlumCauseOfLoss(clauseContext, cond);
+  }
+  return buildAppleCauseOfLoss(clauseContext, cond);
+}
+
+/**
+ * Fills any known variables into Paragraph 3 Cause of Loss placeholders.
+ */
+export function fillCauseOfLossBlanks(text: string, clauseContext: ClauseContext): string {
+  let updated = text;
+  const vals = clauseContext.values || {};
+
+  // Commodity / Fruit name
+  const commodity = (clauseContext.commodity || 'Fruit').trim();
+  const capCommodity = commodity.charAt(0).toUpperCase() + commodity.slice(1).toLowerCase();
+  if (updated.includes('[Fruit]')) {
+    updated = updated.split('[Fruit]').join(capCommodity);
+  }
+
+  // Bill of Lading No.
+  const blNo = vals.bill_of_lading_no || vals.bl_no || vals.transport_doc;
+  if (blNo) {
+    if (updated.includes('[Bill of Lading No.]')) {
+      updated = updated.split('[Bill of Lading No.]').join(`(${blNo})`);
+    }
+  } else {
+    updated = updated.split('[Bill of Lading No.]').join('');
+  }
+
+  // Set Temp
+  const setTemp = vals.set_temp || (vals as any).requested_temp;
+  if (setTemp !== undefined && setTemp !== null && setTemp !== '') {
+    const setStr = String(setTemp).trim();
+    if (updated.includes('[Set Temp]°C')) {
+      updated = updated.split('[Set Temp]°C').join(`${setStr}°C`);
+    }
+    if (updated.includes('[Set Temp]')) {
+      updated = updated.split('[Set Temp]').join(setStr);
+    }
+  }
+
+  // Avg Temp
+  if (vals.avg_temp) {
+    if (updated.includes('[Avg Temp]°C')) {
+      updated = updated.split('[Avg Temp]°C').join(`${vals.avg_temp}°C`);
+    }
+    if (updated.includes('[Avg Temp]')) {
+      updated = updated.split('[Avg Temp]').join(vals.avg_temp);
+    }
+  }
+
+  // Min Temp
+  if (vals.min_temp) {
+    if (updated.includes('[Min Temp]°C')) {
+      updated = updated.split('[Min Temp]°C').join(`${vals.min_temp}°C`);
+    }
+    if (updated.includes('[Min Temp]')) {
+      updated = updated.split('[Min Temp]').join(vals.min_temp);
+    }
+  }
+
+  // Max Temp
+  if (vals.max_temp) {
+    if (updated.includes('[Max Temp]°C')) {
+      updated = updated.split('[Max Temp]°C').join(`${vals.max_temp}°C`);
+    }
+    if (updated.includes('[Max Temp]')) {
+      updated = updated.split('[Max Temp]').join(vals.max_temp);
+    }
+  }
+
+  // MKT
+  if (vals.mkt_c) {
+    if (updated.includes('[MKT]°C')) {
+      updated = updated.split('[MKT]°C').join(`${vals.mkt_c}°C`);
+    }
+    if (updated.includes('[MKT]')) {
+      updated = updated.split('[MKT]').join(vals.mkt_c);
+    }
+  }
+
+  // Trip length
+  if (vals.trip_length && updated.includes('[Trip Length]')) {
+    updated = updated.split('[Trip Length]').join(vals.trip_length);
+  }
+
+  // Container numbers
+  const containerList: string[] = (vals as any).container_nos || (vals.container_no ? [vals.container_no] : []);
+  if (containerList.length === 1) {
+    if (updated.includes('[Container No.]')) {
+      updated = updated.split('[Container No.]').join(containerList[0]);
+    }
+    if (updated.includes('[Container Nos.]')) {
+      updated = updated.split('[Container Nos.]').join(containerList[0]);
+    }
+  } else if (containerList.length > 1) {
+    if (updated.includes('Reefer container [Container No.]')) {
+      updated = updated.split('Reefer container [Container No.]').join(`Reefer containers ${containerList.join(' & ')}`);
+    }
+    if (updated.includes('[Container Nos.]')) {
+      updated = updated.split('[Container Nos.]').join(containerList.join(' & '));
+    }
+    if (updated.includes('[Container No.]')) {
+      updated = updated.split('[Container No.]').join(containerList.join(' & '));
+    }
+  }
+
+  // Ports
+  const pol = vals.port_of_loading || vals.origin_port;
+  if (pol) {
+    if (updated.includes('[Port of Loading]')) {
+      updated = updated.split('[Port of Loading]').join(pol);
+    }
+    if (updated.includes('[Origin Port]')) {
+      updated = updated.split('[Origin Port]').join(pol);
+    }
+  }
+
+  const pod = vals.port_of_discharge || vals.destination_port;
+  if (pod) {
+    if (updated.includes('[Port of Discharge]')) {
+      updated = updated.split('[Port of Discharge]').join(pod);
+    }
+    if (updated.includes('[Destination Port]')) {
+      updated = updated.split('[Destination Port]').join(pod);
+    }
+  }
+
+  // Vessel
+  if (vals.vessel) {
+    if (updated.includes('[Vessel Name & Voyage No.]')) {
+      updated = updated.split('[Vessel Name & Voyage No.]').join(vals.vessel);
+    }
+    if (updated.includes('[Vessel]')) {
+      updated = updated.split('[Vessel]').join(vals.vessel);
+    }
+  }
+
+  // Serial No. / IMEI No.
+  const serial = vals.serial_no || vals.device_id || vals.imei_no;
+  if (serial) {
+    if (updated.includes('[Serial No.]')) {
+      updated = updated.split('[Serial No.]').join(serial);
+    }
+    if (updated.includes('[Serial Nos.]')) {
+      updated = updated.split('[Serial Nos.]').join(serial);
+    }
+    if (updated.includes('[IMEI No.]')) {
+      updated = updated.split('[IMEI No.]').join(serial);
+    }
+    if (updated.includes('[IMEI Nos.]')) {
+      updated = updated.split('[IMEI Nos.]').join(serial);
+    }
   }
 
   return updated;

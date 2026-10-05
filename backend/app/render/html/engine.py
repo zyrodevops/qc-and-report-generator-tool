@@ -212,10 +212,13 @@ table.defect-table td:first-child, table.defect-table th:first-child {
     margin: 12px 0 16px 0;
 }
 
-.chart-container img {
-    max-width: 480px;
+.chart-container img, .recorder-chart img {
+    max-width: 16cm;
     width: 100%;
     height: auto;
+    object-fit: contain;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
 }
 
 .chart-caption {
@@ -376,13 +379,25 @@ def _narrative_body_html(clause_text: str) -> str:
     return f'<div class="narrative-block">{"".join(parts)}</div>'
 
 
-def render_narrative_html(block: Dict[str, Any]) -> str:
-    """Render narrative block as heading and paragraph text."""
+def render_narrative_html(block: Dict[str, Any], all_blocks: Optional[List[Dict[str, Any]]] = None) -> str:
+    """Render narrative block as heading and paragraph text, embedding recorders for Paragraph 3 Cause of Loss."""
     section = block.get("_heading") or block.get("section", "")
+    preamble = block.get("preamble") or ""
     clause_text = block.get("additional_text") or block.get("content") or ""
     out = []
     if section:
         out.append(f'<h2 class="block-heading">{html.escape(section)}</h2>')
+    if preamble:
+        p_body = _narrative_body_html(preamble)
+        if p_body:
+            out.append(p_body)
+
+    is_cause = block.get("id") == "b_cause" or "cause of loss" in str(section).lower()
+    if is_cause and all_blocks:
+        recorders_block = next((b for b in all_blocks if b.get("type") == "temperature_recorders" and is_included(b)), None)
+        if recorders_block:
+            out.append(render_recorders_html(recorders_block, hide_title=True))
+
     body = _narrative_body_html(clause_text)
     if body:
         out.append(body)
@@ -448,30 +463,38 @@ def render_gc_table_html(block: Dict[str, Any]) -> str:
     return "\n".join(out)
 
 
-def render_recorders_html(block: Dict[str, Any]) -> str:
-    """Temperature recorders: the devices' own summary, then a graph each (if ticked)."""
+def render_recorders_html(block: Dict[str, Any], hide_title: bool = False) -> str:
+    """Temperature recorders: authentic 2-column parameter/value table paired with its graph."""
     import base64
     from app.render.inclusion import shows_chart
-    from app.render.recorder_chart import COLUMNS, chart_for, summary_row, time_note
+    from app.render.recorder_chart import chart_for, recorder_table_header, vertical_summary_rows
 
     recs = [r for r in block.get("recorders") or [] if r.get("included", True) is not False]
     if not recs:
         return ""
-    out = [f'<h2 class="block-heading">{html.escape(block.get("title") or "TEMPERATURE RECORDER SUMMARY")}</h2>']
-    out.append('<table class="report-table recorder-table"><thead><tr>'
-               + "".join(f"<th>{html.escape(c)}</th>" for c in COLUMNS) + "</tr></thead><tbody>")
-    for r in recs:
-        out.append("<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in summary_row(r)) + "</tr>")
-    out.append("</tbody></table>")
-    note = time_note(recs)
-    if note:
-        out.append(f'<p class="recorder-note">{html.escape(note)}</p>')
-    if shows_chart(block):
-        for r in recs:
+    out = []
+    if not hide_title and block.get("title"):
+        out.append(f'<h2 class="block-heading">{html.escape(block["title"])}</h2>')
+    for idx, r in enumerate(recs):
+        header_text = recorder_table_header(r, idx)
+        out.append('<div class="recorder-container-item my-3">')
+        out.append(f'<div class="recorder-item-header font-bold text-[11px] text-slate-800 mb-1">{html.escape(header_text)}</div>')
+        rows = vertical_summary_rows(r)
+        if rows:
+            out.append('<table class="report-table recorder-vertical-table w-full max-w-[550px] text-[10px] border border-slate-300 mb-2"><tbody>')
+            for param, val in rows:
+                out.append(
+                    f'<tr><td class="border border-slate-300 px-2 py-1 font-semibold bg-slate-50 w-1/3 text-slate-700">{html.escape(param)}</td>'
+                    f'<td class="border border-slate-300 px-2 py-1 font-mono text-slate-900">{html.escape(val)}</td></tr>'
+                )
+            out.append('</tbody></table>')
+
+        if shows_chart(block):
             png = chart_for(r, block.get("set_point_c"))
             if png:
-                out.append('<div class="recorder-chart"><img alt="Temperature graph" src="data:image/png;base64,'
+                out.append('<div class="recorder-chart my-2 max-w-[16cm]"><img alt="Temperature graph" class="w-full border border-slate-200 rounded" src="data:image/png;base64,'
                            + base64.b64encode(png).decode() + '"></div>')
+        out.append('</div>')
     return "\n".join(out)
 
 
@@ -929,7 +952,7 @@ def render_html(block_state: Dict[str, Any]) -> str:
         if btype == "particulars":
             rendered = render_particulars_html(b)
         elif btype == "narrative":
-            rendered = render_narrative_html(b)
+            rendered = render_narrative_html(b, blocks)
         elif btype == "measurements":
             rendered = render_measurements_html(b)
         elif btype == "table":
@@ -953,7 +976,9 @@ def render_html(block_state: Dict[str, Any]) -> str:
         elif btype == "unit_group":
             rendered = render_unit_group_html(b, bcomp, assets)
         elif btype == "temperature_recorders":
-            rendered = render_recorders_html(b)
+            has_cause = any(other.get("id") == "b_cause" or "cause of loss" in str(other.get("section", "")).lower() for other in blocks)
+            if not has_cause:
+                rendered = render_recorders_html(b)
         elif btype == "survey_unit":
             rendered = render_survey_unit_html(b)
         elif btype == "gc_table":

@@ -268,11 +268,22 @@ def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
     doc.add_paragraph()  # spacing
 
 
-def render_narrative(doc: Document, block: Dict[str, Any]) -> None:
-    """Render a narrative block as a heading + paragraph."""
+def render_narrative(doc: Document, block: Dict[str, Any], all_blocks: Optional[List[Dict[str, Any]]] = None) -> None:
+    """Render a narrative block as a heading + paragraph, embedding recorders in Cause of Loss if present."""
     section = block.get("_heading") or block.get("section", "")
     if section:
         doc.add_heading(section, level=2)
+
+    preamble = block.get("preamble")
+    if preamble:
+        _narrative_body(doc, preamble)
+
+    is_cause = block.get("id") == "b_cause" or "cause of loss" in str(section).lower()
+    if is_cause and all_blocks:
+        recorders_block = next((b for b in all_blocks if b.get("type") == "temperature_recorders" and is_included(b)), None)
+        if recorders_block:
+            render_recorders(doc, recorders_block, hide_title=True)
+
     _narrative_body(doc, block.get("additional_text") or "")
     
     people = [r for r in block.get("attendance") or [] if any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing"))]
@@ -376,41 +387,70 @@ def render_gc_table(doc: Document, block: Dict[str, Any]) -> None:
     _grid(doc, t["columns"], t["rows"], bold_last=t.get("total", False))
 
 
-def render_recorders(doc: Document, block: Dict[str, Any]) -> None:
-    """Temperature recorders: the devices' own summary, then a graph each (if ticked)."""
+def render_recorders(doc: Document, block: Dict[str, Any], hide_title: bool = False) -> None:
+    """Temperature recorders: authentic 2-column parameter/value table paired with its graph."""
+    import io
     from docx.shared import Cm, Pt
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
     from app.render.inclusion import shows_chart
-    from app.render.recorder_chart import COLUMNS, chart_for, summary_row, time_note
+    from app.render.recorder_chart import chart_for, recorder_table_header, vertical_summary_rows
 
     recs = [r for r in block.get("recorders") or [] if r.get("included", True) is not False]
     if not recs:
         return
-    doc.add_heading(block.get("title") or "TEMPERATURE RECORDER SUMMARY", level=2)
-    table = doc.add_table(rows=1 + len(recs), cols=len(COLUMNS))
-    table.style = "Table Grid"
-    for i, h in enumerate(COLUMNS):
-        cell = table.rows[0].cells[i]
-        cell.text = h
-        for run in cell.paragraphs[0].runs:
-            run.bold = True
-            run.font.size = Pt(7.5)
-    for ri, r in enumerate(recs, start=1):
-        for ci, v in enumerate(summary_row(r)):
-            cell = table.rows[ri].cells[ci]
-            cell.text = v
-            for run in cell.paragraphs[0].runs:
-                run.font.size = Pt(7.5)
-    note = time_note(recs)
-    if note:
-        p = doc.add_paragraph(note)
-        for run in p.runs:
-            run.font.size = Pt(7.5)
-    if shows_chart(block):
-        for r in recs:
+
+    if not hide_title and block.get("title"):
+        doc.add_heading(block["title"], level=2)
+
+    for idx, r in enumerate(recs):
+        # Header for this recorder matching client reports
+        header_text = recorder_table_header(r, idx)
+        p_hdr = doc.add_paragraph()
+        run_hdr = p_hdr.add_run(header_text)
+        run_hdr.bold = True
+        run_hdr.font.size = Pt(8.5)
+        p_hdr.paragraph_format.space_before = Pt(6)
+        p_hdr.paragraph_format.space_after = Pt(2)
+
+        rows = vertical_summary_rows(r)
+        if rows:
+            table = doc.add_table(rows=len(rows), cols=2)
+            table.style = "Table Grid"
+            for ri, (param, val) in enumerate(rows):
+                c0 = table.cell(ri, 0)
+                c1 = table.cell(ri, 1)
+                c0.width = Cm(5.5)
+                c1.width = Cm(10.5)
+
+                try:
+                    c0._tc.get_or_add_tcPr().append(parse_xml(f'<w:shd {nsdecls("w")} w:fill="F4F6F8"/>'))
+                except Exception:
+                    pass
+
+                p0 = c0.paragraphs[0]
+                p0.paragraph_format.space_before = Pt(1.5)
+                p0.paragraph_format.space_after = Pt(1.5)
+                r0 = p0.add_run(param)
+                r0.bold = True
+                r0.font.size = Pt(8)
+
+                p1 = c1.paragraphs[0]
+                p1.paragraph_format.space_before = Pt(1.5)
+                p1.paragraph_format.space_after = Pt(1.5)
+                r1 = p1.add_run(val)
+                r1.font.size = Pt(8)
+
+        # Graph for this recorder right below its table
+        if shows_chart(block):
             png = chart_for(r, block.get("set_point_c"))
             if png:
-                doc.add_picture(io.BytesIO(png), width=Cm(16))
-    doc.add_paragraph()
+                p_pic = doc.add_paragraph()
+                p_pic.paragraph_format.space_before = Pt(4)
+                p_pic.paragraph_format.space_after = Pt(6)
+                doc.add_picture(io.BytesIO(png), width=Cm(15.0))
+
+        doc.add_paragraph()
 
 
 def render_measurements(doc: Document, block: Dict[str, Any]) -> None:
@@ -1115,7 +1155,7 @@ def render_docx(
         if btype == "particulars":
             render_particulars(doc, block)
         elif btype == "narrative":
-            render_narrative(doc, block)
+            render_narrative(doc, block, blocks)
         elif btype == "measurements":
             render_measurements(doc, block)
         elif btype == "table":
@@ -1139,7 +1179,9 @@ def render_docx(
         elif btype == "unit_group":
             render_unit_group(doc, block, block_computed, assets)
         elif btype == "temperature_recorders":
-            render_recorders(doc, block)
+            has_cause = any(b.get("id") == "b_cause" or "cause of loss" in str(b.get("section", "")).lower() for b in blocks)
+            if not has_cause:
+                render_recorders(doc, block)
         elif btype == "survey_unit":
             render_survey_unit(doc, block)
         elif btype == "gc_table":

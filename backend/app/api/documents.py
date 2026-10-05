@@ -454,7 +454,7 @@ async def apply_documents(
             "graph_file": grel,
             **{k: s.get(k) for k in ("device_id", "start", "stop", "start_iso", "stop_iso", "trip_length",
                                      "highest_c", "lowest_c", "average_c", "mkt_c", "data_points",
-                                     "interval", "utc_offset")},
+                                     "interval", "utc_offset", "start_delay", "alarm_status", "highest_c_time", "lowest_c_time")},
         })
     if recs:
         blocks = state["blocks"]

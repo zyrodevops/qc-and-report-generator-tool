@@ -121,28 +121,42 @@ def _chart_png(block: Dict[str, Any], computed: Dict[str, Any]) -> Optional[byte
     colours = [b[2] for b in bars]
 
     fig, ax = plt.subplots(figsize=(16 / 2.54, 8 / 2.54), dpi=200)
+    fig.patch.set_facecolor("#262626")
+    ax.set_facecolor("#262626")
+
     xs = range(len(bars))
-    ax.bar(xs, values, color=colours, width=0.6, edgecolor="#404040", linewidth=0.4, zorder=3)
+    ax.bar(xs, values, color=colours, width=0.55, edgecolor="#1a1a1a", linewidth=0.5, zorder=3)
     for x, v in zip(xs, values):
-        ax.text(x, v + 1.5, f"{v:.2f}%", ha="center", va="bottom", fontsize=6.5 if n <= 10 else 5.5,
-                fontweight="bold", color="#000000")
-    ax.set_ylim(0, 110)
+        val_text = f"{v:.2f}%" if v < 99.995 else "100%"
+        ax.text(x, v + 1.8, val_text, ha="center", va="bottom", fontsize=6.5 if n <= 10 else 5.5,
+                fontweight="bold", color="#FFFFFF")
+    ax.set_ylim(0, 115)
     ax.set_yticks([v * 10 for v in range(11)])
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.2f}%"))
-    ax.tick_params(axis="y", labelsize=6)
+    ax.tick_params(axis="y", labelsize=6, colors="#FFFFFF")
     ax.set_xticks(list(xs))
-    ax.set_xticklabels(labels, fontsize=label_size)
+    ax.set_xticklabels(labels, fontsize=label_size, color="#FFFFFF")
     ax.tick_params(axis="x", length=0)
-    ax.grid(axis="y", color="#D9D9D9", linewidth=0.5, zorder=0)
+    ax.grid(axis="y", color="#404040", linewidth=0.5, zorder=0)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     for side in ("left", "bottom"):
-        ax.spines[side].set_color("#BFBFBF")
-    fig.text(0.5, 0.015, chart_title(block), ha="center", va="bottom", fontsize=8, fontweight="bold")
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
+        ax.spines[side].set_color("#555555")
+
+    # Title at TOP with underline
+    t_text = chart_title(block).upper()
+    title_artist = fig.text(0.5, 0.94, t_text, ha="center", va="top", fontsize=9, fontweight="bold", color="#FFFFFF")
+    fig.canvas.draw()
+    bbox = title_artist.get_window_extent(fig.canvas.get_renderer())
+    bbox_fig = fig.transFigure.inverted().transform(bbox)
+    x0, y0 = bbox_fig[0]
+    x1, y1 = bbox_fig[1]
+    fig.add_artist(plt.Line2D([x0 - 0.01, x1 + 0.01], [y0 - 0.005, y0 - 0.005], transform=fig.transFigure, color="#FFFFFF", linewidth=1.0))
+
+    fig.tight_layout(rect=(0.02, 0.02, 0.98, 0.88))
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=200)
+    fig.savefig(buf, format="png", dpi=200, facecolor=fig.get_facecolor(), edgecolor="none")
     plt.close(fig)
     return buf.getvalue()
 

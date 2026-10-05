@@ -193,7 +193,7 @@ def test_documents_are_checked_against_each_other():
     assert rows["Consignees"] == "Example Fresh Imports Pvt Ltd, Maharashtra, India"
     assert rows["Bill of Lading No."] == "TST0001234 dated 2 March 2026"
     assert rows["Vessel Name"] == "“SEA BREEZE” Voyage No. 123E"
-    assert rows["Voyage as per B/L"] == "Valparaiso, Chile to Nhava Sheva"
+    assert rows["Voyage as per B/L"] == "Valparaiso, Chile to Nhava Sheva, India"
     assert "Net Weight: 36,000 kg" in rows["Nature of Packing"]
     assert rows["Container Nos."].startswith("TSTU1234568 & FAKU7654324 (2x40' Reefer")
 
@@ -271,7 +271,8 @@ async def test_recorders_get_a_summary_section_and_a_graph_that_can_be_left_out(
         from app.render.docx.engine import render_recorders
         doc = Document()
         render_recorders(doc, rb)
-        assert doc.tables[0].rows[1].cells[0].text == "111111111A"
+        assert any("111111111A" in p.text for p in doc.paragraphs)
+        assert len(doc.tables) == 1
         assert len(doc.inline_shapes) == 1
         doc = Document()
         render_recorders(doc, {**rb, "show_chart": False})

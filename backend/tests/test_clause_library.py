@@ -254,9 +254,9 @@ def test_new_reports_start_with_blanks_not_guesses():
 
 
 def test_new_reports_start_with_empty_text_sections():
-    state = get_default_block_state("perishable_sea_survey", commodity_key="APPLE")
+    state = get_default_block_state("perishable_sea_survey", commodity_key="AVOCADO")
     texts = [b["additional_text"] for b in state["blocks"] if b["type"] == "narrative"]
-    assert texts and all(t == "" for t in texts)
+    assert texts[0].startswith("Pursuant to the Consignee's request") and all(t == "" for t in texts[1:])
 
 
 @pytest.mark.asyncio

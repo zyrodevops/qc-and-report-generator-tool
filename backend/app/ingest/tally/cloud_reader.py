@@ -155,9 +155,9 @@ def _build_prompt(categories: List[Dict[str, str]], commodity: Optional[str], he
             "destuff date, container number, room number, room temperature, pulp temperature "
             "range, brix range, and pressure range if present. Dates as written. Ranges as "
             "separate min and max. Pressure (penetrometer, LBS) is often written per count "
-            "near the foot of the sheet, e.g. '(120) 16.88 to 17.59': give the lowest and the "
-            "highest figure across all of them. Anything absent or unreadable is null — never "
-            "estimate a value that is not written.\n"
+            "near the foot of the sheet, e.g. '(120) 16.88 to 17.59': record each count's min and max "
+            "in pressure_readings, as well as the lowest (pressure_min) and highest (pressure_max) across all of them. "
+            "Anything absent or unreadable is null — never estimate a value that is not written.\n"
         )
 
     return "".join(parts)
@@ -186,6 +186,19 @@ _SCHEMA: Dict[str, Any] = {
                 "brix_max": {"type": "number", "nullable": True},
                 "pressure_min": {"type": "number", "nullable": True},
                 "pressure_max": {"type": "number", "nullable": True},
+                "pressure_readings": {
+                    "type": "array",
+                    "description": "Pressure (penetrometer, LBS) readings per count/variety if written on the sheet, e.g. Count 90: min 11.83, max 14.75.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "count": {"type": "string"},
+                            "variety": {"type": "string", "nullable": True},
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                        },
+                    },
+                },
             },
         },
         "rows": {
@@ -470,5 +483,8 @@ def _clean_headers(h: Dict[str, Any]) -> Dict[str, Any]:
     raw_container = out.get("container_number")
     if isinstance(raw_container, str) and raw_container:
         out["container_number"] = clean_container_no(raw_container) or raw_container
+
+    if "pressure_readings" in h and isinstance(h["pressure_readings"], list):
+        out["pressure_readings"] = h["pressure_readings"]
 
     return out

@@ -19,7 +19,13 @@ import {
   buildGrapesOurSurvey,
   buildPlumOurSurvey,
   fillOurSurveyBlanks,
+  buildParagraph3CauseOfLoss,
+  buildParagraph3Preamble,
+  fillCauseOfLossBlanks,
+  detectCauseCondition,
+  type CauseCondition,
 } from '../../../utils/clauseContext';
+import { RecordersBlock } from './RecordersBlock';
 
 export interface NarrativeBlockProps {
   block: any;
@@ -33,6 +39,11 @@ export interface NarrativeBlockProps {
   clauseSection?: string;
   /** True when rendered in the Form Editor tab, false in A4 HTML Preview. */
   isFormEditor?: boolean;
+  /** Optional temperature recorders block embedded inside Paragraph 3 */
+  recordersBlock?: any;
+  onRecordersChange?: (updatedRecordersBlock: any) => void;
+  reportId?: string;
+  onAttendanceChange?: (attendance: any[], intro?: string) => void;
 }
 
 export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
@@ -43,10 +54,15 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   heading,
   clauseSection,
   isFormEditor = false,
+  recordersBlock,
+  onRecordersChange,
+  reportId,
 }) => {
   const sectionTitle = heading || block?._heading || block?.section || 'ATTENDANCE & CIRCUMSTANCES';
   const text = block?.additional_text || '';
+  const preamble = block?.preamble || '';
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const preambleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // useLayoutEffect fires synchronously after DOM mutation but before browser paint,
   // so the resize happens immediately even when text is set programmatically
@@ -58,7 +74,14 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
     el.style.height = `${Math.max(80, el.scrollHeight)}px`;
   }, [text, editable]);
 
-  if (!text && !sectionTitle && !editable) return null;
+  useLayoutEffect(() => {
+    const el = preambleTextareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(60, el.scrollHeight)}px`;
+  }, [preamble, editable]);
+
+  if (!text && !preamble && !sectionTitle && !editable) return null;
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!onChange) return;
@@ -67,6 +90,126 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       additional_text: e.target.value,
       surveyor_edited: true,
     });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const pos = textarea.selectionStart;
+      const currentText = textarea.value;
+      const beforeCursor = currentText.substring(0, pos);
+      const afterCursor = currentText.substring(pos);
+      const lastLine = beforeCursor.split('\n').pop() || '';
+
+      const bulletMatch = lastLine.match(/^(\s*)(•|-|\*)\s+/);
+      const numMatch = lastLine.match(/^(\s*)(\d+)([\.\)])\s+/);
+
+      if (bulletMatch) {
+        if (lastLine.trim() === bulletMatch[2]) {
+          // Empty bullet line: clear it on Enter (exit list)
+          e.preventDefault();
+          const lineStart = pos - lastLine.length;
+          const next = currentText.substring(0, lineStart) + '\n' + afterCursor;
+          onChange?.({ ...block, additional_text: next, surveyor_edited: true });
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = lineStart + 1;
+              textareaRef.current.selectionEnd = lineStart + 1;
+            }
+          }, 0);
+          return;
+        }
+        e.preventDefault();
+        const prefix = bulletMatch[1] + bulletMatch[2] + ' ';
+        const next = beforeCursor + '\n' + prefix + afterCursor;
+        onChange?.({ ...block, additional_text: next, surveyor_edited: true });
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = pos + 1 + prefix.length;
+            textareaRef.current.selectionEnd = pos + 1 + prefix.length;
+          }
+        }, 0);
+        return;
+      } else if (numMatch) {
+        const nextNum = parseInt(numMatch[2], 10) + 1;
+        const delim = numMatch[3];
+        if (lastLine.trim() === `${numMatch[2]}${delim}`) {
+          // Empty numbered line: clear it on Enter (exit list)
+          e.preventDefault();
+          const lineStart = pos - lastLine.length;
+          const next = currentText.substring(0, lineStart) + '\n' + afterCursor;
+          onChange?.({ ...block, additional_text: next, surveyor_edited: true });
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = lineStart + 1;
+              textareaRef.current.selectionEnd = lineStart + 1;
+            }
+          }, 0);
+          return;
+        }
+        e.preventDefault();
+        const prefix = `${numMatch[1]}${nextNum}${delim} `;
+        const next = beforeCursor + '\n' + prefix + afterCursor;
+        onChange?.({ ...block, additional_text: next, surveyor_edited: true });
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = pos + 1 + prefix.length;
+            textareaRef.current.selectionEnd = pos + 1 + prefix.length;
+          }
+        }, 0);
+        return;
+      }
+    }
+  };
+
+  const handleInsertBullet = () => {
+    const el = textareaRef.current;
+    if (!el || !onChange) return;
+    const pos = el.selectionStart;
+    const cur = el.value;
+    const before = cur.substring(0, pos);
+    const after = cur.substring(pos);
+    const needNewline = before.length > 0 && !before.endsWith('\n');
+    const insertion = needNewline ? '\n• ' : '• ';
+    const next = before + insertion + after;
+    onChange({ ...block, additional_text: next, surveyor_edited: true });
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = pos + insertion.length;
+        textareaRef.current.selectionEnd = pos + insertion.length;
+      }
+    }, 0);
+  };
+
+  const handleInsertNumber = () => {
+    const el = textareaRef.current;
+    if (!el || !onChange) return;
+    const pos = el.selectionStart;
+    const cur = el.value;
+    const before = cur.substring(0, pos);
+    const after = cur.substring(pos);
+    const lines = before.split('\n');
+    let nextNum = 1;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const m = lines[i].match(/^\s*(\d+)[\.\)]\s+/);
+      if (m) {
+        nextNum = parseInt(m[1], 10) + 1;
+        break;
+      }
+    }
+    const needNewline = before.length > 0 && !before.endsWith('\n');
+    const insertion = needNewline ? `\n${nextNum}) ` : `${nextNum}) `;
+    const next = before + insertion + after;
+    onChange({ ...block, additional_text: next, surveyor_edited: true });
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = pos + insertion.length;
+        textareaRef.current.selectionEnd = pos + insertion.length;
+      }
+    }, 0);
   };
 
   const focusEnd = () =>
@@ -209,6 +352,199 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
     }
   }, [commodityKey, isMandarin, isGrapes, isPlum, isOurSurveyFruit, isOurSurvey, text, clauseContext]);
 
+  // Pre-populate Paragraph 3 Cause of Loss for Apple, Pear, Mandarin, Grapes & Plum
+  const isCauseOfLoss =
+    block.id === 'b_cause' ||
+    sectionSlug === 'cause_of_loss' ||
+    /cause of loss/i.test(sectionTitle);
+  const isCauseFruit = isCuratedFruit;
+
+  const currentCondition: CauseCondition =
+    block.cause_condition ||
+    (clauseContext ? detectCauseCondition(clauseContext, block) : 'no_recorder_data');
+
+  useEffect(() => {
+    if (isCauseFruit && isCauseOfLoss && onChange && clauseContext) {
+      let needsUpdate = false;
+      const updates: any = {};
+
+      if (currentCondition !== 'no_recorder_data') {
+        if (!preamble.trim() || !preamble.includes('requested temperature for this shipment of fresh')) {
+          const rawPreamble = buildParagraph3Preamble(clauseContext);
+          updates.preamble = fillCauseOfLossBlanks(rawPreamble, clauseContext);
+          needsUpdate = true;
+        } else if (preamble.includes('[')) {
+          const filledPreamble = fillCauseOfLossBlanks(preamble, clauseContext);
+          if (filledPreamble !== preamble) {
+            updates.preamble = filledPreamble;
+            needsUpdate = true;
+          }
+        }
+      }
+
+      const isOldStub =
+        text.includes('While the Bill of Lading stipulated a mandatory carriage temperature') ||
+        (currentCondition === 'carrier_breach' && !text.includes('Carriage Instructions:')) ||
+        (currentCondition === 'cold_chain_complied' && !text.includes('Findings & Assessment:')) ||
+        (currentCondition === 'no_recorder_data' && !text.includes('unable to download'));
+
+      if (!text.trim() || isOldStub) {
+        const rawTemplate = buildParagraph3CauseOfLoss(clauseContext, currentCondition);
+        updates.additional_text = fillCauseOfLossBlanks(rawTemplate, clauseContext);
+        updates.cause_condition = currentCondition;
+        needsUpdate = true;
+      } else if (text.includes('[')) {
+        const filled = fillCauseOfLossBlanks(text, clauseContext);
+        if (filled !== text) {
+          updates.additional_text = filled;
+          needsUpdate = true;
+        }
+      }
+
+      if (needsUpdate) {
+        onChange({ ...block, ...updates });
+      }
+    }
+  }, [commodityKey, isCauseFruit, isCauseOfLoss, text, preamble, clauseContext, currentCondition]);
+
+  const handleConditionSwitch = (newCondition: CauseCondition) => {
+    if (!onChange || !clauseContext) return;
+    const rawTemplate = buildParagraph3CauseOfLoss(clauseContext, newCondition);
+    const newText = fillCauseOfLossBlanks(rawTemplate, clauseContext);
+
+    let newPreamble = '';
+    if (newCondition !== 'no_recorder_data') {
+      const rawPreamble = buildParagraph3Preamble(clauseContext);
+      newPreamble = fillCauseOfLossBlanks(rawPreamble, clauseContext);
+    }
+
+    onChange({
+      ...block,
+      preamble: newPreamble,
+      additional_text: newText,
+      cause_condition: newCondition,
+      surveyor_edited: true,
+    });
+
+    if (onRecordersChange && recordersBlock) {
+      onRecordersChange({
+        ...recordersBlock,
+        included: newCondition !== 'no_recorder_data',
+      });
+    }
+  };
+
+  const insertAtCursorIn = (
+    targetRef: React.RefObject<HTMLTextAreaElement | null>,
+    insertion: string,
+    field: 'preamble' | 'additional_text' = 'additional_text'
+  ) => {
+    const textarea = targetRef.current;
+    const currentVal = (field === 'preamble' ? block?.preamble : block?.additional_text) || '';
+    if (!textarea) {
+      onChange?.({
+        ...block,
+        [field]: currentVal ? `${currentVal}\n${insertion}` : insertion,
+        surveyor_edited: true,
+      });
+      return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const before = currentVal.substring(0, start);
+    const after = currentVal.substring(end);
+    const needsNewline = before.length > 0 && !before.endsWith('\n');
+    const prefix = needsNewline ? '\n' : '';
+    const newText = before + prefix + insertion + after;
+    onChange?.({
+      ...block,
+      [field]: newText,
+      surveyor_edited: true,
+    });
+    setTimeout(() => {
+      textarea.focus();
+      const newPos = start + prefix.length + insertion.length;
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
+  const handleKeyDownIn = (
+    e: React.KeyboardEvent<HTMLTextAreaElement>,
+    targetRef: React.RefObject<HTMLTextAreaElement | null>,
+    field: 'preamble' | 'additional_text'
+  ) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const textarea = targetRef.current;
+      if (!textarea) return;
+      const pos = textarea.selectionStart;
+      const currentText = textarea.value;
+      const beforeCursor = currentText.substring(0, pos);
+      const afterCursor = currentText.substring(pos);
+      const lastLine = beforeCursor.split('\n').pop() || '';
+
+      const bulletMatch = lastLine.match(/^(\s*)(•|-|\*)\s+/);
+      const numMatch = lastLine.match(/^(\s*)(\d+)([\.\)])\s+/);
+
+      if (bulletMatch) {
+        if (lastLine.trim() === bulletMatch[2]) {
+          e.preventDefault();
+          const lineStart = pos - lastLine.length;
+          const next = currentText.substring(0, lineStart) + '\n' + afterCursor;
+          onChange?.({ ...block, [field]: next, surveyor_edited: true });
+          setTimeout(() => {
+            if (targetRef.current) {
+              targetRef.current.selectionStart = lineStart + 1;
+              targetRef.current.selectionEnd = lineStart + 1;
+            }
+          }, 0);
+          return;
+        }
+        e.preventDefault();
+        const indent = bulletMatch[1];
+        const next = beforeCursor + '\n' + indent + '• ' + afterCursor;
+        onChange?.({ ...block, [field]: next, surveyor_edited: true });
+        setTimeout(() => {
+          if (targetRef.current) {
+            const nextPos = pos + indent.length + 3;
+            targetRef.current.selectionStart = nextPos;
+            targetRef.current.selectionEnd = nextPos;
+          }
+        }, 0);
+        return;
+      }
+
+      if (numMatch) {
+        const currentNum = parseInt(numMatch[2], 10);
+        const delimiter = numMatch[3];
+        if (lastLine.trim() === `${currentNum}${delimiter}`) {
+          e.preventDefault();
+          const lineStart = pos - lastLine.length;
+          const next = currentText.substring(0, lineStart) + '\n' + afterCursor;
+          onChange?.({ ...block, [field]: next, surveyor_edited: true });
+          setTimeout(() => {
+            if (targetRef.current) {
+              targetRef.current.selectionStart = lineStart + 1;
+              targetRef.current.selectionEnd = lineStart + 1;
+            }
+          }, 0);
+          return;
+        }
+        e.preventDefault();
+        const indent = numMatch[1];
+        const nextNum = currentNum + 1;
+        const next = beforeCursor + '\n' + indent + `${nextNum}${delimiter} ` + afterCursor;
+        onChange?.({ ...block, [field]: next, surveyor_edited: true });
+        setTimeout(() => {
+          if (targetRef.current) {
+            const nextPos = pos + indent.length + String(nextNum).length + delimiter.length + 2;
+            targetRef.current.selectionStart = nextPos;
+            targetRef.current.selectionEnd = nextPos;
+          }
+        }, 0);
+      }
+    }
+  };
+
   // Auto-populate or sync attendance for Application section
   useEffect(() => {
     if (sectionSlug === 'application' && onChange) {
@@ -331,25 +667,248 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
             />
           )}
 
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleTextChange}
-            placeholder={
-              isFormEditor
-                ? hideClausePicker
-                  ? 'Fill in the blanks and edit this section…'
-                  : sectionSlug === 'general'
-                  ? 'Type this section…'
-                  : 'Type this section, or add standard wording above…'
-                : ''
-            }
-            className={`w-full bg-transparent outline-none rounded text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text ${
-              isFormEditor
-                ? 'border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white p-1'
-                : 'border-none p-0 focus:bg-blue-50/30'
-            }`}
-          />
+          {/* Cause condition 3-button segmented pill selector: ONLY in Form Editor for Cause of Loss */}
+          {isFormEditor && isCauseFruit && isCauseOfLoss && (
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Cause Condition:
+                </span>
+                <div className="inline-flex rounded-md shadow-xs" role="group">
+                  <button
+                    type="button"
+                    onClick={() => handleConditionSwitch('carrier_breach')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-l-md border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      currentCondition === 'carrier_breach'
+                        ? 'bg-rose-600 text-white border-rose-600 z-10 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                    title="Carrier breach / transit thermal abuse"
+                  >
+                    <span>⚠️</span> Carrier Breach
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConditionSwitch('cold_chain_complied')}
+                    className={`px-3 py-1 text-xs font-semibold border-t border-b border-r transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      currentCondition === 'cold_chain_complied'
+                        ? 'bg-sky-600 text-white border-sky-600 z-10 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                    title="Cold chain complied / inherent vice or delay"
+                  >
+                    <span>❄️</span> Cold-Chain Complied
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConditionSwitch('no_recorder_data')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-r-md border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      currentCondition === 'no_recorder_data'
+                        ? 'bg-amber-600 text-white border-amber-600 z-10 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                    title="No recorder recovered or data unreadable"
+                  >
+                    <span>❌</span> No Recorder Data
+                  </button>
+                </div>
+              </div>
+              <span className="text-[10px] text-slate-400 italic">
+                Clicking replaces narrative template cleanly
+              </span>
+            </div>
+          )}
+
+          {/* Paragraph 3 with Recorders: Form Editor mode vs A4 HTML Preview mode */}
+          {isCauseFruit && isCauseOfLoss && currentCondition !== 'no_recorder_data' ? (
+            isFormEditor ? (
+              <div className="space-y-4">
+                {/* 1. Preamble Section */}
+                <div className="bg-slate-50/50 p-2.5 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="text-[11px] font-bold text-[#00387A] uppercase tracking-wide flex items-center gap-1.5">
+                      <span>📜</span> Preamble (Carriage Instructions & Recorder Intake)
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <span className="text-[10px] font-semibold uppercase text-slate-400 mr-0.5">Insert:</span>
+                      <button
+                        type="button"
+                        onClick={() => insertAtCursorIn(preambleTextareaRef, '• ', 'preamble')}
+                        className="px-2 py-0.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded font-medium transition-colors flex items-center gap-1 cursor-pointer text-slate-700 shadow-xs"
+                      >
+                        <span className="font-bold text-blue-600">•</span> Bullet
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertAtCursorIn(preambleTextareaRef, '1) ', 'preamble')}
+                        className="px-2 py-0.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded font-medium transition-colors flex items-center gap-1 cursor-pointer text-slate-700 shadow-xs"
+                      >
+                        <span className="font-bold text-blue-600">1)</span> Number
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    ref={preambleTextareaRef}
+                    value={preamble}
+                    onChange={(e) =>
+                      onChange?.({
+                        ...block,
+                        preamble: e.target.value,
+                        surveyor_edited: true,
+                      })
+                    }
+                    onKeyDown={(e) => handleKeyDownIn(e, preambleTextareaRef, 'preamble')}
+                    placeholder="As per the Bill of Lading, the requested temperature for this shipment of fresh fruit was..."
+                    className="w-full bg-white border border-slate-200 hover:border-blue-200 focus:border-blue-500 focus:bg-white rounded p-2 text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text shadow-xs"
+                  />
+                </div>
+
+                {/* 2. Embedded Recorders Section (Tables & Graphs) */}
+                {recordersBlock && onRecordersChange && (
+                  <div className="bg-slate-50/50 p-2.5 rounded-lg border border-slate-200">
+                    <RecordersBlock
+                      block={recordersBlock}
+                      reportId={reportId}
+                      onChange={onRecordersChange}
+                      hideTitle={true}
+                      isFormEditor={true}
+                    />
+                  </div>
+                )}
+
+                {/* 3. Post-Graph Cause of Loss & Liability Assessment Section */}
+                <div className="bg-slate-50/50 p-2.5 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="text-[11px] font-bold text-[#00387A] uppercase tracking-wide flex items-center gap-1.5">
+                      <span>⚖️</span> Cause of Loss & Liability Assessment (Post-Recorder Analysis)
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <span className="text-[10px] font-semibold uppercase text-slate-400 mr-0.5">Insert:</span>
+                      <button
+                        type="button"
+                        onClick={() => insertAtCursorIn(textareaRef, '• ', 'additional_text')}
+                        className="px-2 py-0.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded font-medium transition-colors flex items-center gap-1 cursor-pointer text-slate-700 shadow-xs"
+                      >
+                        <span className="font-bold text-blue-600">•</span> Bullet
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertAtCursorIn(textareaRef, '1) ', 'additional_text')}
+                        className="px-2 py-0.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded font-medium transition-colors flex items-center gap-1 cursor-pointer text-slate-700 shadow-xs"
+                      >
+                        <span className="font-bold text-blue-600">1)</span> Number
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    ref={textareaRef}
+                    value={text}
+                    onChange={handleTextChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type cause of loss and liability assessment..."
+                    className="w-full bg-white border border-slate-200 hover:border-blue-200 focus:border-blue-500 focus:bg-white rounded p-2 text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text shadow-xs"
+                  />
+                </div>
+              </div>
+            ) : (
+              /* A4 HTML Preview Mode: Preamble -> Embedded Recorders -> Liability Assessment */
+              <div className="space-y-3">
+                {/* 1. Preamble */}
+                {editable ? (
+                  <textarea
+                    ref={preambleTextareaRef}
+                    value={preamble}
+                    onChange={(e) =>
+                      onChange?.({
+                        ...block,
+                        preamble: e.target.value,
+                        surveyor_edited: true,
+                      })
+                    }
+                    placeholder="As per the Bill of Lading, the requested temperature for this shipment of fresh fruit was..."
+                    className="w-full bg-transparent outline-none rounded text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text border-none p-0 focus:bg-blue-50/30"
+                  />
+                ) : (
+                  preamble && <p className="whitespace-pre-line">{renderFormattedText(preamble)}</p>
+                )}
+
+                {/* 2. Embedded Recorders (Vertical Tables & Graph) */}
+                {recordersBlock && (
+                  <RecordersBlock
+                    block={recordersBlock}
+                    reportId={reportId}
+                    onChange={onRecordersChange}
+                    hideTitle={true}
+                    isFormEditor={false}
+                  />
+                )}
+
+                {/* 3. Post-Graph Cause of Loss & Liability Assessment */}
+                {editable ? (
+                  <textarea
+                    ref={textareaRef}
+                    value={text}
+                    onChange={handleTextChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type cause of loss and liability assessment..."
+                    className="w-full bg-transparent outline-none rounded text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text border-none p-0 focus:bg-blue-50/30"
+                  />
+                ) : paragraphs.length > 0 ? (
+                  paragraphs.map((p: string, idx: number) => (
+                    <p key={`post-${idx}`} className="whitespace-pre-line">{renderFormattedText(p)}</p>
+                  ))
+                ) : (
+                  <p>{renderFormattedText(text)}</p>
+                )}
+              </div>
+            )
+          ) : (
+            /* Standard single textarea editor (used for other sections or when no recorder data) */
+            <>
+              {isFormEditor && (
+                <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-500">
+                  <span className="text-[10px] font-semibold uppercase text-slate-400 mr-0.5">Insert:</span>
+                  <button
+                    type="button"
+                    onClick={handleInsertBullet}
+                    className="px-2 py-0.5 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded font-medium transition-colors flex items-center gap-1 cursor-pointer text-slate-700"
+                    title="Insert a bullet point (•)"
+                  >
+                    <span className="font-bold text-blue-600">•</span> Bullet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleInsertNumber}
+                    className="px-2 py-0.5 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded font-medium transition-colors flex items-center gap-1 cursor-pointer text-slate-700"
+                    title="Insert a numbered point (1.)"
+                  >
+                    <span className="font-bold text-blue-600">1)</span> Number
+                  </button>
+                </div>
+              )}
+
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={handleTextChange}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  isFormEditor
+                    ? hideClausePicker
+                      ? 'Fill in the blanks and edit this section…'
+                      : sectionSlug === 'general'
+                      ? 'Type this section…'
+                      : 'Type this section, or add standard wording above…'
+                    : ''
+                }
+                className={`w-full bg-transparent outline-none rounded text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text ${
+                  isFormEditor
+                    ? 'border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white p-1'
+                    : 'border-none p-0 focus:bg-blue-50/30'
+                }`}
+              />
+            </>
+          )}
 
           {sectionSlug === 'application' && (
             <ApplicationAttendance
@@ -392,13 +951,34 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
           )}
         </>
       ) : (
+        /* Preview Mode */
         <div className="space-y-2 text-xs leading-relaxed text-slate-800 text-justify">
-          {paragraphs.length > 0 ? (
-            paragraphs.map((p: string, idx: number) => (
-              <p key={idx} className="whitespace-pre-line">{renderFormattedText(p)}</p>
-            ))
+          {isCauseFruit && isCauseOfLoss && currentCondition !== 'no_recorder_data' ? (
+            <div className="space-y-3">
+              {preamble && <p className="whitespace-pre-line">{renderFormattedText(preamble)}</p>}
+
+              {recordersBlock && (
+                <RecordersBlock block={recordersBlock} reportId={reportId} hideTitle={true} />
+              )}
+
+              {paragraphs.length > 0 ? (
+                paragraphs.map((p: string, idx: number) => (
+                  <p key={`post-${idx}`} className="whitespace-pre-line">{renderFormattedText(p)}</p>
+                ))
+              ) : (
+                <p>{renderFormattedText(text)}</p>
+              )}
+            </div>
           ) : (
-            <p>{renderFormattedText(text)}</p>
+            <>
+              {paragraphs.length > 0 ? (
+                paragraphs.map((p: string, idx: number) => (
+                  <p key={idx} className="whitespace-pre-line">{renderFormattedText(p)}</p>
+                ))
+              ) : (
+                <p>{renderFormattedText(text)}</p>
+              )}
+            </>
           )}
 
           {sectionSlug === 'application' && block.attendance && block.attendance.length > 0 && (

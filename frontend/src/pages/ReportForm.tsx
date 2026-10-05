@@ -56,7 +56,23 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
   const handleBlockChange = (updatedBlock: any) => {
     setBlockState((prev: any) => {
       const currentBlocks = prev?.blocks || [];
-      const updated = currentBlocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
+      let updated = currentBlocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
+      // If Cause of Loss condition changed, sync temperature_recorders block inclusion
+      if (
+        (updatedBlock.id === 'b_cause' || /cause of loss/i.test(updatedBlock.section || '')) &&
+        updatedBlock.cause_condition
+      ) {
+        if (updatedBlock.cause_condition === 'no_recorder_data') {
+          updated = updated.map((b: any) => (b.type === 'temperature_recorders' ? { ...b, included: false } : b));
+        } else if (
+          updatedBlock.cause_condition === 'carrier_breach' ||
+          updatedBlock.cause_condition === 'cold_chain_complied'
+        ) {
+          updated = updated.map((b: any) =>
+            b.type === 'temperature_recorders' && (b.recorders || []).length > 0 ? { ...b, included: true } : b
+          );
+        }
+      }
       return { ...prev, blocks: updated };
     });
     setDirty(true);
@@ -721,6 +737,12 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
 
           if (block.type === 'narrative') {
             const included = isIncluded(block.included);
+            const isCauseOfLoss =
+              block.id === 'b_cause' ||
+              block.section === 'cause_of_loss' ||
+              /cause of loss/i.test(block.section || headings[block.id] || '');
+            const recordersBlock = isCauseOfLoss ? blocks.find((b: any) => b.type === 'temperature_recorders') : undefined;
+
             return (
               <div
                 key={block.id}
@@ -745,6 +767,9 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                     clauseContext={clauseContext}
                     heading={headings[block.id]}
                     isFormEditor={true}
+                    recordersBlock={recordersBlock}
+                    onRecordersChange={handleBlockChange}
+                    reportId={report.id}
                   />
                 ) : (
                   <div className="pr-28">
@@ -761,6 +786,15 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           }
 
           if (block.type === 'temperature_recorders') {
+            // When Paragraph 3 Cause of Loss is present, recorders are embedded directly
+            // inside Paragraph 3 between Preamble and Post-Graph assessment (authentic Marine Cargo style).
+            const hasCauseOfLoss = blocks.some(
+              (b: any) => b.id === 'b_cause' || /cause of loss/i.test(b.section || headings[b.id] || '')
+            );
+            if (hasCauseOfLoss) {
+              return null;
+            }
+
             const included = isIncluded(block.included);
             return (
               <div
@@ -773,7 +807,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
                   <SectionToggle checked={included} onChange={(next) => handleBlockChange({ ...block, included: next })} />
                 </div>
                 {included ? (
-                  <RecordersBlock block={block} reportId={report.id} onChange={handleBlockChange} />
+                  <RecordersBlock block={block} reportId={report.id} onChange={handleBlockChange} isFormEditor={true} />
                 ) : (
                   <div className="text-sm font-bold text-gray-400 uppercase tracking-wide line-through">
                     {block.title || 'Temperature recorder summary'}

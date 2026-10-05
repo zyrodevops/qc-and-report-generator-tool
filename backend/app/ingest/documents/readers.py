@@ -478,16 +478,18 @@ def read_recorder(data: bytes, filename: str = "") -> Dict[str, Any]:
     text = "\n".join((p.extract_text() or "") for p in reader.pages)
     out: Dict[str, Any] = {"kind": "recorder", "pages": len(reader.pages)}
     pats = {
-        "device_id": r"Device ID:\s*([A-Z0-9]+?)(?=\s|Log\b|$)",
-        "start": r"Start Time(?:/First Point)?:\s*([\d/]+\s+[\d:]+)",
-        "stop": r"Stop Time:\s*([\d/]+\s+[\d:]+)",
-        "highest_c": r"Highest Temperature:\s*(-?[\d.]+)",
-        "lowest_c": r"Lowest Temperature:\s*(-?[\d.]+)",
-        "average_c": r"Average Temperature:\s*(-?[\d.]+)",
-        "mkt_c": r"Mean Kinetic Temperature:\s*(-?[\d.]+)",
-        "data_points": r"Data Point[s]?:\s*(\d+)",
-        "interval": r"Log Interval(?:/cycle)?:\s*(\d+\s*(?:min|s|sec|h))",
-        "trip_length": r"Trip Length:\s*(\S+)",
+        "device_id": r"(?:Device ID|Temperature ID No\.|Recorder (?:Trip )?Sr\.? No\.|Serial No\.)[:\s]*([A-Z0-9_-]+?)(?=\s|Log\b|\(|$)",
+        "start": r"(?:Start Time(?:/First Point)?|First Point|First Log Time)[:\s]*([\d/:-]+\s+[\d/:-]+(?:\s*[AP]M)?)",
+        "stop": r"(?:Stop Time(?: / Last Point)?|Last Point|Last Log Time)[:\s]*([\d/:-]+\s+[\d/:-]+(?:\s*[AP]M)?)",
+        "highest_c": r"(?:Highest Temperature|High Extreme|Maximum Temperature|Max)[:\s]*(-?[\d.]+)",
+        "lowest_c": r"(?:Lowest Temperature|Low Extreme|Minimum Temperature|Min)[:\s]*(-?[\d.]+)",
+        "average_c": r"(?:Average Temperature|Average|Mean\s*±?\s*Std Deviation)[:\s]*(-?[\d.]+)",
+        "mkt_c": r"(?:Mean Kinetic Temperature|MKT)[:\s]*(-?[\d.]+)",
+        "data_points": r"(?:Data Point[s]?|No\. of Points|Number of Points)[:\s]*(\d+)",
+        "interval": r"(?:Log Interval(?:/cycle| / Duration)?|Interval)[:\s]*([^\n\r,;]+)",
+        "trip_length": r"(?:Trip Length|Elapsed Time)[:\s]*([^\n\r]+)",
+        "start_delay": r"(?:Start(?: Up)? Delay|Record Delay)[:\s]*([^\n\r]+)",
+        "alarm_status": r"Alarm\s*Status[:\s]*([A-Za-z0-9_-]+)",
         "utc_offset": r"\]\s*([+-]\d{2}:\d{2})|UTC\s*([+-]\d{2}:\d{2})",
     }
     summary: Dict[str, Any] = {}

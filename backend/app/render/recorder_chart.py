@@ -44,6 +44,58 @@ def summary_row(r: Dict[str, Any]) -> List[str]:
     ]
 
 
+def recorder_table_header(r: Dict[str, Any], idx: int = 0) -> str:
+    """Header string matching client reports: Recorder Trip Sr. No. <ID> # <Container> (Copy attached as Annexure <Letter>)"""
+    dev = str(r.get("device_id") or "—").strip()
+    cont = f" # {r['container']}" if r.get("container") else ""
+    annexure_letter = chr(ord('A') + idx)
+    return f"Recorder Trip Sr. No. {dev}{cont} (Copy of the temperature recording (PDF File) is attached as Annexure {annexure_letter})"
+
+
+def vertical_summary_rows(r: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """Vertical Parameter | Value rows for the authentic 2-column table in client reports."""
+    rows: List[Tuple[str, str]] = []
+    if r.get("start_delay"):
+        rows.append(("Start Delay", str(r["start_delay"])))
+    if r.get("interval"):
+        rows.append(("Log Interval", str(r["interval"])))
+    start_str = _when(r.get("start_iso"), r.get("start"))
+    if start_str:
+        rows.append(("First Point", start_str))
+    stop_str = _when(r.get("stop_iso"), r.get("stop"))
+    if stop_str:
+        rows.append(("Stop Time", stop_str))
+    if r.get("data_points"):
+        rows.append(("No. of Points", str(r["data_points"])))
+    if r.get("trip_length"):
+        rows.append(("Trip Length", str(r["trip_length"])))
+
+    # Highest / High Extreme
+    if r.get("highest_c") not in (None, ""):
+        h_str = _deg(r.get("highest_c"))
+        if r.get("highest_c_time"):
+            h_str += f" @{r['highest_c_time']}"
+        rows.append(("High Extreme", h_str))
+
+    # Lowest / Low Extreme
+    if r.get("lowest_c") not in (None, ""):
+        l_str = _deg(r.get("lowest_c"))
+        if r.get("lowest_c_time"):
+            l_str += f" @{r['lowest_c_time']}"
+        rows.append(("Low Extreme", l_str))
+
+    if r.get("average_c") not in (None, ""):
+        rows.append(("Average", _deg(r.get("average_c"))))
+
+    if r.get("mkt_c") not in (None, ""):
+        rows.append(("MKT", _deg(r.get("mkt_c"))))
+
+    if r.get("alarm_status"):
+        rows.append(("Alarm Status", str(r["alarm_status"])))
+
+    return rows
+
+
 def time_note(recorders: Sequence[Dict[str, Any]]) -> Optional[str]:
     offs = {r.get("utc_offset") for r in recorders if r.get("utc_offset")}
     if len(offs) == 1:
