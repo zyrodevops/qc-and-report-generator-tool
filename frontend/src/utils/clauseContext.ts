@@ -112,6 +112,30 @@ export function clauseContextFrom(blockState: any): ClauseContext {
     values.room_no = String(roomNo).trim();
   }
 
+  // Commercial Invoice: check Comm. Invoice No. and Invoice Value
+  const invoiceRow = rows.find((r: any) => /(?:comm(?:ercial)?\.?\s*)?invoice/i.test(r.label || ''));
+  const invoiceVal = real(invoiceRow?.value);
+  if (invoiceVal && !/information not furnished|not furnished|not available|n\/a/i.test(invoiceVal)) {
+    values.invoice_no = invoiceVal;
+  }
+  const invValRow = rows.find((r: any) => /invoice\s*value/i.test(r.label || ''));
+  const invVal = real(invValRow?.value);
+  if (!values.invoice_no && invVal && !/information not furnished|not furnished|not available|n\/a/i.test(invVal)) {
+    values.invoice_no = invVal;
+  }
+
+  // Insurance Policy: check Policy No. and Insurer
+  const policyRow = rows.find((r: any) => /policy/i.test(r.label || ''));
+  const policyVal = real(policyRow?.value);
+  if (policyVal && !/information not furnished|not furnished|not available|n\/a/i.test(policyVal)) {
+    values.policy_no = policyVal;
+  }
+  const insurerRow = rows.find((r: any) => /insurer|insurance\s*company/i.test(r.label || ''));
+  const insurerVal = real(insurerRow?.value);
+  if (!values.policy_no && insurerVal && !/information not furnished|not furnished|not available|n\/a/i.test(insurerVal)) {
+    values.policy_no = insurerVal;
+  }
+
   // The carrying temperature from the B/L / air waybill, once the documents are applied.
   const requested = blockState?.metadata?.shipment?.requested_temperature_c;
   if (Array.isArray(requested) ? requested.length : requested !== undefined && requested !== null && requested !== '') {
@@ -150,6 +174,13 @@ export function clauseContextFrom(blockState: any): ClauseContext {
   const setPoint = recBlock?.set_point_c;
   if (setPoint !== undefined && setPoint !== null && setPoint !== '') {
     values.set_temp = Array.isArray(setPoint) ? String(setPoint[0]) : String(setPoint);
+  }
+
+  // Recorder availability flag
+  const causeBlock = blocks.find((b: any) => b.id === 'b_cause' || /cause of loss/i.test(b.section || ''));
+  const causeCondition = causeBlock?.cause_condition;
+  if ((recList && recList.length > 0) || causeCondition === 'carrier_breach' || causeCondition === 'cold_chain_complied') {
+    (values as any).has_recorders = 'true';
   }
 
   // Defects actually counted: columns with a figure above zero in any row.
@@ -452,22 +483,35 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
   }
   (values as any).count_items = countItems;
 
-  // Consignee representative from attendance
+  // Consignee representative & joint survey check from attendance
   let consigneeRep = '';
+  let hasJointSurvey = false;
   const narrativeBlocks = blocks.filter((b) => b.type === 'narrative' || b.type === 'attendance');
   for (const nb of narrativeBlocks) {
     const attList: any[] = nb.attendance || [];
     for (const att of attList) {
       const rep = (att.representing || '').toLowerCase();
       const isMCA = rep.includes('marine cargo agencies') || (att.name || '').includes('Baburao') || (att.name || '').includes('Bhosale');
-      if (!isMCA && att.name?.trim()) {
+      if (!isMCA && att.name?.trim() && !consigneeRep) {
         consigneeRep = att.name.trim();
-        break;
+      }
+      if (
+        rep.includes('shipping line') ||
+        rep.includes('shipper') ||
+        rep.includes('insurer') ||
+        rep.includes('underwriter') ||
+        rep.includes('wan hai') ||
+        rep.includes('oocl') ||
+        rep.includes('maersk') ||
+        rep.includes('msc') ||
+        rep.includes('cma cgm')
+      ) {
+        hasJointSurvey = true;
       }
     }
-    if (consigneeRep) break;
   }
   if (consigneeRep) values.representative_name = consigneeRep;
+  if (hasJointSurvey) (values as any).has_joint_survey = 'true';
 
   // Total boxes from particulars or consignment table
   let foundTotalBoxes = '';
@@ -533,6 +577,16 @@ function isSubtotalRow(row: any, precedingRows: any[]): boolean {
   if (foundTotalBoxes) {
     values.total_boxes = foundTotalBoxes;
   }
+
+  // Photo count from photo_plate blocks
+  let totalPhotos = 0;
+  const photoBlocks = blocks.filter((b: any) => b.type === 'photo_plate');
+  for (const pb of photoBlocks) {
+    for (const g of pb.groups || []) {
+      totalPhotos += (g.asset_ids || []).length;
+    }
+  }
+  values.photo_count = String(totalPhotos);
 
   const meta = blockState?.metadata || {};
   let detectedCommodity = meta.commodity ? String(meta.commodity).toLowerCase().trim().replace(/s$/, '') : undefined;
@@ -1766,5 +1820,145 @@ export function fillCauseOfLossBlanks(text: string, clauseContext: ClauseContext
   return updated;
 }
 
+export type NextStepAction = 'prompt_sale' | 'bio_destruction';
 
+/**
+ * Dispatches Paragraph 4 Next Step generation based on fruit, cause condition, and action type.
+ */
+export function buildParagraph4NextStep(
+  clauseContext: ClauseContext,
+  condition?: CauseCondition,
+  action?: NextStepAction
+): string {
+  const commodity = (clauseContext.commodity || 'Fruit').trim();
+  const capCommodity = commodity.charAt(0).toUpperCase() + commodity.slice(1).toLowerCase();
+  const act = action || 'prompt_sale';
 
+  if (act === 'bio_destruction') {
+    return (
+      'As the entire consignment is severely decayed, mold-infested, completely unfit for human ' +
+      'consumption, and devoid of any commercial salvage value, the Consignees are requested to ' +
+      'arrange for supervised bio-destruction and submit the official Municipal/APMC Disposal ' +
+      'Certificate along with comprehensive photographic and video evidence for our perusal and file records.'
+    );
+  }
+
+  // Action: prompt_sale
+  // Apple and Pear in client reports (M-161 to M-164) use the 2-sentence version with claims direction:
+  if (commodity.toLowerCase().includes('apple') || commodity.toLowerCase().includes('pear')) {
+    return (
+      `To mitigate losses from the damaged ${capCommodity} fruits, we advised the Consignees to sell them ` +
+      `immediately. Consignees are requested to pursue any claims-related matter directly with the ` +
+      `responsible parties.`
+    );
+  }
+
+  // Grapes, Mandarin, Plum (M-167, M-168) use:
+  return (
+    `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as ` +
+    `possible to avoid further damages to ${capCommodity} fruits.`
+  );
+}
+
+/**
+ * Detects whether the current Next Step text represents bio-destruction or prompt sale.
+ */
+export function detectNextStepAction(text: string): NextStepAction {
+  if (/bio-destruction|biodestruction|unfit for human consumption|disposal certificate/i.test(text)) {
+    return 'bio_destruction';
+  }
+  return 'prompt_sale';
+}
+
+export interface DocumentItemOption {
+  id: string;
+  label: string;
+}
+
+export const STANDARD_DOCUMENT_OPTIONS: DocumentItemOption[] = [
+  { id: 'bl', label: 'Bill of Lading' },
+  { id: 'pl', label: 'Packing List' },
+  { id: 'invoice', label: 'Commercial Invoice' },
+  { id: 'phyto', label: 'Phytosanitary Certificate' },
+  { id: 'coo', label: 'Certificate of Origin' },
+  { id: 'insurance', label: 'Cargo Transportation Insurance Policy' },
+  { id: 'recorders', label: 'Annexure A - Temperature Data Recorder PDF Report' },
+  { id: 'joint_survey', label: 'Joint Survey Report dully signed by the attendees' },
+  { id: 'tracking', label: 'Container Tracking Information / Movement Information List' },
+];
+
+export type PhotoDeliveryMode = 'dropbox' | 'zip';
+
+/**
+ * Dispatches Paragraph 5 Documentation generation based on secured documents and photo counts.
+ */
+export function buildParagraph5Documentation(
+  clauseContext: ClauseContext,
+  selectedDocIds?: string[],
+  photoDelivery: PhotoDeliveryMode = 'dropbox'
+): string {
+  const vals = clauseContext.values || {};
+  const photoCountNum = parseInt(vals.photo_count || '0', 10);
+  const photoCountStr = photoCountNum > 0 ? String(photoCountNum) : '[Photo Count]';
+
+  // Determine which documents to include
+  let activeIds: string[] = selectedDocIds ? [...selectedDocIds] : [];
+  if (!selectedDocIds || selectedDocIds.length === 0) {
+    activeIds = ['bl', 'pl'];
+    if (vals.invoice_no) activeIds.push('invoice');
+    // For imported fresh fruit in India, Phyto and COO are standard customs clearance requirements
+    activeIds.push('phyto', 'coo');
+    if (vals.policy_no) activeIds.push('insurance');
+    if ((vals as any).has_recorders === 'true') activeIds.push('recorders');
+    if ((vals as any).has_joint_survey === 'true') activeIds.push('joint_survey');
+  }
+
+  const docBullets: string[] = [];
+  for (const opt of STANDARD_DOCUMENT_OPTIONS) {
+    if (activeIds.includes(opt.id)) {
+      docBullets.push(`• ${opt.label}`);
+    }
+  }
+
+  // Photo summary bullet
+  let photoBullet = '';
+  if (photoDelivery === 'zip') {
+    photoBullet = `• Total ${photoCountStr} survey photographs taken during our inspection are included in a separate ZIP file. These photos are in JPG format.`;
+  } else {
+    photoBullet = `• A total of ${photoCountStr} survey photographs were taken during the inspection and are appended below. High-resolution copies in JPG format have also been shared via a Dropbox link sent separately by email.`;
+  }
+  docBullets.push(photoBullet);
+
+  return [
+    'Documentation secured during our initial inquiries / site attendance is attached to this email.',
+    '',
+    ...docBullets,
+  ].join('\n');
+}
+
+/**
+ * Detects which document IDs are currently mentioned in the documentation text.
+ */
+export function detectActiveDocIds(text: string): string[] {
+  const ids: string[] = [];
+  if (/bill of lading/i.test(text)) ids.push('bl');
+  if (/packing list/i.test(text)) ids.push('pl');
+  if (/commercial invoice/i.test(text)) ids.push('invoice');
+  if (/phytosanitary/i.test(text)) ids.push('phyto');
+  if (/certificate of origin/i.test(text)) ids.push('coo');
+  if (/insurance policy/i.test(text)) ids.push('insurance');
+  if (/temperature.*(?:recorder|report)/i.test(text)) ids.push('recorders');
+  if (/joint survey/i.test(text)) ids.push('joint_survey');
+  if (/container tracking|movement/i.test(text)) ids.push('tracking');
+  return ids;
+}
+
+/**
+ * Detects whether the current text uses ZIP or Dropbox wording for photos.
+ */
+export function detectPhotoDelivery(text: string): PhotoDeliveryMode {
+  if (/zip file/i.test(text)) {
+    return 'zip';
+  }
+  return 'dropbox';
+}

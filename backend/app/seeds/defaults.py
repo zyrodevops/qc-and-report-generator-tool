@@ -480,19 +480,42 @@ def _build_blocks_for_commodity(
     })
 
     # ── Block 9: PARAGRAPH 4 — NEXT STEP ──────────────────────────────────
+    comm_name = clean_label.capitalize() or "Fruit"
+    if comm_name.lower() in ("apple", "pear"):
+        next_step_default = (
+            f"To mitigate losses from the damaged {comm_name} fruits, we advised the Consignees to sell them "
+            f"immediately. Consignees are requested to pursue any claims-related matter directly with the "
+            f"responsible parties."
+        )
+    else:
+        next_step_default = (
+            f"As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as "
+            f"possible to avoid further damages to {comm_name} fruits."
+        )
+
     blocks.append({
         "id": "b_next_step",
         "type": "narrative",
         "section": "PARAGRAPH 4: NEXT STEP",
-        "additional_text": "",
+        "additional_text": next_step_default,
     })
 
     # ── Block 10: PARAGRAPH 5 — DOCUMENTATION ──────────────────────────────
+    doc_default = (
+        "Documentation secured during our initial inquiries / site attendance is attached to this email.\n\n"
+        "• Bill of Lading\n"
+        "• Packing List\n"
+        "• Phytosanitary Certificate\n"
+        "• Certificate of Origin\n"
+        "• Annexure A - Temperature Data Recorder PDF Report\n"
+        "• A total of [Photo Count] survey photographs were taken during the inspection and are appended below. "
+        "High-resolution copies in JPG format have also been shared via a Dropbox link sent separately by email."
+    )
     blocks.append({
         "id": "b_doc",
         "type": "narrative",
         "section": "PARAGRAPH 5: DOCUMENTATION",
-        "additional_text": "",
+        "additional_text": doc_default,
     })
 
     # ── Block 11: Formal closure ──────────────────────────────────────────

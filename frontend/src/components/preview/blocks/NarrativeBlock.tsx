@@ -24,6 +24,14 @@ import {
   fillCauseOfLossBlanks,
   detectCauseCondition,
   type CauseCondition,
+  buildParagraph4NextStep,
+  detectNextStepAction,
+  type NextStepAction,
+  buildParagraph5Documentation,
+  STANDARD_DOCUMENT_OPTIONS,
+  detectActiveDocIds,
+  detectPhotoDelivery,
+  type PhotoDeliveryMode,
 } from '../../../utils/clauseContext';
 import { RecordersBlock } from './RecordersBlock';
 
@@ -270,7 +278,24 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   const commodityKey = (clauseContext?.commodity || '').toLowerCase();
   // Option cards hidden for curated fruits (apple, grapes, plum, pear, mandarin) per user instruction (kept preserved in code)
   const isCuratedFruit = ['apple', 'grapes', 'grape', 'plum', 'pear', 'mandarin'].includes(commodityKey);
-  const hideClausePicker = sectionSlug === 'application' || isCuratedFruit;
+  const isNextStep =
+    block.id === 'b_next_step' ||
+    sectionSlug === 'next_step' ||
+    /paragraph 4|next step/i.test(sectionTitle);
+  const currentNextStepAction: NextStepAction =
+    block.next_step_action || detectNextStepAction(text);
+
+  const isDocumentation =
+    block.id === 'b_doc' ||
+    block.id === 'b_documentation' ||
+    sectionSlug === 'documentation' ||
+    /paragraph 5|documentation/i.test(sectionTitle);
+  const currentActiveDocIds: string[] =
+    block.selected_doc_ids || (text ? detectActiveDocIds(text) : []);
+  const currentPhotoDelivery: PhotoDeliveryMode =
+    block.photo_delivery || (text ? detectPhotoDelivery(text) : 'dropbox');
+
+  const hideClausePicker = sectionSlug === 'application' || isCuratedFruit || isNextStep || isDocumentation;
   const isCircumstances = sectionSlug === 'circumstances_of_loss' || /circumstance/i.test(sectionTitle);
 
   const consigneeName = String(clauseContext?.values?.consignee || '');
@@ -406,6 +431,99 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
       }
     }
   }, [commodityKey, isCauseFruit, isCauseOfLoss, text, preamble, clauseContext, currentCondition]);
+
+  // Pre-populate Paragraph 4 Next Step for Apple, Pear, Mandarin, Grapes & Plum
+  useEffect(() => {
+    if (isCuratedFruit && isNextStep && onChange && clauseContext) {
+      if (!text.trim()) {
+        const defaultText = buildParagraph4NextStep(clauseContext, undefined, currentNextStepAction);
+        onChange({
+          ...block,
+          additional_text: defaultText,
+          next_step_action: currentNextStepAction,
+        });
+      }
+    }
+  }, [commodityKey, isCuratedFruit, isNextStep, text, clauseContext, currentNextStepAction]);
+
+  const handleNextStepActionSwitch = (newAction: NextStepAction) => {
+    if (!onChange || !clauseContext) return;
+    const newText = buildParagraph4NextStep(clauseContext, undefined, newAction);
+    onChange({
+      ...block,
+      additional_text: newText,
+      next_step_action: newAction,
+      surveyor_edited: true,
+    });
+  };
+
+  // Auto-sync Paragraph 5 Documentation from particulars, recorders, attendance, and photos if unedited
+  useEffect(() => {
+    if (isDocumentation && onChange && clauseContext) {
+      const isUnedited = !text.trim() || !block.surveyor_edited;
+      if (isUnedited) {
+        const syncedText = buildParagraph5Documentation(clauseContext, undefined, currentPhotoDelivery);
+        if (syncedText !== text) {
+          const syncedDocIds = detectActiveDocIds(syncedText);
+          onChange({
+            ...block,
+            additional_text: syncedText,
+            selected_doc_ids: syncedDocIds,
+            photo_delivery: currentPhotoDelivery,
+          });
+        }
+      }
+    }
+  }, [
+    isDocumentation,
+    block.surveyor_edited,
+    text,
+    clauseContext?.values?.invoice_no,
+    clauseContext?.values?.policy_no,
+    clauseContext?.values?.has_recorders,
+    clauseContext?.values?.has_joint_survey,
+    clauseContext?.values?.photo_count,
+    currentPhotoDelivery,
+  ]);
+
+  const handleToggleDoc = (docId: string) => {
+    if (!onChange || !clauseContext) return;
+    const currentList = currentActiveDocIds.length > 0 ? currentActiveDocIds : detectActiveDocIds(text);
+    const nextList = currentList.includes(docId)
+      ? currentList.filter((id) => id !== docId)
+      : [...currentList, docId];
+    const newText = buildParagraph5Documentation(clauseContext, nextList, currentPhotoDelivery);
+    onChange({
+      ...block,
+      additional_text: newText,
+      selected_doc_ids: nextList,
+      surveyor_edited: true,
+    });
+  };
+
+  const handlePhotoDeliverySwitch = (newDelivery: PhotoDeliveryMode) => {
+    if (!onChange || !clauseContext) return;
+    const currentList = currentActiveDocIds.length > 0 ? currentActiveDocIds : detectActiveDocIds(text);
+    const newText = buildParagraph5Documentation(clauseContext, currentList, newDelivery);
+    onChange({
+      ...block,
+      additional_text: newText,
+      photo_delivery: newDelivery,
+      surveyor_edited: true,
+    });
+  };
+
+  const handleDocRegenerate = () => {
+    if (!onChange || !clauseContext) return;
+    const newText = buildParagraph5Documentation(clauseContext, undefined, currentPhotoDelivery);
+    const detected = detectActiveDocIds(newText);
+    onChange({
+      ...block,
+      additional_text: newText,
+      selected_doc_ids: detected,
+      surveyor_edited: true,
+    });
+  };
 
   const handleConditionSwitch = (newCondition: CauseCondition) => {
     if (!onChange || !clauseContext) return;
@@ -719,6 +837,116 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
             </div>
           )}
 
+          {/* Paragraph 4 Next Step 2-button segmented pill selector: ONLY in Form Editor for Next Step */}
+          {isFormEditor && isCuratedFruit && isNextStep && (
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Next Step Action:
+                </span>
+                <div className="inline-flex rounded-md shadow-xs" role="group">
+                  <button
+                    type="button"
+                    onClick={() => handleNextStepActionSwitch('prompt_sale')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-l-md border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      currentNextStepAction === 'prompt_sale'
+                        ? 'bg-blue-600 text-white border-blue-600 z-10 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                    title="Immediate prompt sale to mitigate loss"
+                  >
+                    <span>⚡</span> Prompt Sale / Mitigation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNextStepActionSwitch('bio_destruction')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-r-md border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      currentNextStepAction === 'bio_destruction'
+                        ? 'bg-rose-600 text-white border-rose-600 z-10 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                    title="Total loss / supervised bio-destruction & APMC disposal certificate (e.g. M-160)"
+                  >
+                    <span>🗑️</span> Supervised Bio-Destruction (Total Loss)
+                  </button>
+                </div>
+              </div>
+              <span className="text-[10px] text-slate-400 italic">
+                Prompt sale vs. APMC bio-destruction
+              </span>
+            </div>
+          )}
+
+          {/* Paragraph 5 Documentation helper: ONLY in Form Editor for Documentation */}
+          {isFormEditor && isDocumentation && (
+            <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Secured Documents Included:
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDocRegenerate}
+                  className="px-2 py-0.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                  title="Re-detect from Particulars, Attendance, and Photo Plate"
+                >
+                  <span>🔄</span> Re-detect from Data & Photos
+                </button>
+              </div>
+
+              {/* Document toggle chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {STANDARD_DOCUMENT_OPTIONS.map((opt) => {
+                  const isSelected = (currentActiveDocIds.length > 0 ? currentActiveDocIds : detectActiveDocIds(text)).includes(opt.id);
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleToggleDoc(opt.id)}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md border transition cursor-pointer flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                          : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100 hover:text-slate-800'
+                      }`}
+                    >
+                      <span>{isSelected ? '✓' : '+'}</span>
+                      <span>{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Photo delivery wording toggle */}
+              <div className="flex flex-wrap items-center justify-between pt-1 border-t border-slate-200 text-xs">
+                <span className="text-[10px] text-slate-500 font-semibold uppercase">Photo Delivery Phrasing:</span>
+                <div className="inline-flex rounded-md shadow-2xs" role="group">
+                  <button
+                    type="button"
+                    onClick={() => handlePhotoDeliverySwitch('dropbox')}
+                    className={`px-2.5 py-0.5 text-xs font-medium rounded-l-md border transition cursor-pointer ${
+                      currentPhotoDelivery === 'dropbox'
+                        ? 'bg-slate-700 text-white border-slate-700'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    ☁️ Dropbox Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePhotoDeliverySwitch('zip')}
+                    className={`px-2.5 py-0.5 text-xs font-medium rounded-r-md border transition cursor-pointer ${
+                      currentPhotoDelivery === 'zip'
+                        ? 'bg-slate-700 text-white border-slate-700'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    📦 ZIP File
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Paragraph 3 with Recorders: Form Editor mode vs A4 HTML Preview mode */}
           {isCauseFruit && isCauseOfLoss && currentCondition !== 'no_recorder_data' ? (
             isFormEditor ? (
@@ -894,7 +1122,11 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
                 onKeyDown={handleKeyDown}
                 placeholder={
                   isFormEditor
-                    ? hideClausePicker
+                    ? isDocumentation
+                      ? 'Type documentation advice (e.g. bills of lading, packing lists, photo tallies)...'
+                      : isNextStep
+                      ? 'Type next step advice (e.g. prompt sale or supervised bio-destruction)...'
+                      : hideClausePicker
                       ? 'Fill in the blanks and edit this section…'
                       : sectionSlug === 'general'
                       ? 'Type this section…'

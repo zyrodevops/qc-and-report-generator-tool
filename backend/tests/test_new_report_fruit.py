@@ -174,4 +174,34 @@ def test_paragraph_2_1_our_survey_templates_and_measurements_inclusion():
         assert other_meas.get("included") is True, f"Expected included=True for {other}"
 
 
+def test_paragraph_4_next_step_defaults():
+    # Apple & Pear use the 2-sentence version with claims direction (M-161 to M-164)
+    for fruit in ["APPLE", "PEAR"]:
+        state = get_default_block_state(TEMPLATE, commodity_key=fruit)
+        p4 = next(b for b in state["blocks"] if b.get("id") == "b_next_step")
+        assert "sell them immediately" in p4["additional_text"]
+        assert "directly with the responsible parties" in p4["additional_text"]
+        assert fruit.capitalize() in p4["additional_text"]
+
+    # Grapes, Mandarin, Plum use the single-sentence version (M-167, M-168)
+    for fruit in ["GRAPES", "MANDARIN", "PLUM"]:
+        state = get_default_block_state(TEMPLATE, commodity_key=fruit)
+        p4 = next(b for b in state["blocks"] if b.get("id") == "b_next_step")
+        assert "As an act to mitigate the loss" in p4["additional_text"]
+        assert "as soon as possible to avoid further damages" in p4["additional_text"]
+        assert fruit.lower() in p4["additional_text"].lower()
+
+
+def test_paragraph_5_documentation_defaults():
+    for fruit in ["APPLE", "PEAR", "GRAPES", "MANDARIN", "PLUM"]:
+        state = get_default_block_state(TEMPLATE, commodity_key=fruit)
+        p5 = next(b for b in state["blocks"] if b.get("id") == "b_doc")
+        assert "Documentation secured during our initial inquiries" in p5["additional_text"]
+        assert "Bill of Lading" in p5["additional_text"]
+        assert "Packing List" in p5["additional_text"]
+        assert "survey photographs were taken during the inspection" in p5["additional_text"]
+        assert "Dropbox link" in p5["additional_text"]
+
+
+
 

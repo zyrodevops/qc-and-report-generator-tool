@@ -24,7 +24,7 @@ import { PhotoTray } from '../components/photos/PhotoTray';
 import { ReportPreview } from '../components/preview/ReportPreview';
 import { NarrativeBlock } from '../components/preview/blocks/NarrativeBlock';
 import { RecordersBlock } from '../components/preview/blocks/RecordersBlock';
-import { clauseContextFrom, fillNamedBlanks, findBlanks, generalCargoValues } from '../utils/clauseContext';
+import { buildParagraph4NextStep, clauseContextFrom, fillNamedBlanks, findBlanks, generalCargoValues } from '../utils/clauseContext';
 import { normalizeVoyageAsync } from '../utils/portNormalizer';
 import { ShipmentDocuments } from '../components/documents/ShipmentDocuments';
 import { CoverEditor } from '../components/generalCargo/CoverEditor';
@@ -57,7 +57,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
     setBlockState((prev: any) => {
       const currentBlocks = prev?.blocks || [];
       let updated = currentBlocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
-      // If Cause of Loss condition changed, sync temperature_recorders block inclusion
+      // If Cause of Loss condition changed, sync temperature_recorders block inclusion and Paragraph 4 (b_next_step)
       if (
         (updatedBlock.id === 'b_cause' || /cause of loss/i.test(updatedBlock.section || '')) &&
         updatedBlock.cause_condition
@@ -71,6 +71,29 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           updated = updated.map((b: any) =>
             b.type === 'temperature_recorders' && (b.recorders || []).length > 0 ? { ...b, included: true } : b
           );
+        }
+
+        // Sync Paragraph 4 (b_next_step) based on Cause Condition per authentic client reports
+        if (updatedBlock.cause_condition === 'cold_chain_complied') {
+          // In cold chain complied, loss mitigation advice is already in Paragraph 3 conclusion per M-165 & M-166.
+          // Omit Paragraph 4 as standalone section.
+          updated = updated.map((b: any) => (b.id === 'b_next_step' ? { ...b, included: false } : b));
+        } else if (
+          updatedBlock.cause_condition === 'carrier_breach' ||
+          updatedBlock.cause_condition === 'no_recorder_data'
+        ) {
+          const ctx = clauseContextFrom(prev);
+          updated = updated.map((b: any) => {
+            if (b.id === 'b_next_step') {
+              const currentAction = b.next_step_action || 'prompt_sale';
+              const isUnedited = !b.additional_text?.trim() || !b.surveyor_edited;
+              const newText = isUnedited
+                ? buildParagraph4NextStep(ctx, updatedBlock.cause_condition, currentAction)
+                : b.additional_text;
+              return { ...b, included: true, additional_text: newText };
+            }
+            return b;
+          });
         }
       }
       return { ...prev, blocks: updated };
