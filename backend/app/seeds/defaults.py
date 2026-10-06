@@ -453,7 +453,12 @@ def _build_blocks_for_commodity(
     # show_title / show_chart only set the starting ticks. Grapes reports put
     # the table straight under Our Survey without a "Condition found of…"
     # heading, and most apple reports have no chart — but either can be ticked.
-    blocks.append(_table_block(commodity_key, archetype, "b_table"))
+    table = _table_block(commodity_key, archetype, "b_table")
+    # Apple and Pear write "THE CONDITION FOUND OF … FRUITS:" inside Our Survey,
+    # as the client's reports do; the table's own heading would print it twice.
+    if table["title"].strip().lower() in para2_1_text.lower():
+        table["show_title"] = False
+    blocks.append(table)
 
     # ── Block 7: Survey Photographs ───────────────────────────────────────
     blocks.append({

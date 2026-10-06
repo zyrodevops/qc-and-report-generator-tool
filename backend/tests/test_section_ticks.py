@@ -69,6 +69,8 @@ def test_only_real_measurements_are_offered():
 
 def test_table_heading_and_chart_follow_their_ticks():
     st = _state("APPLE")
+    # Our Survey carries the same heading for Apple; leave it out so only the table's own heading is tested.
+    next(b for b in st["blocks"] if b["id"] == "b_para2_1")["additional_text"] = ""
     t = next(b for b in st["blocks"] if b["type"] == "table")
     t["rows"] = [{"group": "120", "values": {"sound": "67", "rotten": "3"}}]
 
@@ -81,6 +83,16 @@ def test_table_heading_and_chart_follow_their_ticks():
     assert t["title"] not in html and "SURVEY FINDINGS IN GRAPH" not in html
     # the table itself always stays
     assert "Total (pcs)" in html
+
+
+def test_condition_found_heading_prints_once():
+    # Apple and Pear have it inside Our Survey, so the table heading starts unticked.
+    for fruit in ("APPLE", "PEAR"):
+        st = _state(fruit)
+        t = next(b for b in st["blocks"] if b["type"] == "table")
+        t["rows"] = [{"group": "120", "values": {"sound": "67", "rotten": "3"}}]
+        assert t["show_title"] is False
+        assert render_html(st).count(t["title"]) == 1
 
 
 def test_old_reports_without_flags_render_as_before():

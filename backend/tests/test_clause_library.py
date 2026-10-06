@@ -253,10 +253,14 @@ def test_new_reports_start_with_blanks_not_guesses():
     assert any("[Port of Discharge]" in str(r.get("value", [])) for r in particulars["rows"])
 
 
-def test_new_reports_start_with_empty_text_sections():
+def test_new_reports_prefill_only_the_standard_sections():
+    # A fruit without its own wording: Application, Next step and Documentation
+    # start with the standard text; the sections about this case start empty.
     state = get_default_block_state("perishable_sea_survey", commodity_key="AVOCADO")
-    texts = [b["additional_text"] for b in state["blocks"] if b["type"] == "narrative"]
-    assert texts[0].startswith("Pursuant to the Consignee's request") and all(t == "" for t in texts[1:])
+    texts = {b["id"]: b["additional_text"] for b in state["blocks"] if b["type"] == "narrative"}
+    assert texts["b_para1"].startswith("Pursuant to the Consignee's request")
+    assert texts["b_next_step"] and texts["b_doc"].startswith("Documentation secured")
+    assert all(texts[k] == "" for k in ("b_para2", "b_note", "b_para2_1", "b_cause"))
 
 
 @pytest.mark.asyncio
