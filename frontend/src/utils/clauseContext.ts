@@ -1003,7 +1003,7 @@ export function buildAppleOurSurvey(clauseContext: ClauseContext): string {
             : vals.pressure_min && vals.pressure_max
             ? `Range of ${vals.pressure_min} LBS to ${vals.pressure_max} LBS.`
             : `Range of [${ci.count} Count Pressure Min LBS] to [${ci.count} Count Pressure Max LBS].`;
-        return `• ${vName}: ${range}`;
+        return `• **${vName}:** ${range}`;
       })
       .join('\n');
   } else {
@@ -1016,7 +1016,7 @@ export function buildAppleOurSurvey(clauseContext: ClauseContext): string {
     const appleVar = vals.variety?.trim()
       ? `${vals.variety.trim()} ([Count] Count)`
       : '[Apple Variety] ([Count] Count)';
-    pressureBullets = `• ${appleVar}: ${pressRange}`;
+    pressureBullets = `• **${appleVar}:** ${pressRange}`;
   }
 
   const brixMin = vals.brix_min?.trim();
@@ -1030,17 +1030,17 @@ export function buildAppleOurSurvey(clauseContext: ClauseContext): string {
   return (
     `The consignee's end buyer representative, ${rep}, presented ${totalBoxes} boxes across ${countsCount} on various pallets for our survey. ` +
     `These were stored in cold storage room number ${roomNo}, where the ambient temperature was recorded as ${roomTemp}.\n\n` +
-    `THE CONDITION FOUND OF APPLE FRUITS:\n\n` +
+    `## THE CONDITION FOUND OF APPLE FRUITS:\n\n` +
     `The pulp temperature of the Apple fruits was measured inside the cold room using a digital thermometer and registered in the range of ${pulpRange}.\n\n` +
     `From different locations within the cold room, ${sampleBoxes} boxes across ${countsCount} were randomly selected and opened for detailed examination. ` +
     `Upon unpacking and inspection, the Apple fruits inside the cartons exhibited a mixture of conditions, including sound, and various degrees of rotten.\n\n` +
     `The pressure of the randomly selected various Apple fruits across ${countsCount} were measured using a penetrometer, and the following average values were recorded for the sound apples:\n` +
     `${pressureBullets}\n\n` +
-    `The Apple fruits were cut, and the following pulp conditions were observed:\n` +
-    `• Sound apples: The pulp was consistently hard and white.\n` +
-    `• Bruised apples: While the overall pulp remained firm, the bruised areas were noted to be soft and brown in colour.\n` +
+    `__The Apple fruits were cut, and the following pulp conditions were observed__:\n` +
+    `• **Sound apples:** The pulp was consistently hard and white.\n` +
+    `• **Bruised apples:** While the overall pulp remained firm, the bruised areas were noted to be soft and brown in colour.\n` +
     `• The sugar brix for the aforementioned counts was measured and found to be in the range of ${brixRange}.\n\n` +
-    `During our inspection, ${sampleBoxes} boxes out of the ${totalBoxes} boxes (under ${countsCount}) were separated into the following categories. ` +
+    `During our inspection, **${sampleBoxes} boxes out of the ${totalBoxes} boxes** (under ${countsCount}) were separated into the following categories. ` +
     `The details for each category are provided below:`
   );
 }
@@ -1065,14 +1065,14 @@ export function buildPearOurSurvey(clauseContext: ClauseContext): string {
   if (countItems.length > 0) {
     pressureBullets = countItems
       .map((ci, idx) => {
-        const vName = ci.variety ? `${ci.variety} (${ci.count} Count)` : `(${ci.count} Count)`;
+        const vName = ci.variety ? `${ci.variety} **(${ci.count} Count):**` : `**(${ci.count} Count):**`;
         const range =
           ci.min && ci.max
             ? `Range of ${ci.min} LBS to ${ci.max} LBS.`
             : vals.pressure_min && vals.pressure_max
             ? `Range of ${vals.pressure_min} LBS to ${vals.pressure_max} LBS.`
             : `Range of [${ci.count} Count Pressure Min LBS] to [${ci.count} Count Pressure Max LBS].`;
-        return `${idx + 1}) ${vName}: ${range}`;
+        return `${idx + 1}) ${vName} ${range}`;
       })
       .join('\n');
   } else {
@@ -1083,9 +1083,9 @@ export function buildPearOurSurvey(clauseContext: ClauseContext): string {
         ? `Range of ${pressMin} LBS to ${pressMax} LBS.`
         : 'Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].';
     const pearVar = vals.variety?.trim()
-      ? `${vals.variety.trim()} ([Count] Count)`
-      : '[Pear Variety] ([Count] Count)';
-    pressureBullets = `1) ${pearVar}: ${pressRange}`;
+      ? `${vals.variety.trim()} **([Count] Count):**`
+      : '[Pear Variety] **([Count] Count):**';
+    pressureBullets = `1) ${pearVar} ${pressRange}`;
   }
 
   const brixMin = vals.brix_min?.trim();
@@ -1099,16 +1099,16 @@ export function buildPearOurSurvey(clauseContext: ClauseContext): string {
   return (
     `The consignee's representative, ${rep}, presented ${totalBoxes} boxes across ${countsCount} for our survey. ` +
     `These were stored in cold storage room number ${roomNo}, where the ambient temperature was recorded as ${roomTemp}.\n\n` +
-    `THE CONDITION FOUND OF PEAR FRUITS:\n\n` +
+    `## THE CONDITION FOUND OF PEAR FRUITS:\n\n` +
     `The pulp temperature of the Pear fruits was measured inside the cold room using a digital thermometer and registered in the range of ${pulpRange}.\n\n` +
     `From different locations within the cold room, ${sampleBoxes} boxes across ${countsCount} were randomly selected and opened for detailed examination. ` +
     `Upon unpacking and inspection, the Pear fruits inside the cartons exhibited a mixture of conditions, including sound and in a rotten condition in various degrees.\n\n` +
     `The pressure of the Pear fruits under ${countsCount} was measured using a penetrometer, and the following average values were recorded for the sound Pears:\n` +
     `${pressureBullets}\n\n` +
-    `The Pear fruits were cut, and the following pulp conditions were observed:\n` +
-    `• Sound Pears: The pulp was consistently hard.\n` +
+    `__The Pear fruits were cut, and the following pulp conditions were observed__:\n` +
+    `• **Sound Pears:** The pulp was consistently hard.\n` +
     `• The sugar brix for the above counts was measured and found to be in the range of ${brixRange}.\n\n` +
-    `During our inspection, ${sampleBoxes} boxes out of the ${totalBoxes} boxes (under ${countsCount}) were separated into the following categories. ` +
+    `During our inspection, **${sampleBoxes} boxes out of the ${totalBoxes} boxes** (under ${countsCount}) were separated into the following categories. ` +
     `The details for each category are provided below:`
   );
 }
@@ -1206,7 +1206,7 @@ export function buildPlumOurSurvey(clauseContext: ClauseContext): string {
     `• Pulp temperatures drawn inside the container across different locations using a digital probe thermometer ranged from ${pulpRange}.\n` +
     `• Under continuous surveyor supervision, 100% destuffing of the consignment comprising ${totalBoxes} cartons was completed and transferred directly into the cold storage facility.\n` +
     `• A representative sample of ${sampleBoxes} cartons was drawn across the stow for detailed segregation and defect classification.\n\n` +
-    `Pulp condition after cutting & the Taste:\n` +
+    `## Pulp condition after cutting & the Taste:\n` +
     `• Cross-sectional cutting of representative fruit specimens revealed internal breakdown, water-soaking, and deep flesh browning.\n` +
     `• Organoleptic evaluation indicated severe textural degradation; the pulp was mushy, lacked characteristic varietal firmness, and had acquired an offensive, fermented taste.`
   );
@@ -1249,20 +1249,23 @@ export function fillOurSurveyBlanks(text: string, clauseContext: ClauseContext):
     const isPear = /pear/i.test(updated);
     const bullets = countItems
       .map((ci, idx) => {
-        const vName = ci.variety ? `${ci.variety} (${ci.count} Count)` : `(${ci.count} Count)`;
+        const label = ci.variety ? `${ci.variety} (${ci.count} Count):` : `(${ci.count} Count):`;
         const range =
           ci.min && ci.max
             ? `Range of ${ci.min} LBS to ${ci.max} LBS.`
             : vals.pressure_min && vals.pressure_max
             ? `Range of ${vals.pressure_min} LBS to ${vals.pressure_max} LBS.`
             : `Range of [${ci.count} Count Pressure Min LBS] to [${ci.count} Count Pressure Max LBS].`;
-        return isPear ? `${idx + 1}) ${vName}: ${range}` : `• ${vName}: ${range}`;
+        // As the client prints them: Apple bolds the variety and count, Pear only the count.
+        return isPear
+          ? `${idx + 1}) ${ci.variety ? ci.variety + ' ' : ''}**(${ci.count} Count):** ${range}`
+          : `• **${label}** ${range}`;
       })
       .join('\n');
 
     const placeholders = [
-      /^[•\d\)]*\s*\[Apple Variety\]\s*\(\[Count\]\s*Count\):\s*Range of \[Fruit Pressure Min LBS\] to \[Fruit Pressure Max LBS\]\./m,
-      /^[•\d\)]*\s*\[Pear Variety\]\s*\(\[Count\]\s*Count\):\s*Range of \[Fruit Pressure Min LBS\] to \[Fruit Pressure Max LBS\]\./m,
+      /^[•\d\)]*\s*(?:\*\*)?\[Apple Variety\]\s*\(\[Count\]\s*Count\):(?:\*\*)?\s*Range of \[Fruit Pressure Min LBS\] to \[Fruit Pressure Max LBS\]\./m,
+      /^[•\d\)]*\s*\[Pear Variety\]\s*(?:\*\*)?\(\[Count\]\s*Count\):(?:\*\*)?\s*Range of \[Fruit Pressure Min LBS\] to \[Fruit Pressure Max LBS\]\./m,
       /^[•\d\)]*\s*Range of \[Fruit Pressure Min LBS\] to \[Fruit Pressure Max LBS\]\./m,
     ];
     for (const ph of placeholders) {
@@ -1420,12 +1423,12 @@ export function buildAppleCauseOfLoss(clauseContext: ClauseContext, condition: C
 
   if (condition === 'carrier_breach') {
     return (
-      `CAUSE OF LOSS:\n\n` +
+      `## CAUSE OF LOSS:\n\n` +
       `The direct and proximate cause of the loss was sustained thermal abuse and cold-chain failure during transit.\n\n` +
-      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Apples strictly at [Set Temp]°C throughout the voyage.\n\n` +
-      `• Temperature Breach: Data logger records demonstrate that this required set point was never maintained, registering an average temperature of [Avg Temp]°C with peaks reaching [Max Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
-      `• Biological Effect: This continuous exposure to elevated temperatures accelerated the Apple fruits' metabolic respiration and ethylene production, leading to premature flesh softening, internal breakdown, and rapid progression of rot and decay.\n\n` +
-      `• Conclusion on Liability: The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the affected lot commercially unmerchantable and unfit for human consumption.`
+      `**Carriage Instructions:** As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Apples strictly at [Set Temp]°C throughout the voyage.\n\n` +
+      `• **Temperature Breach:** Data logger records demonstrate that this required set point was never maintained, registering an average temperature of [Avg Temp]°C with peaks reaching [Max Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
+      `• **Biological Effect:** This continuous exposure to elevated temperatures accelerated the Apple fruits' metabolic respiration and ethylene production, leading to premature flesh softening, internal breakdown, and rapid progression of rot and decay.\n\n` +
+      `• **Conclusion on Liability:** The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the affected lot commercially unmerchantable and unfit for human consumption.`
     );
   }
 
@@ -1434,10 +1437,10 @@ export function buildAppleCauseOfLoss(clauseContext: ClauseContext, condition: C
       ? `Reefer containers ${containerList.join(' & ')}`
       : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
     return (
-      `Findings & Assessment:\n\n` +
-      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
+      `## Findings & Assessment:\n\n` +
+      `## Refrigeration Integrity:\n${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
       `Data records show a steady average of [Avg Temp]°C against the [Set Temp]°C setpoint with zero transit alarm triggers. The spike to [Max Temp]°C occurred solely post gate-out during destuffing and ambient exposure.\n\n` +
-      `Proximate Cause: Because reefer equipment operated without mechanical failure or transit temperature abuse, the cargo damage cannot be attributed to carrier mishandling or transit refrigeration breakdown. ` +
+      `## Proximate Cause:\nBecause reefer equipment operated without mechanical failure or transit temperature abuse, the cargo damage cannot be attributed to carrier mishandling or transit refrigeration breakdown. ` +
       `The deterioration observed is attributable to inherent vice, pre-harvest factors (such as latent orchard conditions), or natural senescence.\n\n` +
       `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as possible to avoid further damages to Apple fruits.`
     );
@@ -1450,13 +1453,13 @@ export function buildAppleCauseOfLoss(clauseContext: ClauseContext, condition: C
     `According to the Bill of Lading, the requested temperature for this shipment of fresh Apple fruits was [Set Temp]°C. ` +
     `During our investigation, the Consignees informed us that they were unable to download the data from the temperature recorder ${serialSlot} ` +
     `installed inside ${cRef}. Consequently, we are unable to comment on any potential temperature anomalies that may have occurred during transit.\n\n` +
-    `Based on our physical survey findings and taking the above into consideration, we conclude as follows:\n\n` +
-    `We are of the opinion that the fresh Apple fruits likely sustained damage (shriveled and the rotten) due to temperature variations occurring during the transit and/or pre-shipment stages. ` +
+    `__Based on our physical survey findings and taking the above into consideration, we conclude as follows__:\n\n` +
+    `We are of the opinion that the fresh **Apple fruits likely sustained damage (shriveled and the rotten) due to temperature variations occurring during the transit and/or pre-shipment stages**. ` +
     `However, the precise stage at which the deterioration commenced cannot be definitively established due to the unavailability of the temperature data log.\n\n` +
-    `Additional contributing factors observed during the inspection include:\n` +
-    `• Mechanical injury, likely sustained during automated sorting or grading processes.\n` +
-    `• Pressure damage (bruising) indicative of improper harvesting and handling.\n` +
-    `• Pre-harvest defects, such as russet and the less-colour.`
+    `__Additional contributing factors observed during the inspection include__:\n` +
+    `• **Mechanical injury**, likely sustained during automated sorting or grading processes.\n` +
+    `• **Pressure damage (bruising)** indicative of improper harvesting and handling.\n` +
+    `• **Pre-harvest defects**, such as russet and the less-colour.`
   );
 }
 
@@ -1469,12 +1472,12 @@ export function buildPearCauseOfLoss(clauseContext: ClauseContext, condition: Ca
 
   if (condition === 'carrier_breach') {
     return (
-      `CAUSE OF LOSS:\n\n` +
+      `## CAUSE OF LOSS:\n\n` +
       `The direct and proximate cause of the loss was sustained thermal abuse and cold-chain failure during transit.\n\n` +
-      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Pears strictly at [Set Temp]°C throughout the voyage.\n\n` +
-      `• Temperature Breach: Datalogger records confirm that the carrier failed to maintain this required temperature, registering an average temperature of [Avg Temp]°C with peak temperatures reaching [Max Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
-      `• Biological Effect: This continuous exposure to elevated transit temperatures accelerated the Pear fruits' metabolic respiration and ethylene synthesis, triggering premature ripening, extensive flesh softening, core breakdown, and rapid fungal rot across the affected consignment.\n\n` +
-      `• Conclusion on Liability: The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the affected lot commercially unmerchantable and unfit for human consumption.`
+      `**Carriage Instructions:** As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Pears strictly at [Set Temp]°C throughout the voyage.\n\n` +
+      `• **Temperature Breach:** Datalogger records confirm that the carrier failed to maintain this required temperature, registering an average temperature of [Avg Temp]°C with peak temperatures reaching [Max Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
+      `• **Biological Effect:** This continuous exposure to elevated transit temperatures accelerated the Pear fruits' metabolic respiration and ethylene synthesis, triggering premature ripening, extensive flesh softening, core breakdown, and rapid fungal rot across the affected consignment.\n\n` +
+      `• **Conclusion on Liability:** The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the affected lot commercially unmerchantable and unfit for human consumption.`
     );
   }
 
@@ -1483,10 +1486,10 @@ export function buildPearCauseOfLoss(clauseContext: ClauseContext, condition: Ca
       ? `Reefer containers ${containerList.join(' & ')}`
       : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
     return (
-      `Findings & Assessment:\n\n` +
-      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
+      `## Findings & Assessment:\n\n` +
+      `## Refrigeration Integrity:\n${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
       `Data records show a steady average of [Avg Temp]°C against the [Set Temp]°C setpoint with zero transit alarm triggers. The spike to [Max Temp]°C occurred solely post gate-out during destuffing and ambient exposure.\n\n` +
-      `Proximate Cause: As the carrier's reefer machinery functioned continuously without mechanical failure or thermal abuse, transit temperature breach is ruled out. ` +
+      `## Proximate Cause:\nAs the carrier's reefer machinery functioned continuously without mechanical failure or thermal abuse, transit temperature breach is ruled out. ` +
       `The deterioration observed is attributable to pre-shipment storage duration, post-harvest senescence, or latent fungal infection.\n\n` +
       `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as possible to avoid further damages to Pear fruits.`
     );
@@ -1499,12 +1502,12 @@ export function buildPearCauseOfLoss(clauseContext: ClauseContext, condition: Ca
     `According to the Bill of Lading, the requested temperature for this shipment of fresh Pear fruits was [Set Temp]°C. ` +
     `During our investigation, the Consignees informed us that they were unable to download the data from the temperature recorder ${imeiSlot} ` +
     `installed inside ${cRef}. Consequently, we are unable to comment on any potential temperature anomalies that may have occurred during transit.\n\n` +
-    `Based on our physical survey findings and taking the above into consideration, we conclude as follows:\n\n` +
-    `We are of the opinion that the fresh Pear fruits likely sustained damage (rotten) due to temperature variations occurring during the transit and/or pre-shipment stages. ` +
+    `__Based on our physical survey findings and taking the above into consideration, we conclude as follows__:\n\n` +
+    `We are of the opinion that the fresh **Pear fruits likely sustained damage (rotten) due to temperature variations occurring during the transit and/or pre-shipment stages**. ` +
     `However, the precise stage at which the deterioration commenced cannot be definitively established due to the unavailability of the temperature data log.\n\n` +
-    `Additional contributing factors observed during the inspection include:\n` +
-    `• Friction marking and surface blemishes indicative of handling.\n` +
-    `• Natural physiological senescence.`
+    `__Additional contributing factors observed during the inspection include__:\n` +
+    `• **Friction marking and surface blemishes** indicative of handling.\n` +
+    `• **Natural physiological senescence**.`
   );
 }
 
@@ -1517,12 +1520,12 @@ export function buildMandarinCauseOfLoss(clauseContext: ClauseContext, condition
 
   if (condition === 'carrier_breach') {
     return (
-      `CAUSE OF LOSS:\n\n` +
+      `## CAUSE OF LOSS:\n\n` +
       `The direct and proximate cause of the loss was sustained thermal abuse and cold-chain failure during transit.\n\n` +
-      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Mandarins strictly at [Set Temp]°C throughout the voyage.\n\n` +
-      `• Temperature Breach: Datalogger records demonstrate that the carrier failed to maintain this required temperature throughout transit, registering an average temperature of [Avg Temp]°C and peak temperatures reaching [Max Temp]°C.\n\n` +
-      `• Biological Effect: This continuous exposure to elevated temperatures weakened the rind structure, accelerated moisture loss, and promoted rind breakdown, directly leading to soft/pressed fruits, rot spots, and active green/blue mold (Penicillium spp.) sporulation.\n\n` +
-      `• Conclusion on Liability: The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, directly causing cargo decay and unmerchantability.`
+      `**Carriage Instructions:** As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Mandarins strictly at [Set Temp]°C throughout the voyage.\n\n` +
+      `• **Temperature Breach:** Datalogger records demonstrate that the carrier failed to maintain this required temperature throughout transit, registering an average temperature of [Avg Temp]°C and peak temperatures reaching [Max Temp]°C.\n\n` +
+      `• **Biological Effect:** This continuous exposure to elevated temperatures weakened the rind structure, accelerated moisture loss, and promoted rind breakdown, directly leading to soft/pressed fruits, rot spots, and active green/blue mold (Penicillium spp.) sporulation.\n\n` +
+      `• **Conclusion on Liability:** The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, directly causing cargo decay and unmerchantability.`
     );
   }
 
@@ -1533,11 +1536,11 @@ export function buildMandarinCauseOfLoss(clauseContext: ClauseContext, condition
       : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
     const recRef = containerList.length > 1 ? `recorders` : `recorder [Serial No.]`;
     return (
-      `Findings & Assessment:\n\n` +
-      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge] aboard [Vessel Name & Voyage No.]. ` +
+      `## Findings & Assessment:\n\n` +
+      `## Refrigeration Integrity:\n${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge] aboard [Vessel Name & Voyage No.]. ` +
       `Data from ${recRef} shows a steady average temperature of [Avg Temp]°C against the [Set Temp]°C setpoint, with no freezing events (minimum [Min Temp]°C) and zero transit alarm triggers. ` +
       `The spike to [Max Temp]°C occurred solely post gate-out during destuffing and ambient exposure.\n\n` +
-      `Proximate Cause: Because reefer equipment operated without mechanical failure or transit temperature abuse, the cargo damage cannot be attributed to carrier mishandling or transit refrigeration breakdown. ` +
+      `## Proximate Cause:\nBecause reefer equipment operated without mechanical failure or transit temperature abuse, the cargo damage cannot be attributed to carrier mishandling or transit refrigeration breakdown. ` +
       `The proximate cause of loss is attributable to inherent vice, pre-shipment factors, and natural post-harvest senescence of the fruit.\n\n` +
       `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as possible to avoid further damages to Mandarin fruits.`
     );
@@ -1566,14 +1569,14 @@ export function buildGrapesCauseOfLoss(clauseContext: ClauseContext, condition: 
     // Authentic M-167 & M-168 wording
     const voyagePeriod = vals.trip_length ? `${vals.trip_length} voyage` : `voyage`;
     return (
-      `CAUSE OF LOSS:\n\n` +
+      `## CAUSE OF LOSS:\n\n` +
       `The direct and proximate cause of the loss was sustained thermal abuse and cold-chain failure during transit.\n\n` +
-      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was required to maintain a set temperature of [Set Temp]°C with ventilation throughout the sea voyage.\n\n` +
-      `• Temperature Breach: Data logger records demonstrate that this required set point was never achieved at any stage during the ${voyagePeriod}. ` +
+      `**Carriage Instructions:** As per the governing Bill of Lading [Bill of Lading No.], the carrier was required to maintain a set temperature of [Set Temp]°C with ventilation throughout the sea voyage.\n\n` +
+      `• **Temperature Breach:** Data logger records demonstrate that this required set point was never achieved at any stage during the ${voyagePeriod}. ` +
       `The recorded minimum was only [Min Temp]°C, with the shipment maintaining an average temperature of [Avg Temp]°C and a Mean Kinetic Temperature (MKT) of [MKT]°C, alongside repeated high-temperature breaches exceeding 8.0°C and terminal spikes reaching [Max Temp]°C.\n\n` +
-      `• Biological Effect: Physical survey carried out upon destuffing confirmed that this extended lack of refrigeration caused severe cargo damage, accelerating the fruit's metabolic respiration, moisture loss, and physiological senescence, ` +
+      `• **Biological Effect:** Physical survey carried out upon destuffing confirmed that this extended lack of refrigeration caused severe cargo damage, accelerating the fruit's metabolic respiration, moisture loss, and physiological senescence, ` +
       `leading directly to berry softening, rachis browning, watery breakdown, skin slippage, and active nesting of gray mold (Botrytis cinerea).\n\n` +
-      `• Conclusion on Liability: The continuous failure of the reefer machinery to deliver the required [Set Temp]°C temperature during transit represents the primary and proximate cause of damage, rendering the cargo commercially depreciated and unfit for normal marketing.`
+      `• **Conclusion on Liability:** The continuous failure of the reefer machinery to deliver the required [Set Temp]°C temperature during transit represents the primary and proximate cause of damage, rendering the cargo commercially depreciated and unfit for normal marketing.`
     );
   }
 
@@ -1582,10 +1585,10 @@ export function buildGrapesCauseOfLoss(clauseContext: ClauseContext, condition: 
       ? `Reefer containers ${containerList.join(' & ')}`
       : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
     return (
-      `Findings & Assessment:\n\n` +
-      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
+      `## Findings & Assessment:\n\n` +
+      `## Refrigeration Integrity:\n${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
       `Datalogger records demonstrate that the carrier maintained the contracted carriage temperature of [Set Temp]°C with zero transit alarm triggers.\n\n` +
-      `Proximate Cause: Because reefer equipment operated without mechanical failure or transit temperature abuse, the damage observed cannot be attributed to carrier refrigeration breakdown. ` +
+      `## Proximate Cause:\nBecause reefer equipment operated without mechanical failure or transit temperature abuse, the damage observed cannot be attributed to carrier refrigeration breakdown. ` +
       `The proximate cause of loss is attributable to pre-harvest latent fungal spore load (Botrytis cinerea) and natural senescence, aggravated by extended voyage transit.\n\n` +
       `As an act to mitigate the loss, we advised the consignees to sell the cargo as soon as possible to avoid further damages to Grape fruits.`
     );
@@ -1613,11 +1616,11 @@ export function buildPlumCauseOfLoss(clauseContext: ClauseContext, condition: Ca
   if (condition === 'carrier_breach') {
     // Authentic M-160 wording
     return (
-      `CAUSE OF DAMAGE & LIABILITY ASSESSMENT:\n\n` +
-      `Carriage Instructions: As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Plums strictly at [Set Temp]°C with fresh air exchange set at 15 m³/hr throughout the voyage.\n\n` +
-      `• Temperature Breach: Reefer datalogger records confirm that the carrier failed to maintain the required carriage temperature, showing average recorded temperatures of [Avg Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
-      `• Biological Effect: Exposure to these elevated temperatures accelerated the ripening process, caused internal breakdown with deep brown to amber flesh discoloration, dry/mealy pulp, early alcoholic fermentation notes, and rapid fungal breakdown, directly resulting in the rotting observed during destuffing.\n\n` +
-      `• Conclusion on Liability: The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the entire consignment a total loss and unfit for human consumption.`
+      `## CAUSE OF DAMAGE & LIABILITY ASSESSMENT:\n\n` +
+      `**Carriage Instructions:** As per the governing Bill of Lading [Bill of Lading No.], the carrier was instructed to carry this consignment of Fresh Plums strictly at [Set Temp]°C with fresh air exchange set at 15 m³/hr throughout the voyage.\n\n` +
+      `• **Temperature Breach:** Reefer datalogger records confirm that the carrier failed to maintain the required carriage temperature, showing average recorded temperatures of [Avg Temp]°C. This substantial and continuous deviation proves the cargo suffered prolonged temperature abuse while in the carrier's custody.\n\n` +
+      `• **Biological Effect:** Exposure to these elevated temperatures accelerated the ripening process, caused internal breakdown with deep brown to amber flesh discoloration, dry/mealy pulp, early alcoholic fermentation notes, and rapid fungal breakdown, directly resulting in the rotting observed during destuffing.\n\n` +
+      `• **Conclusion on Liability:** The primary cause of loss is transit temperature abuse resulting directly from the carrier's failure to maintain the contracted [Set Temp]°C setting, rendering the entire consignment a total loss and unfit for human consumption.`
     );
   }
 
@@ -1626,10 +1629,10 @@ export function buildPlumCauseOfLoss(clauseContext: ClauseContext, condition: Ca
       ? `Reefer containers ${containerList.join(' & ')}`
       : (containerList.length === 1 ? `Reefer container ${containerList[0]}` : 'Reefer container [Container No.]');
     return (
-      `Findings & Assessment:\n\n` +
-      `Refrigeration Integrity: ${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
+      `## Findings & Assessment:\n\n` +
+      `## Refrigeration Integrity:\n${cRef} maintained continuous cold-chain compliance throughout transit from [Port of Loading] to [Port of Discharge]. ` +
       `Data logger records confirm that the reefer machinery operated without failure or transit temperature breach, maintaining an average of [Avg Temp]°C against the contracted [Set Temp]°C setpoint.\n\n` +
-      `Proximate Cause: Transit temperature abuse is ruled out. The internal breakdown, flesh browning, and senescence observed across the plum fruits are attributable to inherent vice, over-maturity at harvest, or latent physiological breakdown.\n\n` +
+      `## Proximate Cause:\nTransit temperature abuse is ruled out. The internal breakdown, flesh browning, and senescence observed across the plum fruits are attributable to inherent vice, over-maturity at harvest, or latent physiological breakdown.\n\n` +
       `Consignees were advised to sort and expedite sale of salvageable units to mitigate further loss.`
     );
   }

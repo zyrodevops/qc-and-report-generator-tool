@@ -22,7 +22,7 @@ import { generateNormalModeDocx } from '../../utils/docxGenerator';
 import { ImageData, ProModeOptions } from '../../types/photoStudio';
 import BulkMode from './studio/BulkMode';
 import ProMode from './studio/ProMode';
-import { layoutOf, photoCaption, photoUrl, PhotoLayout, stripNumber } from '../../utils/photoLayout';
+import { droppedNotice, evenBatch, layoutOf, photoCaption, photoUrl, PhotoLayout, stripNumber } from '../../utils/photoLayout';
 import { PhotoLayoutPanel } from './PhotoLayoutPanel';
 
 interface PhotoGroup {
@@ -97,6 +97,8 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
   const [activeTab, setActiveTab] = useState<PhotoTab>('manage');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
+  // Shown after an upload that left its last photo out (see evenBatch).
+  const [notice, setNotice] = useState('');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [exportingDocx, setExportingDocx] = useState(false);
 
@@ -161,12 +163,15 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
   };
 
   // Batch upload photos
-  const handleBatchUpload = async (files: File[]) => {
-    if (!files || files.length === 0) return;
+  const handleBatchUpload = async (chosen: File[]) => {
+    if (!chosen || chosen.length === 0) return;
     if (!reportId) {
       alert('Report ID is missing. Please save report draft first.');
       return;
     }
+    const { keep: files, dropped } = evenBatch(flatPhotos.length, chosen);
+    setNotice(dropped.length ? droppedNotice(dropped[0].name) : '');
+    if (files.length === 0) return;
 
     setUploading(true);
     setUploadProgress(`Uploading and hashing ${files.length} photo${files.length > 1 ? 's' : ''}...`);
@@ -322,11 +327,14 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
   };
 
   // Called from Bulk/Pro modes to send photos to this report block
-  const handleSendToReport = async (photos: ImageData[], options?: ProModeOptions) => {
+  const handleSendToReport = async (chosen: ImageData[], options?: ProModeOptions) => {
     if (!reportId) {
       alert('No active report selected.');
       return;
     }
+    const { keep: photos, dropped } = evenBatch(flatPhotos.length, chosen);
+    setNotice(dropped.length ? droppedNotice(dropped[0].file?.name) : '');
+    if (photos.length === 0) return;
 
     const formData = new FormData();
     photos.forEach((p) => {
@@ -488,6 +496,16 @@ export const PhotoTray: React.FC<PhotoPlateBlockProps> = ({
               <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center gap-3 text-indigo-800 text-xs font-medium animate-pulse">
                 <Loader2 className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
                 <span>{uploadProgress || 'Uploading and hashing photos...'}</span>
+              </div>
+            )}
+
+            {/* An upload that would leave an odd number of photos left its last one out */}
+            {notice && !uploading && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-amber-900 text-xs" data-testid="photo-even-notice">
+                <span>{notice}</span>
+                <button type="button" onClick={() => setNotice('')} className="text-amber-700 hover:text-amber-900 font-semibold">
+                  OK
+                </button>
               </div>
             )}
 

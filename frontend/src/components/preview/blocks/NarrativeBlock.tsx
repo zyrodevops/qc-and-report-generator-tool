@@ -1,10 +1,11 @@
-import React, { useRef, useLayoutEffect, useEffect } from 'react';
+import React, { useRef, useLayoutEffect, useEffect, useState } from 'react';
 import { ClausePicker, WithBlanks, detectSectionFromHeading } from '../../clauses/ClausePicker';
 import { NotesWriter } from '../../clauses/NotesWriter';
 import { ColdStorageSelector } from '../../clauses/ColdStorageSelector';
 import { ApplicationAttendance } from '../../clauses/ApplicationAttendance';
 import { defaultSurveyor, getDefaultAttendance, isMcaAttendee, lookupConsigneeStaff } from '../../../utils/staffLookup';
 import { useReferenceData } from '../../../utils/referenceData';
+import { Piece, RichPart, RichText, headingText, useHouseStyle } from '../../../utils/houseStyle';
 import type { ClauseContext } from '../../../api/client';
 import {
   BLANK_PATTERN,
@@ -48,6 +49,22 @@ export interface NarrativeBlockProps {
   clauseSection?: string;
   /** True when rendered in the Form Editor tab, false in A4 HTML Preview. */
   isFormEditor?: boolean;
+  /**
+   * Survey report preview only: print one part of Paragraph 3 so the pages can
+   * break between its recorders — 'head' (heading and opening paragraph) or
+   * 'tail' (the text after the recorders). The recorders are drawn on their own.
+   */
+  part?: 'head' | 'tail';
+  /**
+   * Survey report preview: print only these pieces of the section (heading,
+   * paragraphs, recorders, attendance), so pages break between paragraphs.
+   * A click on one asks the preview to open the whole section (onEditStart).
+   */
+  pieces?: Piece[];
+  onEditStart?: (field: 'additional_text' | 'preamble') => void;
+  /** Open this text for editing straight away; onEditEnd when it is left. */
+  editField?: 'additional_text' | 'preamble';
+  onEditEnd?: () => void;
   /** Optional temperature recorders block embedded inside Paragraph 3 */
   recordersBlock?: any;
   onRecordersChange?: (updatedRecordersBlock: any) => void;
@@ -63,6 +80,11 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   heading,
   clauseSection,
   isFormEditor = false,
+  part,
+  pieces,
+  onEditStart,
+  editField,
+  onEditEnd,
   recordersBlock,
   onRecordersChange,
   reportId,
@@ -72,6 +94,14 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   const preamble = block?.preamble || '';
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const preambleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // A4 preview of a survey report: the text shows as printed (bold, underline,
+  // sub-headings, bullets); a click turns it into the text box to edit.
+  const house = useHouseStyle();
+  const [editingField, setEditingField] = useState<null | 'additional_text' | 'preamble'>(editField ?? null);
+  const stopEditing = () => {
+    setEditingField(null);
+    onEditEnd?.();
+  };
 
   // useLayoutEffect fires synchronously after DOM mutation but before browser paint,
   // so the resize happens immediately even when text is set programmatically
@@ -81,14 +111,14 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.max(80, el.scrollHeight)}px`;
-  }, [text, editable]);
+  }, [text, editable, editingField]);
 
   useLayoutEffect(() => {
     const el = preambleTextareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.max(60, el.scrollHeight)}px`;
-  }, [preamble, editable]);
+  }, [preamble, editable, editingField]);
 
   if (!text && !preamble && !sectionTitle && !editable) return null;
 
@@ -554,6 +584,73 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
     }
   };
 
+  /**
+   * Marks for the printed report: **bold**, __underline__, and "## " in front
+   * of a line for a sub-heading. With nothing selected the marks go in empty,
+   * with the cursor between them.
+   */
+  const wrapSelectionIn = (
+    targetRef: React.RefObject<HTMLTextAreaElement | null>,
+    mark: '**' | '__' | '## ',
+    field: 'preamble' | 'additional_text' = 'additional_text'
+  ) => {
+    const textarea = targetRef.current;
+    const currentVal = (field === 'preamble' ? block?.preamble : block?.additional_text) || '';
+    const start = textarea ? textarea.selectionStart : currentVal.length;
+    const end = textarea ? textarea.selectionEnd : currentVal.length;
+    let newText: string;
+    let caret: number;
+    if (mark === '## ') {
+      const lineStart = currentVal.lastIndexOf('\n', start - 1) + 1;
+      const line = currentVal.slice(lineStart);
+      const has = line.startsWith('## ');
+      newText = has ? currentVal.slice(0, lineStart) + line.slice(3) : currentVal.slice(0, lineStart) + '## ' + line;
+      caret = has ? Math.max(lineStart, start - 3) : start + 3;
+    } else {
+      newText = currentVal.slice(0, start) + mark + currentVal.slice(start, end) + mark + currentVal.slice(end);
+      caret = end === start ? start + mark.length : end + 2 * mark.length;
+    }
+    onChange?.({ ...block, [field]: newText, surveyor_edited: true });
+    setTimeout(() => {
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(caret, caret);
+    }, 0);
+  };
+
+  const markButtons = (targetRef: React.RefObject<HTMLTextAreaElement | null>, field: 'preamble' | 'additional_text') => (
+    <>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => wrapSelectionIn(targetRef, '**', field)}
+        className="px-2 py-0.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded font-bold transition-colors cursor-pointer text-slate-700"
+        title="Bold: select words and click (prints in bold)"
+      >
+        B
+      </button>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => wrapSelectionIn(targetRef, '__', field)}
+        className="px-2 py-0.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded underline transition-colors cursor-pointer text-slate-700"
+        title="Underline: select words and click (prints underlined)"
+      >
+        U
+      </button>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => wrapSelectionIn(targetRef, '## ', field)}
+        className="px-2 py-0.5 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 border border-slate-200 rounded font-semibold transition-colors cursor-pointer text-[#002060]"
+        title="Sub-heading: the line the cursor is on prints bold, underlined, dark blue"
+      >
+        Heading
+      </button>
+      <span className="text-[10px] text-slate-400 ml-1">**bold** __underline__ ## heading</span>
+    </>
+  );
+
   const insertAtCursorIn = (
     targetRef: React.RefObject<HTMLTextAreaElement | null>,
     insertion: string,
@@ -731,10 +828,79 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
   };
 
   const paragraphs = text.split('\n\n').filter(Boolean);
+  const houseView = house && !isFormEditor;
+
+  // As in the Word file: no heading over nothing (a Note with no note).
+  if (houseView) {
+    const hasPeople = (block?.attendance || []).some((r: any) =>
+      ['name', 'designation', 'representing'].some((k) => String(r?.[k] || '').trim())
+    );
+    const hasRecorders = isCauseOfLoss && (recordersBlock?.recorders || []).length > 0 && recordersBlock?.included !== false;
+    if (!text.trim() && !preamble.trim() && !hasPeople && !hasRecorders) return null;
+    if (part === 'tail' && !text.trim()) return null;
+  }
+
+  /** In the A4 preview the text shows as printed until it is clicked. */
+  const previewText = (field: 'additional_text' | 'preamble', value: string, box: React.ReactNode) =>
+    houseView && editingField !== field ? (
+      <div
+        className="cursor-text rounded hover:bg-blue-50/40"
+        title="Click to edit"
+        onClick={() => editable && onChange && (onEditStart ? onEditStart(field) : setEditingField(field))}
+        data-testid={`rich-${field}`}
+      >
+        {value.trim() ? <RichText text={value} fruit={commodityKey} /> : <p className="mca-p text-slate-400">Click to type…</p>}
+      </div>
+    ) : (
+      box
+    );
+
+  if (houseView && pieces) {
+    const clickable = (field: 'additional_text' | 'preamble', node: React.ReactNode, key: number) => (
+      <div
+        key={key}
+        className={editable && onChange ? 'cursor-text rounded hover:bg-blue-50/40' : ''}
+        title={editable && onChange ? 'Click to edit' : undefined}
+        onClick={() => editable && onChange && (onEditStart ? onEditStart(field) : setEditingField(field))}
+        data-testid={`rich-${field}`}
+      >
+        {node}
+      </div>
+    );
+    return (
+      <div className="narrative-block">
+        {pieces.map((pc, i) => {
+          if (pc.kind === 'heading') return <p key={i} className="mca-heading">{headingText(sectionTitle)}</p>;
+          if (pc.kind === 'pre') return clickable('preamble', <RichPart text={preamble} fruit={commodityKey} part={pc.part} />, i);
+          if (pc.kind === 'text') return clickable('additional_text', <RichPart text={text} fruit={commodityKey} part={pc.part} />, i);
+          if (pc.kind === 'rec') {
+            return recordersBlock ? (
+              <RecordersBlock key={i} block={recordersBlock} reportId={reportId} hideTitle only={pc.index} />
+            ) : null;
+          }
+          return (
+            <ApplicationAttendance
+              key={i}
+              rows={block.attendance || []}
+              intro={block.attendance_intro || 'The following persons attended the survey:'}
+              consigneeName={consigneeName}
+              vesselName={vesselName}
+              editable={Boolean(editable && onChange)}
+              isFormEditor={false}
+              onChange={(newRows, newIntro) =>
+                onChange?.({ ...block, attendance: newRows, attendance_intro: newIntro, surveyor_edited: true })
+              }
+            />
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
-    <div className="narrative-block my-2">
-      {sectionTitle && (
+    <div className={houseView ? 'narrative-block' : 'narrative-block my-2'}>
+      {sectionTitle && houseView && part !== 'tail' && <p className="mca-heading">{headingText(sectionTitle)}</p>}
+      {sectionTitle && !houseView && (
         <h2 className="text-[12px] font-bold text-[#00387A] uppercase tracking-wider border-b border-slate-300 pb-1 mb-2">
           {sectionTitle}
         </h2>
@@ -967,6 +1133,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
                       >
                         <span className="font-bold text-blue-600">1)</span> Number
                       </button>
+                      {markButtons(preambleTextareaRef, 'preamble')}
                     </div>
                   </div>
                   <textarea
@@ -1020,6 +1187,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
                       >
                         <span className="font-bold text-blue-600">1)</span> Number
                       </button>
+                      {markButtons(textareaRef, 'additional_text')}
                     </div>
                   </div>
                   <textarea
@@ -1036,9 +1204,11 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
               /* A4 HTML Preview Mode: Preamble -> Embedded Recorders -> Liability Assessment */
               <div className="space-y-3">
                 {/* 1. Preamble */}
-                {editable ? (
+                {part === 'tail' ? null : editable ? previewText('preamble', preamble,
                   <textarea
                     ref={preambleTextareaRef}
+                    autoFocus={houseView}
+                    onBlur={() => houseView && stopEditing()}
                     value={preamble}
                     onChange={(e) =>
                       onChange?.({
@@ -1048,14 +1218,16 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
                       })
                     }
                     placeholder="As per the Bill of Lading, the requested temperature for this shipment of fresh fruit was..."
-                    className="w-full bg-transparent outline-none rounded text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text border-none p-0 focus:bg-blue-50/30"
+                    className={`w-full bg-transparent outline-none rounded resize-none overflow-hidden transition-colors cursor-text border-none p-0 focus:bg-blue-50/30 ${houseView ? 'mca-textarea' : 'text-xs leading-relaxed text-slate-800 text-justify font-sans'}`}
                   />
+                ) : houseView ? (
+                  preamble && <RichText text={preamble} fruit={commodityKey} />
                 ) : (
                   preamble && <p className="whitespace-pre-line">{renderFormattedText(preamble)}</p>
                 )}
 
                 {/* 2. Embedded Recorders (Vertical Tables & Graph) */}
-                {recordersBlock && (
+                {recordersBlock && !part && (
                   <RecordersBlock
                     block={recordersBlock}
                     reportId={reportId}
@@ -1066,15 +1238,19 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
                 )}
 
                 {/* 3. Post-Graph Cause of Loss & Liability Assessment */}
-                {editable ? (
+                {part === 'head' ? null : editable ? previewText('additional_text', text,
                   <textarea
                     ref={textareaRef}
+                    autoFocus={houseView}
+                    onBlur={() => houseView && stopEditing()}
                     value={text}
                     onChange={handleTextChange}
                     onKeyDown={handleKeyDown}
                     placeholder="Type cause of loss and liability assessment..."
-                    className="w-full bg-transparent outline-none rounded text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text border-none p-0 focus:bg-blue-50/30"
+                    className={`w-full bg-transparent outline-none rounded resize-none overflow-hidden transition-colors cursor-text border-none p-0 focus:bg-blue-50/30 ${houseView ? 'mca-textarea' : 'text-xs leading-relaxed text-slate-800 text-justify font-sans'}`}
                   />
+                ) : houseView ? (
+                  <RichText text={text} fruit={commodityKey} />
                 ) : paragraphs.length > 0 ? (
                   paragraphs.map((p: string, idx: number) => (
                     <p key={`post-${idx}`} className="whitespace-pre-line">{renderFormattedText(p)}</p>
@@ -1106,11 +1282,14 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
                   >
                     <span className="font-bold text-blue-600">1)</span> Number
                   </button>
+                  {markButtons(textareaRef, 'additional_text')}
                 </div>
               )}
 
-              <textarea
+              {previewText('additional_text', text, <textarea
                 ref={textareaRef}
+                autoFocus={houseView}
+                onBlur={() => houseView && stopEditing()}
                 value={text}
                 onChange={handleTextChange}
                 onKeyDown={handleKeyDown}
@@ -1127,12 +1306,14 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
                       : 'Type this section, or add standard wording above…'
                     : ''
                 }
-                className={`w-full bg-transparent outline-none rounded text-xs leading-relaxed text-slate-800 text-justify font-sans resize-none overflow-hidden transition-colors cursor-text ${
+                className={`w-full bg-transparent outline-none rounded resize-none overflow-hidden transition-colors cursor-text ${
+                  houseView ? 'mca-textarea' : 'text-xs leading-relaxed text-slate-800 text-justify font-sans'
+                } ${
                   isFormEditor
                     ? 'border border-transparent hover:border-blue-200 focus:border-blue-500 focus:bg-white p-1'
                     : 'border-none p-0 focus:bg-blue-50/30'
                 }`}
-              />
+              />)}
             </>
           )}
 
@@ -1178,6 +1359,24 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
         </>
       ) : (
         /* Preview Mode */
+        houseView ? (
+          <div>
+            {preamble && part !== 'tail' && <RichText text={preamble} fruit={commodityKey} />}
+            {isCauseFruit && isCauseOfLoss && currentCondition !== 'no_recorder_data' && recordersBlock && !part && (
+              <RecordersBlock block={recordersBlock} reportId={reportId} hideTitle={true} />
+            )}
+            {part !== 'head' && <RichText text={text} fruit={commodityKey} />}
+            {sectionSlug === 'application' && block.attendance && block.attendance.length > 0 && (
+              <ApplicationAttendance
+                rows={block.attendance}
+                intro={block.attendance_intro || 'The following persons attended the survey:'}
+                editable={false}
+                isFormEditor={false}
+                onChange={() => {}}
+              />
+            )}
+          </div>
+        ) : (
         <div className="space-y-2 text-xs leading-relaxed text-slate-800 text-justify">
           {isCauseFruit && isCauseOfLoss && currentCondition !== 'no_recorder_data' ? (
             <div className="space-y-3">
@@ -1217,6 +1416,7 @@ export const NarrativeBlock: React.FC<NarrativeBlockProps> = ({
             />
           )}
         </div>
+        )
       )}
     </div>
   );

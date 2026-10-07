@@ -3,6 +3,7 @@ import { computeTable, computeTableSummary } from '../compute';
 import { columnTitle } from '../../../utils/labels';
 import { chartBars, chartTitle } from '../../../utils/findings';
 import { FindingsChart } from './FindingsChart';
+import { useHouseStyle } from '../../../utils/houseStyle';
 
 export interface TableBlockProps {
   block: any;
@@ -77,10 +78,15 @@ export const TableBlock: React.FC<TableBlockProps> = ({
   const boxes = (n: number) => (n === 1 ? '1 Box' : `${n} Boxes`);
 
   const isTwoTier = block?.layout === 'two_tier' && rowPcts.length > 0;
+  // Survey reports: the client's findings table (see the Word file's _style_findings).
+  const house = useHouseStyle();
+  const ncols = categories.length + (withCont ? 3 : 2);
+  const housePt = ncols <= 9 ? '10pt' : ncols <= 11 ? '9pt' : '8pt';
 
   return (
-    <div className="table-block my-3">
-      {block?.show_title !== false && (
+    <div className={house ? 'table-block' : 'table-block my-3'} style={house ? { marginBottom: '12pt' } : undefined}>
+      {house && block?.show_title !== false && <p className="mca-heading">{title}</p>}
+      {!house && block?.show_title !== false && (
       <div className="flex justify-between items-center border-b border-slate-300 pb-1 mb-2">
         <h2 className="text-[12px] font-bold text-[#00387A] uppercase tracking-wider">
           {title}
@@ -210,10 +216,10 @@ export const TableBlock: React.FC<TableBlockProps> = ({
         </table>
       ) : (
         <table
-          className="w-full border-collapse border border-slate-400"
+          className={`w-full border-collapse border border-slate-400 ${house ? 'mca-findings' : ''}`}
           // Headings may wrap between words but never inside one ("Shrivelle/d"),
           // so the size steps down as the column count goes up instead.
-          style={{ fontSize: categories.length > 11 ? '8px' : categories.length > 8 ? '9px' : '10px' }}
+          style={{ fontSize: house ? housePt : categories.length > 11 ? '8px' : categories.length > 8 ? '9px' : '10px' }}
         >
           <thead>
             <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-400">
@@ -240,7 +246,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
               const rowSum = rowTotals[rIdx] ?? '';
 
               return (
-                <tr key={rIdx} className="border-b border-slate-300 hover:bg-slate-50/50">
+                <tr key={rIdx} className={`border-b border-slate-300 hover:bg-slate-50/50 ${house && rIdx % 2 === 1 ? 'mca-alt' : ''}`}>
                   <td className="border border-slate-400 p-0 font-medium text-slate-800">
                     {editable && onChange ? (
                       <input
@@ -281,7 +287,7 @@ export const TableBlock: React.FC<TableBlockProps> = ({
             })}
 
             {/* Column Totals Row */}
-            <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
+            <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400 mca-strong">
               <td className="border border-slate-400 px-1 py-1 font-bold">Total</td>
               {contTd('px-1 py-1')}
               {categories.map((c) => (
@@ -298,8 +304,8 @@ export const TableBlock: React.FC<TableBlockProps> = ({
             </tr>
 
             {/* Column Percentages Row */}
-            <tr className="bg-slate-50 font-semibold text-slate-800">
-              <td className="border border-slate-400 px-1 py-1 font-bold">%</td>
+            <tr className="bg-slate-50 font-semibold text-slate-800 mca-strong">
+              <td className="border border-slate-400 px-1 py-1 font-bold">{house ? 'Percentage' : '%'}</td>
               {contTd('px-1 py-1')}
               {categories.map((c) => (
                 <td
@@ -320,8 +326,15 @@ export const TableBlock: React.FC<TableBlockProps> = ({
       {/* FINAL SUMMARY: each group's totals, then the table's */}
       {showSummary && summary && (
         <div className="my-3">
-          <p className="text-[11px] font-bold underline mb-1">{block?.summary?.title || 'FINAL SUMMARY'}</p>
-          <table className="w-full border-collapse border border-slate-400 text-[9px] summary-table">
+          {house ? (
+            <p className="mca-heading">{block?.summary?.title || 'FINAL SUMMARY'}</p>
+          ) : (
+            <p className="text-[11px] font-bold underline mb-1">{block?.summary?.title || 'FINAL SUMMARY'}</p>
+          )}
+          <table
+            className={`w-full border-collapse border border-slate-400 text-[9px] summary-table ${house ? 'mca-findings' : ''}`}
+            style={house ? { fontSize: housePt } : undefined}
+          >
             <thead>
               <tr className="bg-slate-100 font-bold">
                 <th className="border border-slate-400 px-1 py-1 text-left">
@@ -336,14 +349,14 @@ export const TableBlock: React.FC<TableBlockProps> = ({
             <tbody>
               {summary.groups.map((g: any, i: number) => (
                 <React.Fragment key={i}>
-                  <tr>
+                  <tr className={house && i % 2 === 1 ? 'mca-alt' : ''}>
                     <td className="border border-slate-400 px-1 py-1">{g.key ? `${g.key} (${boxes(g.boxes)})` : `(${boxes(g.boxes)})`}</td>
                     {categories.map((c) => (
                       <td key={c.key} className="border border-slate-400 px-1 py-1 text-right font-mono">{g.column_totals[c.key] ?? ''}</td>
                     ))}
                     <td className="border border-slate-400 px-1 py-1 text-right font-mono">{g.grand_total}</td>
                   </tr>
-                  <tr className="bg-slate-50 text-slate-700">
+                  <tr className={`bg-slate-50 text-slate-700 ${house && i % 2 === 1 ? 'mca-alt' : ''}`}>
                     <td className="border border-slate-400 px-1 py-1 italic">Percentage</td>
                     {categories.map((c) => (
                       <td key={c.key} className="border border-slate-400 px-1 py-1 text-right font-mono">{pctText(g.column_percentages[c.key])}</td>
@@ -352,14 +365,14 @@ export const TableBlock: React.FC<TableBlockProps> = ({
                   </tr>
                 </React.Fragment>
               ))}
-              <tr className="bg-slate-100 font-bold">
+              <tr className="bg-slate-100 font-bold mca-strong">
                 <td className="border border-slate-400 px-1 py-1">Total {boxes(summary.boxes)}</td>
                 {categories.map((c) => (
                   <td key={c.key} className="border border-slate-400 px-1 py-1 text-right font-mono">{colTotals[c.key] ?? ''}</td>
                 ))}
                 <td className="border border-slate-400 px-1 py-1 text-right font-mono">{grandTotal}</td>
               </tr>
-              <tr className="bg-slate-50 font-bold">
+              <tr className="bg-slate-50 font-bold mca-strong">
                 <td className="border border-slate-400 px-1 py-1">Percentage</td>
                 {categories.map((c) => (
                   <td key={c.key} className="border border-slate-400 px-1 py-1 text-right font-mono">{pctText(colPcts[c.key])}</td>
@@ -372,7 +385,11 @@ export const TableBlock: React.FC<TableBlockProps> = ({
       )}
 
       {/* The graph, as the client draws it */}
-      {block?.show_chart !== false && bars.length > 0 && <FindingsChart bars={bars} title={chartTitle(block)} />}
+      {block?.show_chart !== false && bars.length > 0 && (
+        <div style={house ? { marginTop: '12pt' } : undefined}>
+          <FindingsChart bars={bars} title={chartTitle(block)} />
+        </div>
+      )}
     </div>
   );
 };

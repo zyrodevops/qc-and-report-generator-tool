@@ -12,29 +12,53 @@ import re
 from typing import List, Tuple
 
 _BULLET = re.compile(r"^\s*(?:[•●▪➢]|-(?=\s))\s*")
+# "1) FRL (70 Count): …" — the Pear reports number their pressure lines.
+_NUMBERED = re.compile(r"^\s*\d{1,2}\)\s+")
+_SUBHEADING = re.compile(r"^\s*##\s+(.*\S)\s*$")
 
 
-def split_narrative(text: str) -> List[Tuple[str, List[str]]]:
-    """[("p", lines) | ("ul", items)], in order."""
+def split_narrative(text: str, rich: bool = False) -> List[Tuple[str, List[str]]]:
+    """
+    [("p", lines) | ("ul", items)], in order. With rich=True (the survey
+    report look) also ("ol", items) for "1) " lines, kept with their number,
+    and ("h", [text]) for a "## " sub-heading line.
+    """
     out: List[Tuple[str, List[str]]] = []
     for block in re.split(r"\n[ \t]*\n", text or ""):
         para: List[str] = []
         items: List[str] = []
+        kind = "ul"
+
+        def flush_items():
+            nonlocal items
+            if items:
+                out.append((kind, items))
+                items = []
+
+        def flush_para():
+            nonlocal para
+            if para:
+                out.append(("p", para))
+                para = []
+
         for line in block.split("\n"):
             if not line.strip():
                 continue
-            if _BULLET.match(line):
-                if para:
-                    out.append(("p", para))
-                    para = []
-                items.append(_BULLET.sub("", line, count=1).strip())
+            sub = _SUBHEADING.match(line) if rich else None
+            if sub:
+                flush_para()
+                flush_items()
+                out.append(("h", [sub.group(1)]))
+            elif _BULLET.match(line) or (rich and _NUMBERED.match(line)):
+                line_kind = "ol" if (rich and _NUMBERED.match(line)) else "ul"
+                flush_para()
+                if items and line_kind != kind:
+                    flush_items()
+                kind = line_kind
+                items.append(line.strip() if line_kind == "ol" else _BULLET.sub("", line, count=1).strip())
             else:
-                if items:
-                    out.append(("ul", items))
-                    items = []
+                flush_items()
                 para.append(line.strip())
-        if para:
-            out.append(("p", para))
-        if items:
-            out.append(("ul", items))
+        flush_para()
+        flush_items()
     return out

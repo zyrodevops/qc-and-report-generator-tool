@@ -26,6 +26,15 @@ from docx.oxml import OxmlElement
 
 from app.render.inclusion import included_rows, is_included, shows_chart, shows_table_title
 from app.compute.arithmetic import compute
+from app.render import house_style as hs
+from app.render.docx import house
+
+
+def _h(doc: Document, text: str, center: bool = False):
+    """A section heading: the client's look on survey reports, Word's Heading 2 on QC reports."""
+    if house.is_house(doc):
+        return house.heading(doc, text, center=center)
+    return doc.add_heading(text, level=2)
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +124,20 @@ def _add_field(paragraph, field_name: str) -> None:
 # Block renderers — one per block type, additive
 # ---------------------------------------------------------------------------
 
-def _format_cell(
+_BOLD_LINE = __import__("re").compile(r"^\s*(?:Total\b|Net Weight\b|Gross Weight\b|Net weight\b)")
+
+
+def _cover_marks(label: str, text: str) -> str:
+    """Bold the company name (first line) of Shipper / Consignees and any total or weight line."""
+    lines = text.split("\n")
+    out = []
+    for i, line in enumerate(lines):
+        party = i == 0 and len(lines) > 1 and label.strip().lower().rstrip(":") in ("shipper", "consignee", "consignees")
+        out.append(f"**{line}**" if line.strip() and (party or _BOLD_LINE.match(line)) else line)
+    return "\n".join(out)
+
+
+def _format_cell_plain(
     cell,
     text: str,
     bold: bool = False,
@@ -146,7 +168,21 @@ def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
 
     heading = block.get("section", "")
     if heading:
-        doc.add_heading(heading, level=2)
+        _h(doc, heading)
+
+    # Survey reports: 11 pt throughout, the company name of Shipper and
+    # Consignees and the total lines bold, as the client's cover table has.
+    in_house = house.is_house(doc)
+    main_pt, sub_pt = (hs.BODY_PT, hs.BODY_PT) if in_house else (10.0, 9.5)
+    _centre_last = WD_ALIGN_PARAGRAPH.CENTER if in_house else WD_ALIGN_PARAGRAPH.RIGHT
+    _hdr_first = WD_ALIGN_PARAGRAPH.CENTER if in_house else WD_ALIGN_PARAGRAPH.LEFT
+
+    def _format_cell(cell, text, bold=False, font_size_pt=main_pt, align=WD_ALIGN_PARAGRAPH.LEFT,
+                     valign=WD_CELL_VERTICAL_ALIGNMENT.TOP, font_name="Arial", label=""):
+        if not in_house:
+            return _format_cell_plain(cell, text, bold=bold, font_size_pt=font_size_pt, align=align, valign=valign)
+        house.cell_text(cell, _cover_marks(label, str(text)) if label else str(text), size=font_size_pt,
+                        bold=bold, align=align, valign=WD_CELL_VERTICAL_ALIGNMENT.CENTER)
 
     # 5-column table: Col 0 = Label, Col 1 = ":", Cols 2,3,4 = Value or Consignment sub-columns
     table = doc.add_table(rows=0, cols=5)
@@ -156,7 +192,8 @@ def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
     # Add table-level cell padding (dxa: 20 dxa = 1 pt; 40 dxa = 2pt, 100 dxa = 5pt)
     tblPr = table._tbl.tblPr
     tblCellMar = OxmlElement("w:tblCellMar")
-    for side, sz in (("top", 40), ("bottom", 40), ("left", 100), ("right", 100)):
+    for side, sz in ((("top", 15), ("bottom", 15), ("left", 100), ("right", 100)) if in_house
+                     else (("top", 40), ("bottom", 40), ("left", 100), ("right", 100))):
         m = OxmlElement(f"w:{side}")
         m.set(qn("w:w"), str(sz))
         m.set(qn("w:type"), "dxa")
@@ -182,9 +219,9 @@ def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
 
             # Header row
             h_row = added_rows[0]
-            _format_cell(h_row.cells[2], str(headers[0]) if len(headers) > 0 else "", bold=True, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.LEFT)
-            _format_cell(h_row.cells[3], str(headers[1]) if len(headers) > 1 else "", bold=True, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.CENTER)
-            _format_cell(h_row.cells[4], str(headers[2]) if len(headers) > 2 else "", bold=True, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.CENTER)
+            _format_cell(h_row.cells[2], str(headers[0]) if len(headers) > 0 else "", bold=True, font_size_pt=sub_pt, align=_hdr_first)
+            _format_cell(h_row.cells[3], str(headers[1]) if len(headers) > 1 else "", bold=True, font_size_pt=sub_pt, align=WD_ALIGN_PARAGRAPH.CENTER)
+            _format_cell(h_row.cells[4], str(headers[2]) if len(headers) > 2 else "", bold=True, font_size_pt=sub_pt, align=WD_ALIGN_PARAGRAPH.CENTER)
 
             # Data rows
             for idx, item in enumerate(sub_items):
@@ -201,32 +238,32 @@ def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
                     col1 = str(item)
                     col2 = ""
                     col3 = ""
-                _format_cell(d_row.cells[2], str(col1), bold=False, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.LEFT)
-                _format_cell(d_row.cells[3], str(col2), bold=False, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.CENTER)
-                _format_cell(d_row.cells[4], str(col3), bold=False, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.RIGHT)
+                _format_cell(d_row.cells[2], str(col1), bold=False, font_size_pt=sub_pt, align=WD_ALIGN_PARAGRAPH.LEFT)
+                _format_cell(d_row.cells[3], str(col2), bold=False, font_size_pt=sub_pt, align=WD_ALIGN_PARAGRAPH.CENTER)
+                _format_cell(d_row.cells[4], str(col3), bold=False, font_size_pt=sub_pt, align=_centre_last)
 
             # Footer row (if present)
             if footer:
                 f_row = added_rows[-1]
                 f_row.cells[2].merge(f_row.cells[4])
-                _format_cell(f_row.cells[2], str(footer), bold=True, font_size_pt=9.5, align=WD_ALIGN_PARAGRAPH.LEFT)
+                _format_cell(f_row.cells[2], str(footer), bold=True, font_size_pt=sub_pt, align=WD_ALIGN_PARAGRAPH.LEFT)
 
             # Vertically merge Col 0 and Col 1 across all sub-rows of this consignment table
             top_c0 = added_rows[0].cells[0]
             bot_c0 = added_rows[-1].cells[0]
             top_c0.merge(bot_c0)
-            _format_cell(top_c0, label, bold=True, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+            _format_cell(top_c0, label, bold=True, font_size_pt=main_pt, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
 
             top_c1 = added_rows[0].cells[1]
             bot_c1 = added_rows[-1].cells[1]
             top_c1.merge(bot_c1)
-            _format_cell(top_c1, ":", bold=True, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.CENTER, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+            _format_cell(top_c1, ":", bold=True, font_size_pt=main_pt, align=WD_ALIGN_PARAGRAPH.CENTER, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
 
         else:
             # Standard row
             r = table.add_row()
-            _format_cell(r.cells[0], label, bold=True, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
-            _format_cell(r.cells[1], ":", bold=True, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.CENTER, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+            _format_cell(r.cells[0], label, bold=True, font_size_pt=main_pt, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+            _format_cell(r.cells[1], ":", bold=True, font_size_pt=main_pt, align=WD_ALIGN_PARAGRAPH.CENTER, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
             r.cells[2].merge(r.cells[4])
 
             val = row.get("value", "")
@@ -246,10 +283,20 @@ def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
             note = row.get("note")
             if note:
                 val_str += f" ({note})"
-            _format_cell(r.cells[2], val_str, bold=False, font_size_pt=10.0, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP)
+            _format_cell(r.cells[2], val_str, bold=False, font_size_pt=main_pt, align=WD_ALIGN_PARAGRAPH.LEFT, valign=WD_CELL_VERTICAL_ALIGNMENT.TOP, label=label)
 
     # Prevent row splitting across pages and apply column widths
     col_widths = [Inches(1.55), Inches(0.20), Inches(2.35), Inches(1.35), Inches(1.05)]
+    if in_house:
+        # Label 4.1 cm, colon 0.4 cm, the rest for the value, across the text width.
+        from docx.shared import Cm as _Cm
+        rest = hs.TEXT_WIDTH - 4.5
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        house.grid_widths(table, [4.1, 0.4, rest * 0.46, rest * 0.27, rest * 0.27])
+        for row in table.rows:
+            row._tr.get_or_add_trPr().append(OxmlElement("w:cantSplit"))
+        doc.add_paragraph()  # spacing
+        return
     for row in table.rows:
         trPr = row._tr.get_or_add_trPr()
         trPr.append(OxmlElement("w:cantSplit"))
@@ -271,8 +318,11 @@ def render_particulars(doc: Document, block: Dict[str, Any]) -> None:
 def render_narrative(doc: Document, block: Dict[str, Any], all_blocks: Optional[List[Dict[str, Any]]] = None) -> None:
     """Render a narrative block as a heading + paragraph, embedding recorders in Cause of Loss if present."""
     section = block.get("_heading") or block.get("section", "")
+    if house.is_house(doc) and _empty_section(block, all_blocks):
+        # The client prints no heading over nothing (a Note with no note).
+        return
     if section:
-        doc.add_heading(section, level=2)
+        _h(doc, hs.heading_text(section) if house.is_house(doc) else section)
 
     preamble = block.get("preamble")
     if preamble:
@@ -293,11 +343,28 @@ def render_narrative(doc: Document, block: Dict[str, Any], all_blocks: Optional[
             "intro": block.get("attendance_intro") or "The following persons attended the survey:",
             "rows": people
         })
-    else:
+    elif not house.is_house(doc):
         doc.add_paragraph()
 
 
+def _empty_section(block: Dict[str, Any], all_blocks: Optional[List[Dict[str, Any]]]) -> bool:
+    if str(block.get("additional_text") or "").strip() or str(block.get("preamble") or "").strip():
+        return False
+    if any(any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing")) for r in block.get("attendance") or []):
+        return False
+    section = str(block.get("section") or "").lower()
+    if (block.get("id") == "b_cause" or "cause of loss" in section) and any(
+            b.get("type") == "temperature_recorders" and is_included(b) and b.get("recorders") for b in all_blocks or []):
+        return False
+    return True
+
+
 def _narrative_body(doc: Document, clause_text: str) -> None:
+    if house.is_house(doc):
+        house.body(doc, hs.auto_marks(clause_text, getattr(doc, "_mca_fruit", "")))
+        return
+    # QC reports print the text plain: no bold / underline marks.
+    clause_text = hs.plain(clause_text)
     if clause_text:
         from docx.shared import Pt
         from app.render.narrative_text import split_narrative
@@ -331,7 +398,7 @@ def render_survey_unit(doc: Document, block: Dict[str, Any]) -> None:
     from app.compute.gc_tables import unit_segments, unit_table
 
     heading = block.get("_heading") or "OUR SURVEY:"
-    doc.add_heading(heading, level=2)
+    _h(doc, heading)
     people = [r for r in block.get("attendance") or [] if any(str(r.get(k) or "").strip() for k in ("name", "designation", "representing"))]
     first_text = True
     for kind, value in unit_segments(block.get("additional_text") or ""):
@@ -351,7 +418,7 @@ def render_survey_unit(doc: Document, block: Dict[str, Any]) -> None:
                 _grid(doc, t["columns"], t["rows"], bold_last=t.get("total", False))
     summary = (block.get("_computed") or {}).get("weight_summary")
     if summary:
-        doc.add_heading(summary["title"], level=2)
+        _h(doc, summary["title"])
         _grid(doc, summary["columns"], summary["rows"], bold_last=True)
     doc.add_paragraph()
 
@@ -374,6 +441,10 @@ def _grid(doc: Document, columns: List[str], rows: List[List[str]], bold_last: b
             run = table.cell(ri, ci).paragraphs[0].add_run(str(v))
             run.font.size = Pt(9)
             run.bold = bold_last and ri == len(rows)
+    if house.is_house(doc):
+        house.restyle_table(table, hs.TABLE_PT, center=False)
+        for row in table.rows:
+            _cant_split(row)
     doc.add_paragraph()
 
 
@@ -383,7 +454,7 @@ def render_gc_table(doc: Document, block: Dict[str, Any]) -> None:
     if not t:
         return
     if t.get("title"):
-        doc.add_heading(t["title"], level=2)
+        _h(doc, t["title"])
     _grid(doc, t["columns"], t["rows"], bold_last=t.get("total", False))
 
 
@@ -401,7 +472,11 @@ def render_recorders(doc: Document, block: Dict[str, Any], hide_title: bool = Fa
         return
 
     if not hide_title and block.get("title"):
-        doc.add_heading(block["title"], level=2)
+        _h(doc, block["title"])
+
+    if house.is_house(doc):
+        _recorders_house(doc, block, recs)
+        return
 
     for idx, r in enumerate(recs):
         # Header for this recorder matching client reports
@@ -453,13 +528,53 @@ def render_recorders(doc: Document, block: Dict[str, Any], hide_title: bool = Fa
         doc.add_paragraph()
 
 
+def _recorders_house(doc: Document, block: Dict[str, Any], recs: List[Dict[str, Any]]) -> None:
+    """
+    Each recorder as in the client's Mandarin reports: a table whose first row
+    names the recorder and its annexure, then Parameter / Value with the
+    parameters bold and the MKT figure bold; the logger's own graph follows as
+    a picture of its own, 15.7 cm wide at most and no taller than 10.5 cm.
+    """
+    import re
+    from docx.shared import Cm
+    from app.render.recorder_chart import chart_for, recorder_table_header, vertical_summary_rows
+
+    C, L = WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.LEFT
+    label_w = 6.5
+    for idx, r in enumerate(recs):
+        rows = vertical_summary_rows(r)
+        table = doc.add_table(rows=2 + len(rows), cols=2)
+        table.style = "Table Grid"
+        house.full_width(table, [label_w, hs.TEXT_WIDTH - label_w])
+        top = table.cell(0, 0).merge(table.cell(0, 1))
+        header = re.sub(r"(Annexure [A-Z]\d*(?:\s*&\s*[A-Z]?\d+)?)", r"**\1**", recorder_table_header(r, idx))
+        house.cell_text(top, header, align=L)
+        house.cell_text(table.cell(1, 0), "Parameter", bold=True, align=C)
+        house.cell_text(table.cell(1, 1), "Value", bold=True, align=C)
+        for ri, (param, val) in enumerate(rows, start=2):
+            house.cell_text(table.cell(ri, 0), param, bold=True, align=L)
+            house.cell_text(table.cell(ri, 1), val, bold=param.upper().startswith("MKT") or "kinetic" in param.lower(), align=L)
+        png = chart_for(r, block.get("set_point_c")) if shows_chart(block) else None
+        # The table is never split and stays on the page with its own graph:
+        # with several recorders, a graph left to the next page sat above the
+        # next recorder's table.
+        house.keep_together(table, with_next=bool(png))
+        gap = house.plain_para(doc, after=0)
+        if png:
+            gap.paragraph_format.keep_with_next = True
+            p = doc.add_paragraph()
+            p.alignment = C
+            house.spacing(p, after=hs.GAP_PT)
+            p.add_run().add_picture(io.BytesIO(png), width=house.graph_size(png))
+
+
 def render_measurements(doc: Document, block: Dict[str, Any]) -> None:
     """Render a measurements block as a table (ticked rows only)."""
     rows = included_rows(block)
     if not rows:
         return
 
-    doc.add_heading("MEASUREMENTS", level=2)
+    _h(doc, "MEASUREMENTS")
     table = doc.add_table(rows=1 + len(rows), cols=5)
     table.style = "Table Grid"
 
@@ -492,7 +607,7 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
     # Grapes reports put the table straight under Our Survey with no heading
     # of its own; the fruit setting picks the default, the surveyor decides.
     if title and shows_table_title(block):
-        doc.add_heading(title, level=2)
+        _h(doc, title)
 
     from app.render.table_columns import visible_columns, shows_container
 
@@ -632,12 +747,17 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
             pct_row_cells[c0 + j].text = f"{p}%" if str(p) else ""
         pct_row_cells[-1].text = "100.00%"
 
-    # A dozen columns only fit portrait A4 at a small size.
-    for trow in table.rows:
-        for cell in trow.cells:
-            for para in cell.paragraphs:
-                for run in para.runs:
-                    run.font.size = Pt(7.5)
+    if house.is_house(doc):
+        if not is_two_tier:
+            table.rows[-1].cells[0].text = "Percentage"
+        _style_findings(table, pair_rows=is_two_tier)
+    else:
+        # A dozen columns only fit portrait A4 at a small size.
+        for trow in table.rows:
+            for cell in trow.cells:
+                for para in cell.paragraphs:
+                    for run in para.runs:
+                        run.font.size = Pt(7.5)
 
     doc.add_paragraph()
 
@@ -657,13 +777,17 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
         for i, row in enumerate(summ["rows"], start=1):
             for j, text in enumerate(row["cells"]):
                 st.rows[i].cells[j].text = text
-        for i, trow in enumerate(st.rows):
-            kind = "head" if i == 0 else summ["rows"][i - 1]["kind"]
-            for cell in trow.cells:
-                for para in cell.paragraphs:
-                    for run in para.runs:
-                        run.font.size = Pt(7.5)
-                        run.bold = kind in ("head", "total", "pct_total")
+        if house.is_house(doc):
+            kinds = ["head"] + [r["kind"] for r in summ["rows"]]
+            _style_findings(st, kinds=kinds)
+        else:
+            for i, trow in enumerate(st.rows):
+                kind = "head" if i == 0 else summ["rows"][i - 1]["kind"]
+                for cell in trow.cells:
+                    for para in cell.paragraphs:
+                        for run in para.runs:
+                            run.font.size = Pt(7.5)
+                            run.bold = kind in ("head", "total", "pct_total")
         doc.add_paragraph()
 
     # The graph, as the client draws it: columns by condition and a Total bar.
@@ -672,8 +796,47 @@ def render_table(doc: Document, block: Dict[str, Any], computed: Dict[str, Any])
         if png:
             chart_para = doc.add_paragraph()
             chart_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            chart_para.add_run().add_picture(io.BytesIO(png), width=Inches(16 / 2.54))
+            width = Inches(16 / 2.54)
+            if house.is_house(doc):
+                from docx.shared import Cm as _Cm
+                width = _Cm(hs.GRAPH_MAX_W)
+            chart_para.add_run().add_picture(io.BytesIO(png), width=width)
             doc.add_paragraph()
+
+
+def _style_findings(table, pair_rows: bool = False, kinds: Optional[List[str]] = None) -> None:
+    """
+    The findings table as in the client's newest reports: Arial 10 (smaller
+    when there are many columns), every cell centred, the header and the
+    total / percentage rows bold on light grey, every other data row a paler
+    grey.
+    """
+    size = house.fit_columns(table)
+    n = len(table.rows)
+    if kinds is None:
+        kinds = ["head"] + ["data"] * (n - 3) + ["total", "pct_total"]
+    # In the summary table a group's totals and percentages are a pair of rows.
+    pair_rows = pair_rows or "pct" in kinds
+    data_seen = 0
+    for i, row in enumerate(table.rows):
+        kind = kinds[i] if i < len(kinds) else "data"
+        strong = kind in ("head", "total", "pct_total")
+        stripe = False
+        if not strong:
+            stripe = (data_seen // 2 if pair_rows else data_seen) % 2 == 1
+            data_seen += 1
+        _cant_split(row)
+        for cell in row.cells:
+            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            for para in cell.paragraphs:
+                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                house.spacing(para, before=1, after=1)
+                for run in para.runs:
+                    house.font(run, size=size, bold=strong or bool(run.bold))
+            if strong:
+                house.shade(cell, hs.GREY_HEAD)
+            elif stripe:
+                house.shade(cell, hs.GREY_ALT)
 
 
 def _set_cell_margins(cell, margins: Dict[str, int]) -> None:
@@ -792,8 +955,12 @@ def render_photo_plate(
     photos = pl.photos_of(block, computed, assets)
     label = block.get("label", "Survey Photos")
 
+    if house.is_house(doc):
+        _photos_house(doc, block, lay, photos)
+        return
+
     if not photos:
-        doc.add_heading(label, level=2)
+        _h(doc, label)
         doc.add_paragraph("[No photos in this series]")
         return
 
@@ -808,7 +975,7 @@ def render_photo_plate(
         doc.add_paragraph().paragraph_format.page_break_before = True
 
     if lay["show_heading"]:
-        doc.add_heading(label, level=2)
+        _h(doc, label)
 
     style = "border" if lay["border"] else "plain"
     img_margin = pl.CELL_MARGIN[style]
@@ -876,9 +1043,74 @@ def render_photo_plate(
                 run.font.color.rgb = font_color
 
 
+def _photos_house(doc: Document, block: Dict[str, Any], lay: Dict[str, Any], photos: List[Dict[str, Any]]) -> None:
+    """
+    The photos as in the client's newest reports: straight after Paragraph 5,
+    one centred "SURVEY PHOTOGRAPHS" heading over them all, two across with a
+    thin black border round each photo and its caption, 8 to a page. Rows are
+    never split and a photo never leaves its caption; Word breaks the pages,
+    so the first page holds as many rows as fit under the text.
+    """
+    from docx.shared import Emu, Twips
+
+    from app.config import settings
+    from app.ingest.photos import report_image
+    from app.render import photo_layout as pl
+
+    if not photos:
+        return
+    if not getattr(doc, "_mca_photos_heading", False):
+        house.heading(doc, hs.PHOTOS_HEADING, center=True)
+        doc._mca_photos_heading = True
+
+    # The client's photo pages have the border; a report can still turn it off.
+    border_on = (block.get("layout") or {}).get("border", True) is not False
+    style = "border" if border_on else "plain"
+    img_margin = pl.CELL_MARGIN[style]
+    border = lay["border_color"] if border_on else None
+    qmax, qjpeg = pl.QUALITY[lay["quality"]]
+    cell_w = Twips(round(pl.IMAGE_W_PX * 15) + img_margin["left"] + img_margin["right"])
+    font_color = RGBColor.from_string(lay["caption_color"])
+
+    table = doc.add_table(rows=0, cols=2)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    _no_table_borders(table)
+    for col in table._tbl.tblGrid.gridCol_lst:
+        col.w = cell_w
+    for i in range(0, len(photos), 2):
+        pair = photos[i:i + 2]
+        img_row, cap_row = table.add_row(), table.add_row()
+        _cant_split(img_row)
+        _cant_split(cap_row)
+        for j in range(2):
+            ic, cc = img_row.cells[j], cap_row.cells[j]
+            ic.width = cc.width = cell_w
+            edge = border if j < len(pair) else None
+            _set_cell_borders(ic, edge, pl.BORDER_SIZE)
+            _set_cell_borders(cc, edge, pl.BORDER_SIZE)
+            _set_cell_margins(ic, img_margin)
+            _set_cell_margins(cc, pl.CAPTION_MARGIN)
+            ip, cp = ic.paragraphs[0], cc.paragraphs[0]
+            _tight(ip, pl.PARA_SPACING[style], keep_with_next=True)
+            _tight(cp, 5)
+            if j >= len(pair):
+                continue
+            photo = pair[j]
+            path = report_image(photo["asset"], settings.DERIVED_DIR, qmax, qjpeg, lay["quality"])
+            if path:
+                ip.add_run().add_picture(path, width=Emu(pl.IMAGE_W_PX * pl.EMU_PER_PX),
+                                         height=Emu(pl.IMAGE_H_PX * pl.EMU_PER_PX))
+            else:
+                ip.add_run("[Image not available]")
+            run = cp.add_run(photo["caption"])
+            house.font(run, size=lay["caption_size"], name=lay["caption_font"], color=font_color)
+    house.plain_para(doc, after=0)
+
+
 def render_parties(doc: Document, block: Dict[str, Any]) -> None:
     """Render a parties block as a 2-column key-value table."""
-    doc.add_heading("Parties Involved", level=2)
+    _h(doc, "Parties Involved")
     rows = block.get("rows", [])
     if not rows:
         return
@@ -906,7 +1138,26 @@ def render_attendance(doc: Document, block: Dict[str, Any]) -> None:
         return
     title = block.get("title", "Attendance at Survey")
     if title:
-        doc.add_heading(title, level=2)
+        _h(doc, title)
+    if house.is_house(doc):
+        # The client's: intro line, then Name / Designation / Representing,
+        # 11 pt, header bold and centred, name on the left, the rest centred.
+        if block.get("intro"):
+            p = house.plain_para(doc, block["intro"])
+            p.paragraph_format.keep_with_next = True
+        table = doc.add_table(rows=len(rows) + 1, cols=3)
+        table.style = "Table Grid"
+        house.full_width(table, [4.4, 3.6, hs.TEXT_WIDTH - 8.0])
+        C, L = WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.LEFT
+        for ci, h in enumerate(("Name", "Designation", "Representing")):
+            house.cell_text(table.cell(0, ci), h, bold=True, align=C)
+        for ri, r in enumerate(rows, start=1):
+            house.cell_text(table.cell(ri, 0), str(r.get("name", "")), align=L)
+            house.cell_text(table.cell(ri, 1), str(r.get("designation", "")), align=C)
+            house.cell_text(table.cell(ri, 2), str(r.get("representing", "")), align=C)
+        house.keep_together(table)
+        house.plain_para(doc, after=0)
+        return
     if block.get("intro"):
         doc.add_paragraph(block["intro"])
     table = doc.add_table(rows=len(rows) + 1, cols=3)
@@ -927,7 +1178,7 @@ def render_attendance(doc: Document, block: Dict[str, Any]) -> None:
 
 def render_timeline(doc: Document, block: Dict[str, Any], computed: Dict[str, Any]) -> None:
     """Render timeline block with event dates, locations, and transit days."""
-    doc.add_heading("Shipment & Survey Timeline", level=2)
+    _h(doc, "Shipment & Survey Timeline")
     rows = block.get("rows", [])
     if rows:
         table = doc.add_table(rows=len(rows) + 1, cols=4)
@@ -955,7 +1206,7 @@ def render_timeline(doc: Document, block: Dict[str, Any], computed: Dict[str, An
 def render_reconciliation(doc: Document, block: Dict[str, Any], computed: Dict[str, Any]) -> None:
     """Render weight reconciliation table with formula calculations."""
     title = block.get("title", "Weight Reconciliation")
-    doc.add_heading(title, level=2)
+    _h(doc, title)
     rows = computed.get("rows", block.get("rows", []))
     if not rows:
         return
@@ -998,7 +1249,7 @@ def render_reconciliation(doc: Document, block: Dict[str, Any], computed: Dict[s
 
 def render_inventory(doc: Document, block: Dict[str, Any]) -> None:
     """Render machinery/package inventory block."""
-    doc.add_heading("Machinery & Package Damage Inventory", level=2)
+    _h(doc, "Machinery & Package Damage Inventory")
     packages = block.get("packages", [])
     if not packages:
         doc.add_paragraph("[No damaged items recorded]")
@@ -1026,7 +1277,7 @@ def render_inventory(doc: Document, block: Dict[str, Any]) -> None:
 
 def render_annexures_list(doc: Document, block: Dict[str, Any], computed: Dict[str, Any]) -> None:
     """Render documentation list of annexures."""
-    doc.add_heading("List of Annexures", level=2)
+    _h(doc, "List of Annexures")
     doc_list = computed.get("documentation_list", [])
     if not doc_list:
         rows = block.get("rows", [])
@@ -1047,7 +1298,7 @@ def render_unit_group(
     for unit in units:
         heading = unit.get("heading") or f"CONTAINER {unit.get('identifier')}"
         _resume_body(doc)
-        doc.add_heading(heading, level=2)
+        _h(doc, heading)
         for ub in unit.get("blocks", []):
             if not is_included(ub):
                 continue
@@ -1069,8 +1320,14 @@ def render_unit_group(
                 render_narrative(doc, ub)
 
 
-def render_fixed_text(doc: Document, block: Dict[str, Any]) -> None:
+def render_fixed_text(doc: Document, block: Dict[str, Any], state: Optional[Dict[str, Any]] = None) -> None:
     """Render a fixed_text block (disclaimer, licence line, etc.)."""
+    if house.is_house(doc):
+        if state is not None and hs.is_closing(block, state):
+            house.closing(doc, state, block)
+        else:
+            house.body(doc, block.get("content", ""))
+        return
     content = block.get("content", "")
     if content:
         para = doc.add_paragraph(content)
@@ -1121,26 +1378,43 @@ def render_docx(
     for s in doc.sections:
         s.page_width, s.page_height = _Cm(21.0), _Cm(29.7)
 
-    # Inject container/report number into running header if applicable
-    container_no = state.get("transport", {}).get("container_no") or metadata.get("number", "")
-    if container_no:
-        for s in doc.sections:
-            for p in s.header.paragraphs:
-                if "IN-HOUSE QC INSPECTION REPORT #" in p.text and container_no not in p.text:
-                    p.text = p.text.replace("IN-HOUSE QC INSPECTION REPORT #", f"IN-HOUSE QC INSPECTION REPORT # {container_no}")
+    survey = hs.is_survey(state)
+    if survey:
+        # The client's look: border, banner, running header and footer, Arial.
+        house.prepare(doc, state)
+        # The template's empty opening line would push the title down.
+        for p in list(doc.paragraphs):
+            if not p.text.strip() and not p._p.xpath(".//w:drawing"):
+                p._p.getparent().remove(p._p)
+            else:
+                break
+        house.title(doc, hs.report_title(state))
+    else:
+        # Inject container/report number into running header if applicable
+        container_no = state.get("transport", {}).get("container_no") or metadata.get("number", "")
+        if container_no:
+            for s in doc.sections:
+                for p in s.header.paragraphs:
+                    if "IN-HOUSE QC INSPECTION REPORT #" in p.text and container_no not in p.text:
+                        p.text = p.text.replace("IN-HOUSE QC INSPECTION REPORT #", f"IN-HOUSE QC INSPECTION REPORT # {container_no}")
 
-    # Add centered document title if provided in block_state
-    report_title = state.get("report_title")
-    if report_title:
-        title_p = doc.add_paragraph()
-        title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        t_run = title_p.add_run(report_title)
-        t_run.bold = True
-        t_run.font.size = Pt(16)
-        t_run.font.name = "Arial"
+        # Add centered document title if provided in block_state
+        report_title = state.get("report_title")
+        if report_title:
+            title_p = doc.add_paragraph()
+            title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            t_run = title_p.add_run(report_title)
+            t_run.bold = True
+            t_run.font.size = Pt(16)
+            t_run.font.name = "Arial"
 
     assets = state.get("assets", {})
     blocks = state.get("blocks", [])
+    if survey:
+        # As the client orders them: the text sections, then the photographs,
+        # then the closing (disclaimer, issued without prejudice, signatures).
+        rank = lambda b: 2 if b.get("type") == "fixed_text" else 1 if b.get("type") == "photo_plate" else 0
+        blocks = sorted(blocks, key=rank)
 
     # Step 3: render each block
     for block in blocks:
@@ -1163,7 +1437,7 @@ def render_docx(
         elif btype == "photo_plate":
             render_photo_plate(doc, block, block_computed, assets)
         elif btype == "fixed_text":
-            render_fixed_text(doc, block)
+            render_fixed_text(doc, block, state)
         elif btype == "parties":
             render_parties(doc, block)
         elif btype == "attendance":

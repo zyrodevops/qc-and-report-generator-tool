@@ -112,3 +112,17 @@ export function photoUrl(reportId: string | undefined, assetId: string, asset: a
   if (asset?.url) return asset.url;
   return reportId ? `/api/reports/${reportId}/assets/${assetId}/image` : '';
 }
+
+/**
+ * The client's photos go two to a row, so a report always has an even number
+ * of them (Ankit, 6 Oct 2026): an upload that would leave an odd number leaves
+ * out its last photo, which is then not uploaded at all.
+ */
+export function evenBatch<T>(existingCount: number, batch: T[]): { keep: T[]; dropped: T[] } {
+  if (batch.length === 0 || (existingCount + batch.length) % 2 === 0) return { keep: batch, dropped: [] };
+  return { keep: batch.slice(0, -1), dropped: batch.slice(-1) };
+}
+
+export function droppedNotice(name: string): string {
+  return `${name || 'The last photo'} was left out so the photos stay in pairs (two to a row).`;
+}

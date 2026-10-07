@@ -1,5 +1,52 @@
 import React from 'react';
 import { normalizeVoyageAsync } from '../../../utils/portNormalizer';
+import { useHouseStyle } from '../../../utils/houseStyle';
+
+const BOLD_LINE = /^\s*(?:Total\b|Net Weight\b|Gross Weight\b)/i;
+
+/** The value as the Word file prints it: a party's name (first line) and total / weight lines bold. */
+const CoverValue: React.FC<{ label: string; value: string }> = ({ label, value }) => {
+  const lines = value.split('\n');
+  const party = /^(shipper|consignees?)$/i.test(label.trim().replace(/:$/, '')) && lines.length > 1;
+  return (
+    <>
+      {lines.map((l, i) => (
+        <div key={i} style={{ fontWeight: (party && i === 0) || BOLD_LINE.test(l) ? 700 : 400, textAlign: /packing/i.test(label) ? 'justify' : 'left' }}>
+          {l || '\u00a0'}
+        </div>
+      ))}
+    </>
+  );
+};
+
+/** Survey report preview: the value shows as printed; a click opens a box to edit (line breaks kept). */
+const CoverCell: React.FC<{ label: string; value: string; onChange?: (v: string) => void }> = ({ label, value, onChange }) => {
+  const [editing, setEditing] = React.useState(false);
+  if (editing && onChange) {
+    return (
+      <textarea
+        autoFocus
+        value={value}
+        rows={Math.max(1, value.split('\n').length)}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={async (e) => {
+          setEditing(false);
+          if (/voyage/i.test(label)) {
+            const normalized = await normalizeVoyageAsync(e.target.value);
+            if (normalized && normalized !== e.target.value) onChange(normalized);
+          }
+        }}
+        className="mca-textarea w-full bg-white outline-none ring-1 ring-blue-500 resize-y"
+        style={{ textAlign: 'left' }}
+      />
+    );
+  }
+  return (
+    <div className={onChange ? 'cursor-text hover:bg-blue-50/40' : ''} onClick={() => onChange && setEditing(true)} title={onChange ? 'Click to edit' : undefined}>
+      <CoverValue label={label} value={value} />
+    </div>
+  );
+};
 
 export interface ParticularsBlockProps {
   block: any;
@@ -8,14 +55,18 @@ export interface ParticularsBlockProps {
   weights?: any;
   onChange?: (updatedBlock: any) => void;
   editable?: boolean;
+  /** Survey report preview: only rows [from, to) — the table continues on the next page. */
+  rowRange?: [number, number];
 }
 
 export const ParticularsBlock: React.FC<ParticularsBlockProps> = ({
   block,
   onChange,
   editable = true,
+  rowRange,
 }) => {
   const rows: any[] = block?.rows || [];
+  const house = useHouseStyle();
   if (rows.length === 0) return null;
 
   const sectionTitle = block.section === '' ? '' : block.section || '';
@@ -50,15 +101,20 @@ export const ParticularsBlock: React.FC<ParticularsBlockProps> = ({
   };
 
   return (
-    <div className="particulars-block my-2">
+    <div
+      className={house ? "particulars-block" : "particulars-block my-2"}
+      // Survey reports: a blank line after the table (as in Word), none between its continued rows.
+      style={house && (!rowRange || rowRange[1] >= rows.length) ? { marginBottom: "12.65pt" } : undefined}
+    >
       {sectionTitle && (
         <h2 className="text-[12px] font-bold text-[#00387A] uppercase tracking-wider border-b border-slate-300 pb-1 mb-2">
           {sectionTitle}
         </h2>
       )}
-      <table className="w-full border-collapse border border-slate-400 text-xs">
+      <table className={`w-full border-collapse border border-slate-400 text-xs ${house ? 'mca-particulars' : ''}`}>
         <tbody>
           {rows.map((row, idx) => {
+            if (rowRange && (idx < rowRange[0] || idx >= rowRange[1])) return null;
             const label = row.label || '';
             const isTable =
               row.type === 'table' ||
@@ -190,7 +246,9 @@ export const ParticularsBlock: React.FC<ParticularsBlockProps> = ({
                   :
                 </td>
                 <td className="w-[68%] text-slate-900 p-0 font-sans align-top">
-                  {editable && onChange ? (
+                  {house ? (
+                    <CoverCell label={label} value={valStr} onChange={editable && onChange ? (v) => handleValueChange(idx, v) : undefined} />
+                  ) : editable && onChange ? (
                     label.toLowerCase().includes('packing') ? (
                       <textarea
                         value={valStr}

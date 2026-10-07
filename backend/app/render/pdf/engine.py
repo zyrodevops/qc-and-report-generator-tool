@@ -10,7 +10,8 @@ Pipeline:
   5. Clean up temp dir
 
 LibreOffice binary: /usr/local/bin/libreoffice (verified present in this environment).
-No PyMuPDF (AGPL), no docx2pdf (Windows-only COM).
+No PyMuPDF (AGPL), no docx2pdf. On a Windows machine with Word but no
+LibreOffice, Word converts the file instead (see _render_with_word).
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 
 # Default LibreOffice binary path — verified in this environment
@@ -58,9 +60,92 @@ def _find_libreoffice() -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Windows without LibreOffice: Microsoft Word makes the PDF
+# ---------------------------------------------------------------------------
+#
+# The tool is developed and demonstrated on Windows machines that have Word
+# but not LibreOffice, where PDF download used to fail outright. There Word
+# itself converts the file, which also matches the Word file exactly. Word is
+# driven through PowerShell (no extra Python package); one conversion at a
+# time; the report is opened unseen and only that document is closed, and Word
+# is quit only if this started it, so a surveyor's open documents are untouched.
+
+_WORD_CANDIDATES = [
+    r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
+    r"C:\Program Files (x86)\Microsoft Office\root\Office16\WINWORD.EXE",
+    r"C:\Program Files\Microsoft Office\Office16\WINWORD.EXE",
+    r"C:\Program Files (x86)\Microsoft Office\Office16\WINWORD.EXE",
+    r"C:\Program Files\Microsoft Office\root\Office15\WINWORD.EXE",
+]
+
+_WORD_SCRIPT = r"""
+param([string]$Docx, [string]$Pdf)
+$ErrorActionPreference = 'Stop'
+$word = New-Object -ComObject Word.Application
+# Word may hand back the copy the surveyor has open: then leave it as it was.
+$fresh = ($word.Documents.Count -eq 0) -and (-not $word.Visible)
+$alerts = $word.DisplayAlerts
+$word.DisplayAlerts = 0
+$m = [Type]::Missing
+try {
+    # read-only, not in recent files, not shown
+    $doc = $word.Documents.Open($Docx, $false, $true, $false, $m, $m, $m, $m, $m, $m, $m, $false)
+    $doc.ExportAsFixedFormat($Pdf, 17)
+    $doc.Close([ref]0)
+} finally {
+    if ($fresh -and $word.Documents.Count -eq 0) { $word.Quit() } else { $word.DisplayAlerts = $alerts }
+    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($word) | Out-Null
+}
+"""
+
+_WORD_LOCK = threading.Lock()
+
+
+def _word_available() -> bool:
+    if os.name != "nt":
+        return False
+    if any(os.path.isfile(p) for p in _WORD_CANDIDATES):
+        return True
+    try:  # wherever Office put it, Windows records Word's path here
+        import winreg
+        key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Winword.exe"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key) as k:
+            return os.path.isfile(winreg.QueryValue(k, None))
+    except OSError:
+        return False
+
+
+def _render_with_word(docx_bytes: bytes) -> bytes:
+    tmp_dir = tempfile.mkdtemp(prefix="mca_pdf_word_")
+    try:
+        docx_path = Path(tmp_dir) / "report.docx"
+        pdf_path = Path(tmp_dir) / "report.pdf"
+        script = Path(tmp_dir) / "to_pdf.ps1"
+        docx_path.write_bytes(docx_bytes)
+        script.write_text(_WORD_SCRIPT, encoding="utf-8")
+        with _WORD_LOCK:
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                 "-File", str(script), "-Docx", str(docx_path), "-Pdf", str(pdf_path)],
+                capture_output=True,
+                text=True,
+                timeout=_CONVERSION_TIMEOUT_SECONDS,
+            )
+        if result.returncode != 0 or not pdf_path.exists() or pdf_path.stat().st_size == 0:
+            raise RuntimeError(
+                f"Word could not make the PDF (exit code {result.returncode}).\n"
+                f"stdout: {result.stdout}\nstderr: {result.stderr}"
+            )
+        return pdf_path.read_bytes()
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def render_pdf(docx_bytes: bytes) -> bytes:
     """
-    Convert DOCX bytes to PDF bytes via LibreOffice headless.
+    Convert DOCX bytes to PDF bytes via LibreOffice headless (on a Windows
+    machine without LibreOffice, via Microsoft Word).
 
     Args:
         docx_bytes: Raw bytes of a valid .docx file.
@@ -69,10 +154,19 @@ def render_pdf(docx_bytes: bytes) -> bytes:
         Raw bytes of the resulting PDF.
 
     Raises:
-        LibreOfficeNotAvailableError: If no LibreOffice binary is found.
+        LibreOfficeNotAvailableError: If neither LibreOffice nor Word is found.
         RuntimeError: If conversion fails or produces no output.
     """
-    lo_binary = _find_libreoffice()
+    try:
+        lo_binary = _find_libreoffice()
+    except LibreOfficeNotAvailableError as exc:
+        if _word_available():
+            return _render_with_word(docx_bytes)
+        if os.name == "nt":
+            raise LibreOfficeNotAvailableError(
+                f"{exc} Microsoft Word, which can make the PDF instead on Windows, was not found either."
+            ) from None
+        raise
 
     tmp_dir = tempfile.mkdtemp(prefix="mca_pdf_")
     try:

@@ -6,6 +6,7 @@ so these tests write made-up lists to a temporary folder.
 """
 
 import json
+import os
 
 import docx
 import pytest
@@ -98,6 +99,28 @@ def test_reference_data_needs_login(private_lists):
     data = res.json()
     assert data["staff"]["mca_surveyors"][0]["name"] == "Mr. Firm Surveyor"
     assert data["cold_storages"][0]["clean_name"] == "Test Cold Store"
+
+
+def test_banner_is_rechecked_not_cached_stale(tmp_path, monkeypatch):
+    from PIL import Image
+
+    monkeypatch.setattr(settings, "PRIVATE_DATA_DIR", str(tmp_path))
+    Image.new("RGBA", (400, 80), (0, 32, 96, 255)).save(tmp_path / private_data.BANNER_FILE)
+    client = TestClient(app)
+    login = client.post("/api/auth/login", json={"email": "surveyor@example.com", "password": "Password123!"})
+    auth = {"Authorization": f"Bearer {login.json()['token']}"}
+
+    res = client.get("/api/reference-data/banner.jpg", headers=auth)
+    assert res.status_code == 200 and res.headers["content-type"] == "image/jpeg"
+    assert "no-cache" in res.headers["cache-control"]
+    etag = res.headers["etag"]
+    # unchanged: the browser keeps its copy
+    assert client.get("/api/reference-data/banner.jpg", headers={**auth, "If-None-Match": etag}).status_code == 304
+    # a new banner file: the browser gets it at once
+    Image.new("RGBA", (400, 80), (200, 0, 0, 255)).save(tmp_path / private_data.BANNER_FILE)
+    os.utime(tmp_path / private_data.BANNER_FILE, (1, 1))
+    res = client.get("/api/reference-data/banner.jpg", headers={**auth, "If-None-Match": etag})
+    assert res.status_code == 200 and res.headers["etag"] != etag
 
 
 def test_render_narrative_docx_and_html():

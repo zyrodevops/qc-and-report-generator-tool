@@ -1,5 +1,6 @@
 import React from 'react';
 import { getRecorderChartUrl } from '../../../api/client';
+import { Marked, useHouseStyle } from '../../../utils/houseStyle';
 
 const when = (iso?: string, raw?: string) => {
   if (iso) {
@@ -64,6 +65,8 @@ export interface RecordersBlockProps {
   onChange?: (updatedBlock: any) => void;
   hideTitle?: boolean;
   isFormEditor?: boolean;
+  /** Survey report preview: just this recorder (its table and graph), for page breaks. */
+  only?: number;
 }
 
 /**
@@ -76,11 +79,60 @@ export const RecordersBlock: React.FC<RecordersBlockProps> = ({
   onChange,
   hideTitle,
   isFormEditor = false,
+  only,
 }) => {
+  const house = useHouseStyle();
   const recs: any[] = (block?.recorders || []).filter((r: any) => r.included !== false);
   if (!recs.length) return null;
   const showChart = block?.show_chart !== false;
   const offsets = Array.from(new Set(recs.map((r) => r.utc_offset).filter(Boolean)));
+
+  if (house && !isFormEditor) {
+    // As the Word file and the client's Mandarin reports: the recorder and its
+    // annexure in the first row, Parameter / Value, parameters bold, MKT bold;
+    // the logger's graph under the table as a picture of its own.
+    return (
+      <div className="recorders-block" data-testid="recorders-house">
+        {recs.map((r, i) => {
+          if (only !== undefined && i !== only) return null;
+          const header = recorderTableHeader(r, i).replace(/(Annexure [A-Z]\d*)/, '**$1**');
+          return (
+            <React.Fragment key={r.asset_id || i}>
+              <table className="mca-table" style={{ breakInside: 'avoid' }}>
+                <tbody>
+                  <tr>
+                    <td colSpan={2} style={{ textAlign: 'left' }}>
+                      <Marked text={header} />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th style={{ width: '6.5cm' }}>Parameter</th>
+                    <th>Value</th>
+                  </tr>
+                  {verticalSummaryRows(r).map(([param, val], j) => (
+                    <tr key={j}>
+                      <td style={{ fontWeight: 700 }}>{param}</td>
+                      <td style={{ fontWeight: /^mkt|kinetic/i.test(param) ? 700 : 400 }}>{val}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mca-p" style={{ margin: 0 }}>&nbsp;</p>
+              {showChart && reportId && r.asset_id && (
+                <div style={{ textAlign: 'center', marginBottom: '11pt' }}>
+                  <img
+                    src={getRecorderChartUrl(reportId, r.asset_id)}
+                    alt={`Temperature graph, recorder ${r.device_id || ''}`}
+                    style={{ maxWidth: '15.7cm', maxHeight: '10.5cm', width: 'auto', height: 'auto', display: 'inline-block' }}
+                  />
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="recorders-block my-2">

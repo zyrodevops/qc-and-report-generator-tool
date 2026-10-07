@@ -24,6 +24,8 @@ import { PhotoTray } from '../components/photos/PhotoTray';
 import { ReportPreview } from '../components/preview/ReportPreview';
 import { NarrativeBlock } from '../components/preview/blocks/NarrativeBlock';
 import { RecordersBlock } from '../components/preview/blocks/RecordersBlock';
+import { ClosingEditor } from '../components/preview/blocks/FixedTextBlock';
+import { isClosing } from '../utils/houseStyle';
 import { buildParagraph4NextStep, clauseContextFrom, fillNamedBlanks, findBlanks, generalCargoValues } from '../utils/clauseContext';
 import { normalizeVoyageAsync } from '../utils/portNormalizer';
 import { ShipmentDocuments } from '../components/documents/ShipmentDocuments';
@@ -190,7 +192,13 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
       return list;
     });
 
+  // Photos are on the server the moment they are uploaded, but which photos
+  // the report shows (and in what order) is part of the report itself. That
+  // used to wait for Save Draft, so photos uploaded and then left unsaved
+  // vanished from the report. Photo changes are now saved straight away.
+  const [photoSavePending, setPhotoSavePending] = useState(false);
   const handlePhotoBlockUpdate =(updatedBlock: any, updatedAssets?: Record<string, any>) => {
+    setPhotoSavePending(true);
     setBlockState((prev: any) => {
       const currentBlocks = prev?.blocks || [];
       const updated = currentBlocks.map((b: any) => (b.id === updatedBlock.id ? updatedBlock : b));
@@ -203,6 +211,22 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
     setDirty(true);
     setSavedMsg(false);
     setConflictMsg(null);
+  };
+
+  /** Leaving the page with unsaved changes asks first (the browser's own prompt). */
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
+  const handleBack = () => {
+    if (dirty && !window.confirm('This report has changes that are not saved. Leave without saving?')) return;
+    onBack();
   };
 
   /** Returns true when the server now holds exactly what is on screen. */
@@ -234,6 +258,13 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
    * got the report as it was before his correction.
    */
   const saveIfNeeded = async (): Promise<boolean> => (dirty ? handleSave() : true);
+
+  useEffect(() => {
+    if (!photoSavePending || saving) return;
+    setPhotoSavePending(false);
+    handleSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoSavePending, blockState, saving]);
 
   // For the clause pickers: the report as it stands on screen, saved or not.
   const clauseContext = useMemo(() => clauseContextFrom(blockState), [blockState]);
@@ -297,7 +328,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
       <div className="sticky top-4 z-40 bg-white/95 backdrop-blur-md p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap justify-between items-center gap-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={onBack}
+            onClick={handleBack}
             className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition"
             title="Back to Reports list"
           >
@@ -957,6 +988,9 @@ export const ReportForm: React.FC<ReportFormProps> = ({ report, onBack }) => {
           }
 
           if (block.type === 'fixed_text') {
+            if (isClosing(block, blockState?.metadata)) {
+              return <ClosingEditor key={block.id} block={block} onChange={handleBlockChange} />;
+            }
             return (
               <div key={block.id} className="bg-gray-50 rounded-xl border border-gray-200 p-5 text-xs text-gray-600 space-y-1">
                 <span className="font-bold text-gray-700 uppercase">Document Legal Text:</span>

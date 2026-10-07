@@ -44,6 +44,7 @@ const EMPTY_STAFF: StaffSurveyorData = {
 
 let staff: StaffSurveyorData = EMPTY_STAFF;
 let coldStorages: ColdStorageLocation[] = [];
+let licenceNo = '';
 let loaded = false;
 let pending: Promise<void> | null = null;
 const listeners = new Set<() => void>();
@@ -54,6 +55,11 @@ export function getStaffData(): StaffSurveyorData {
 
 export function getColdStorages(): ColdStorageLocation[] {
   return coldStorages;
+}
+
+/** The surveyor licence number printed in a survey report's closing ('' when the server has none). */
+export function getLicenceNo(): string {
+  return licenceNo;
 }
 
 export function referenceDataLoaded(): boolean {
@@ -71,6 +77,7 @@ export function loadReferenceData(): Promise<void> {
       const data = await res.json();
       staff = { ...EMPTY_STAFF, ...(data?.staff || {}) };
       coldStorages = Array.isArray(data?.cold_storages) ? data.cold_storages : [];
+      licenceNo = typeof data?.licence_no === 'string' ? data.licence_no : '';
       loaded = true;
       listeners.forEach((fn) => fn());
     })

@@ -1,3 +1,4 @@
+import { useHouseStyle } from '../../../utils/houseStyle';
 import React from 'react';
 import { Camera } from 'lucide-react';
 import { layoutOf, photoCaption, photoUrl, PHOTO_H_CM, PHOTO_W_CM } from '../../../utils/photoLayout';
@@ -54,6 +55,7 @@ export const PhotoPlateBlock: React.FC<PhotoPlateBlockProps> = ({
   showHeading,
 }) => {
   const lay = layoutOf(block);
+  const house = useHouseStyle();
   const label = block?.label || 'Survey Photographs';
   const photos = photoSlice || previewPhotos(block, assets, reportId);
   const heading = (
@@ -71,10 +73,12 @@ export const PhotoPlateBlock: React.FC<PhotoPlateBlockProps> = ({
     );
   }
 
-  const edge = lay.border ? `1.5pt solid #${lay.border_color}` : 'none';
+  // Survey reports have the client's thin border round every photo unless it is turned off.
+  const borderOn = house ? (block?.layout || {}).border !== false : lay.border;
+  const edge = borderOn ? `1.5pt solid #${lay.border_color}` : 'none';
   // Cell padding in twips, as the tool sets it (see photo_layout.py).
   const tw = 2.54 / 1440;
-  const pad = lay.border ? `${10 * tw}cm` : `${5 * tw}cm ${20 * tw}cm`;
+  const pad = borderOn ? `${10 * tw}cm` : `${5 * tw}cm ${20 * tw}cm`;
   const rows: PreviewPhoto[][] = [];
   for (let i = 0; i < photos.length; i += 2) rows.push(photos.slice(i, i + 2));
 

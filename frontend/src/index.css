@@ -1,2 +1,211 @@
 @import "tailwindcss";
 
+/*
+ * The client's report look on the A4 preview pages of a survey report — the
+ * same as the Word file (backend app/render/house_style.py): Arial 11
+ * justified, headings bold, underlined and dark blue, tables in Arial with
+ * thin black borders. Pages carry the class .mca-page.
+ */
+.mca-page {
+  font-family: Arial, 'Liberation Sans', Helvetica, sans-serif;
+  font-size: 11pt;
+  line-height: 1.15;
+  color: #000;
+}
+.mca-page .mca-p {
+  text-align: justify;
+  margin: 0 0 12.65pt 0;
+}
+.mca-page .mca-heading {
+  font-weight: 700;
+  text-decoration: underline;
+  color: #002060;
+  font-size: 11pt;
+  margin: 0 0 12.65pt 0;
+  text-align: left;
+}
+.mca-page .mca-heading.mca-center {
+  text-align: center;
+}
+.mca-page .mca-title {
+  font-weight: 700;
+  text-decoration: underline;
+  color: #002060;
+  font-size: 14pt;
+  text-align: center;
+  margin: 2pt 0 12pt 0;
+}
+.mca-page .mca-list {
+  margin: 0 0 12.65pt 0;
+}
+.mca-page .mca-li {
+  display: flex;
+  text-align: justify;
+}
+.mca-page .mca-li-mark {
+  flex: none;
+  width: 0.63cm;
+}
+.mca-page .mca-li-text {
+  flex: 1;
+}
+.mca-page .mca-textarea {
+  font-family: inherit;
+  font-size: 11pt;
+  line-height: 1.15;
+  color: #000;
+  text-align: justify;
+}
+.mca-page table.mca-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11pt;
+}
+.mca-page table.mca-table td,
+.mca-page table.mca-table th {
+  border: 0.5pt solid #000;
+  padding: 0 5px;
+  vertical-align: middle;
+}
+.mca-page table.mca-table th {
+  font-weight: 700;
+  text-align: center;
+}
+.mca-page .mca-small {
+  font-size: 8.5pt;
+}
+
+/* The findings table of a survey report: Arial, every cell centred, black
+   borders, header and total rows bold on light grey, every other row paler. */
+.mca-page table.mca-findings,
+.mca-page table.mca-findings th,
+.mca-page table.mca-findings td,
+.mca-page table.mca-findings input {
+  font-family: Arial, 'Liberation Sans', Helvetica, sans-serif !important;
+  color: #000 !important;
+  text-align: center !important;
+}
+.mca-page table.mca-findings th,
+.mca-page table.mca-findings td {
+  border: 0.5pt solid #000 !important;
+  background: transparent !important;
+  font-size: inherit !important;
+  vertical-align: middle;
+}
+.mca-page table.mca-findings input {
+  font-size: inherit !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.mca-page table.mca-findings thead tr,
+.mca-page table.mca-findings tr.mca-strong {
+  background: #e7e6e6 !important;
+  font-weight: 700;
+}
+.mca-page table.mca-findings tr.mca-strong td {
+  font-weight: 700 !important;
+}
+.mca-page table.mca-findings tbody tr.mca-alt {
+  background: #f2f2f2 !important;
+}
+
+/* The cover table of a survey report: Arial 11, black borders, labels bold,
+   the consignment table's header centred, its counts and boxes centred. */
+.mca-page table.mca-particulars,
+.mca-page table.mca-particulars th,
+.mca-page table.mca-particulars td,
+.mca-page table.mca-particulars input,
+.mca-page table.mca-particulars textarea {
+  font-family: Arial, 'Liberation Sans', Helvetica, sans-serif !important;
+  font-size: 11pt !important;
+  color: #000 !important;
+  line-height: 1.15;
+}
+.mca-page table.mca-particulars {
+  border: 0.5pt solid #000 !important;
+}
+.mca-page table.mca-particulars td,
+.mca-page table.mca-particulars th {
+  border-color: #000 !important;
+  border-width: 0.5pt !important;
+  background: transparent !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  vertical-align: middle !important;
+}
+.mca-page table.mca-particulars > tbody > tr > td:first-child {
+  font-weight: 700 !important;
+}
+.mca-page table.mca-particulars > tbody > tr > td > div,
+.mca-page table.mca-particulars input {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.mca-page table.mca-particulars > tbody > tr > td:nth-child(3) > div {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+.mca-page table.mca-particulars table th {
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+.mca-page table.mca-particulars table td:nth-child(2),
+.mca-page table.mca-particulars table td:nth-child(3),
+.mca-page table.mca-particulars table td:nth-child(2) input,
+.mca-page table.mca-particulars table td:nth-child(3) input {
+  text-align: center !important;
+}
+.mca-page table.mca-particulars table tr:last-child td[colspan] {
+  font-weight: 700 !important;
+}
+.mca-page table.mca-particulars table tr:last-child td[colspan] input {
+  font-weight: 700 !important;
+}
+
+/* Attendance: intro line, then Name / Designation / Representing, 11 pt,
+   header bold and centred, the name on the left, the rest centred. */
+.mca-page .mca-attendance,
+.mca-page .mca-attendance input,
+.mca-page .mca-attendance p,
+.mca-page .mca-attendance th,
+.mca-page .mca-attendance td {
+  font-family: Arial, 'Liberation Sans', Helvetica, sans-serif !important;
+  font-size: 11pt !important;
+  color: #000 !important;
+  font-weight: 400;
+}
+.mca-page .mca-attendance > div:first-child {
+  margin-bottom: 12.65pt;
+}
+.mca-page .mca-attendance table {
+  margin-bottom: 12.65pt;
+}
+.mca-page .mca-attendance th,
+.mca-page .mca-attendance td {
+  border: 0.5pt solid #000 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.mca-page .mca-attendance th {
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+.mca-page .mca-attendance td input,
+.mca-page .mca-attendance td div {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.mca-page .mca-attendance td textarea {
+  font-family: Arial, 'Liberation Sans', Helvetica, sans-serif !important;
+  font-size: 11pt !important;
+  color: #000 !important;
+  line-height: 1.15;
+}
+.mca-page .mca-attendance td:nth-child(2) textarea,
+.mca-page .mca-attendance td:nth-child(3) textarea,
+.mca-page .mca-attendance td:nth-child(2) input,
+.mca-page .mca-attendance td:nth-child(3) input,
+.mca-page .mca-attendance td:nth-child(2) div,
+.mca-page .mca-attendance td:nth-child(3) div {
+  text-align: center !important;
+}

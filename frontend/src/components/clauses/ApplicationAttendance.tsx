@@ -19,6 +19,28 @@ import {
   getDefaultAttendance,
 } from '../../utils/staffLookup';
 import { getStaffData, useReferenceData } from '../../utils/referenceData';
+import { useHouseStyle } from '../../utils/houseStyle';
+
+/** Survey report preview: a cell that wraps like the printed table and grows with its text. */
+const WrapCell: React.FC<{ value: string; placeholder?: string; onChange: (v: string) => void }> = ({ value, placeholder, onChange }) => {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full bg-transparent border-none outline-none resize-none overflow-hidden px-1 hover:bg-blue-50/40 focus:bg-white focus:ring-1 focus:ring-blue-500 block"
+    />
+  );
+};
 
 interface ApplicationAttendanceProps {
   rows: Attendee[];
@@ -44,6 +66,7 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   useReferenceData();
   const staffData = getStaffData();
+  const house = useHouseStyle();
 
   const isJoint = intro.toLowerCase().includes('joint');
 
@@ -141,7 +164,7 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
   if (!isFormEditor) {
     if (rows.length === 0) return null;
     return (
-      <div className="my-3 text-xs font-sans text-gray-800" data-testid="a4-attendance-table">
+      <div className={house ? 'mca-attendance' : 'my-3 text-xs font-sans text-gray-800'} data-testid="a4-attendance-table">
         <div className="mb-1.5">
           {editable ? (
             <input
@@ -166,7 +189,9 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
             {rows.map((row, idx) => (
               <tr key={idx} className="border-b border-gray-400 hover:bg-slate-50/50">
                 <td className="p-0 border border-gray-400 font-medium text-gray-900">
-                  {editable ? (
+                  {editable && house ? (
+                    <WrapCell value={row.name} placeholder="Attendee Name" onChange={(v) => handleUpdateRow(idx, 'name', v)} />
+                  ) : editable ? (
                     <input
                       type="text"
                       value={row.name}
@@ -179,7 +204,9 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
                   )}
                 </td>
                 <td className="p-0 border border-gray-400 text-gray-800">
-                  {editable ? (
+                  {editable && house ? (
+                    <WrapCell value={row.designation} placeholder="Designation" onChange={(v) => handleUpdateRow(idx, 'designation', v)} />
+                  ) : editable ? (
                     <input
                       type="text"
                       value={row.designation}
@@ -192,7 +219,9 @@ export const ApplicationAttendance: React.FC<ApplicationAttendanceProps> = ({
                   )}
                 </td>
                 <td className="p-0 border border-gray-400 text-gray-800">
-                  {editable ? (
+                  {editable && house ? (
+                    <WrapCell value={row.representing} placeholder="Representing" onChange={(v) => handleUpdateRow(idx, 'representing', v)} />
+                  ) : editable ? (
                     <input
                       type="text"
                       value={row.representing}

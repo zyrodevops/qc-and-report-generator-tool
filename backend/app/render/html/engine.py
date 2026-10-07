@@ -371,12 +371,31 @@ def _narrative_body_html(clause_text: str) -> str:
     from app.render.narrative_text import split_narrative
 
     parts = []
-    for kind, lines in split_narrative(clause_text):
+    for kind, lines in split_narrative(clause_text, rich=True):
         if kind == "ul":
-            parts.append("<ul>" + "".join(f"<li>{html.escape(i)}</li>" for i in lines) + "</ul>")
+            parts.append("<ul>" + "".join(f"<li>{_marked_html(i)}</li>" for i in lines) + "</ul>")
+        elif kind == "ol":
+            parts.append('<div class="numbered">' + "".join(f"<p>{_marked_html(i)}</p>" for i in lines) + "</div>")
+        elif kind == "h":
+            parts.append(f'<p class="sub-heading"><b><u>{html.escape(lines[0])}</u></b></p>')
         else:
-            parts.append("<p>" + "<br>".join(html.escape(l) for l in lines) + "</p>")
+            parts.append("<p>" + "<br>".join(_marked_html(l) for l in lines) + "</p>")
     return f'<div class="narrative-block">{"".join(parts)}</div>'
+
+
+def _marked_html(text: str) -> str:
+    """Text with its **bold** and __underline__ marks, escaped."""
+    from app.render.house_style import runs
+
+    out = []
+    for part, bold, under in runs(text):
+        piece = html.escape(part)
+        if under:
+            piece = f"<u>{piece}</u>"
+        if bold:
+            piece = f"<b>{piece}</b>"
+        out.append(piece)
+    return "".join(out)
 
 
 def render_narrative_html(block: Dict[str, Any], all_blocks: Optional[List[Dict[str, Any]]] = None) -> str:
@@ -530,7 +549,7 @@ def render_measurements_html(block: Dict[str, Any]) -> str:
     return "\n".join(out)
 
 
-def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
+def render_table_html(block: Dict[str, Any], computed: Dict[str, Any], pct_label: str = "%") -> str:
     """
     Render defect analysis table with locked computed totals/percentages.
     Matches Word cell-for-cell bit-exact.
@@ -644,7 +663,8 @@ def render_table_html(block: Dict[str, Any], computed: Dict[str, Any]) -> str:
         tot_cells.append(f"<td>{html.escape(str(grand_total))}</td>")
         out.append(f'<tr class="totals-row">{"".join(tot_cells)}</tr>')
 
-        pct_cells = ["<td>%</td>" + blank_td]
+        # Survey reports print "Percentage", as the client's do (and the Word file).
+        pct_cells = [f"<td>{html.escape(pct_label)}</td>" + blank_td]
         for key in cat_keys:
             p = col_pcts.get(key, "")
             pct_cells.append(f"<td>{html.escape(f'{p}%' if str(p) else '')}</td>")
@@ -933,6 +953,7 @@ def render_html(block_state: Dict[str, Any]) -> str:
     Organizes blocks into realistic paginated A4 page containers with client margins.
     """
     state = compute(block_state)
+    from app.render.house_style import is_survey as _is_survey
     blocks = state.get("blocks", [])
     assets = state.get("assets", {})
     metadata = state.get("metadata", state.get("report", {}))
@@ -956,9 +977,12 @@ def render_html(block_state: Dict[str, Any]) -> str:
         elif btype == "measurements":
             rendered = render_measurements_html(b)
         elif btype == "table":
-            rendered = render_table_html(b, bcomp)
+            from app.render.house_style import is_survey as _is_survey
+            rendered = render_table_html(b, bcomp, "Percentage" if _is_survey(state) else "%")
         elif btype == "photo_plate":
-            rendered = render_photo_plate_html(b, bcomp, assets)
+            from app.render import photo_layout as _pl
+            # A survey report prints nothing for a photo section with no photos (as the Word file).
+            rendered = "" if (_is_survey(state) and not _pl.photos_of(b, bcomp, assets)) else render_photo_plate_html(b, bcomp, assets)
         elif btype == "fixed_text":
             rendered = render_fixed_text_html(b)
         elif btype == "parties":

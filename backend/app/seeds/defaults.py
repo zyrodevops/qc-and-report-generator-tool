@@ -316,7 +316,7 @@ def _build_blocks_for_commodity(
             "The consignee's end buyer representative, [Representative Name], presented [Total Boxes] boxes "
             "across [N] counts on various pallets for our survey. These were stored in cold storage room "
             "number [Room No.], where the ambient temperature was recorded as [Room Temp °C].\n\n"
-            "THE CONDITION FOUND OF APPLE FRUITS:\n\n"
+            "## THE CONDITION FOUND OF APPLE FRUITS:\n\n"
             "The pulp temperature of the Apple fruits was measured inside the cold room using a digital "
             "thermometer and registered in the range of [Pulp Temp Min °C] to [Pulp Temp Max °C].\n\n"
             "From different locations within the cold room, [Sample Boxes] boxes across [N] counts were randomly "
@@ -324,12 +324,12 @@ def _build_blocks_for_commodity(
             "the cartons exhibited a mixture of conditions, including sound, and various degrees of rotten.\n\n"
             "The pressure of the randomly selected various Apple fruits across [N] counts were measured using a "
             "penetrometer, and the following average values were recorded for the sound apples:\n"
-            "• [Apple Variety] ([Count] Count): Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
-            "The Apple fruits were cut, and the following pulp conditions were observed:\n"
-            "• Sound apples: The pulp was consistently hard and white.\n"
-            "• Bruised apples: While the overall pulp remained firm, the bruised areas were noted to be soft and brown in colour.\n"
+            "• **[Apple Variety] ([Count] Count):** Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
+            "__The Apple fruits were cut, and the following pulp conditions were observed__:\n"
+            "• **Sound apples:** The pulp was consistently hard and white.\n"
+            "• **Bruised apples:** While the overall pulp remained firm, the bruised areas were noted to be soft and brown in colour.\n"
             "• The sugar brix for the aforementioned counts was measured and found to be in the range of [Brix Min %] to [Brix Max %].\n\n"
-            "During our inspection, [Sample Boxes] boxes out of the [Total Boxes] boxes (under [N] counts) were separated into the following categories. "
+            "During our inspection, **[Sample Boxes] boxes out of the [Total Boxes] boxes** (under [N] counts) were separated into the following categories. "
             "The details for each category are provided below:"
         )
     elif ck == "pear":
@@ -337,7 +337,7 @@ def _build_blocks_for_commodity(
             "The consignee's representative, [Representative Name], presented [Total Boxes] boxes across available "
             "[N] counts for our survey. These were stored in cold storage room number [Room No.], where the "
             "ambient temperature was recorded as [Room Temp °C].\n\n"
-            "THE CONDITION FOUND OF PEAR FRUITS:\n\n"
+            "## THE CONDITION FOUND OF PEAR FRUITS:\n\n"
             "The pulp temperature of the Pear fruits was measured inside the cold room using a digital "
             "thermometer and registered in the range of [Pulp Temp Min °C] to [Pulp Temp Max °C].\n\n"
             "From different locations within the cold room, [Sample Boxes] boxes across [N] counts were randomly "
@@ -345,11 +345,11 @@ def _build_blocks_for_commodity(
             "the cartons exhibited a mixture of conditions, including sound and in a rotten condition in various degrees.\n\n"
             "The pressure of the Pear fruits under [N] counts was measured using a penetrometer, and the following "
             "average values were recorded for the sound Pears:\n"
-            "1) [Pear Variety] ([Count] Count): Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
-            "The Pear fruits were cut, and the following pulp conditions were observed:\n"
-            "• Sound Pears: The pulp was consistently hard.\n"
+            "1) [Pear Variety] **([Count] Count):** Range of [Fruit Pressure Min LBS] to [Fruit Pressure Max LBS].\n\n"
+            "__The Pear fruits were cut, and the following pulp conditions were observed__:\n"
+            "• **Sound Pears:** The pulp was consistently hard.\n"
             "• The sugar brix for the above counts was measured and found to be in the range of [Brix Min %] to [Brix Max %].\n\n"
-            "During our inspection, [Sample Boxes] boxes out of the [Total Boxes] boxes (under [N] counts) were separated "
+            "During our inspection, **[Sample Boxes] boxes out of the [Total Boxes] boxes** (under [N] counts) were separated "
             "into the following categories. The details for each category are provided below:"
         )
     elif ck in ("mandarin", "mandarins"):
@@ -399,7 +399,7 @@ def _build_blocks_for_commodity(
             "was completed and transferred directly into the cold storage facility.\n"
             "• A representative sample of [Sample Boxes] cartons was drawn across the stow for detailed segregation and "
             "defect classification.\n\n"
-            "Pulp condition after cutting & the Taste:\n"
+            "## Pulp condition after cutting & the Taste:\n"
             "• Cross-sectional cutting of representative fruit specimens revealed internal breakdown, water-soaking, and deep flesh browning.\n"
             "• Organoleptic evaluation indicated severe textural degradation; the pulp was mushy, lacked characteristic varietal firmness, and had acquired an offensive, fermented taste."
         )
@@ -524,23 +524,18 @@ def _build_blocks_for_commodity(
     })
 
     # ── Block 11: Formal closure ──────────────────────────────────────────
-    disclaimer = next(
-        (c for c in archetype.get("top_narrative_clauses", []) if "without prejudice" in c.lower() or "reserve the right" in c.lower()),
-        "We reserve the right to modify or add to this report if additional information comes to light.",
-    )
+    # The client's closing: disclaimer, "ISSUED WITHOUT PREJUDICE", the date
+    # and place, the surveyor licence line, two signature spaces and ØØØ. Its
+    # wording lives in app/render/house_style.py; only the date (editable) and
+    # the place are kept with the report.
     blocks.append({
         "id": "b_closure",
         "type": "fixed_text",
+        "kind": "closing",
         "title": "CLOSURE",
-        "content": (
-            f"{disclaimer}\n\n"
-            "Consignees are requested to pursue any claims-related matter directly with the responsible parties.\n\n"
-            "These photos are in JPG format.\n\n"
-            "\u201cISSUED WITHOUT PREJUDICE\u201d\n"
-            f"Dated: {today_str}\n"
-            "Marine Cargo Agencies Pvt. Ltd.\n"
-            "\u00d8\u00d8\u00d8"
-        ),
+        "dated": date.today().isoformat(),
+        "place": "Mumbai, India.",
+        "content": "",
     })
 
     return blocks

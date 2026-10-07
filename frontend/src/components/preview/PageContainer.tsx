@@ -1,4 +1,5 @@
 import React from 'react';
+import { COMPANY, bannerUrl } from '../../utils/houseStyle';
 
 export interface PageContainerProps {
   pageNumber: number;
@@ -10,11 +11,26 @@ export interface PageContainerProps {
   reportLabel?: string;
   /** QC reports keep their own header and footer wording. */
   isQc?: boolean;
+  /**
+   * Survey reports: the client's page — a thin black border 24 pt in from the
+   * edge, the banner across the top of page 1, the company name and report
+   * number in small dark-blue capitals from page 2, "Page X of Y" bottom right.
+   */
+  house?: boolean;
+  /** Page 1 of a survey report shows the banner (when the server has one). */
+  banner?: boolean;
   children: React.ReactNode;
   className?: string;
   /** Photo pages: the Word file's photo margins, so 8 photos fit as they do there. */
   photoPage?: boolean;
 }
+
+const RUNNING: React.CSSProperties = {
+  fontFamily: "'Arial Narrow', Arial, sans-serif",
+  fontWeight: 700,
+  fontSize: '9pt',
+  color: '#002060',
+};
 
 export const PageContainer: React.FC<PageContainerProps> = ({
   pageNumber,
@@ -24,13 +40,61 @@ export const PageContainer: React.FC<PageContainerProps> = ({
   reportNumber,
   reportLabel,
   isQc = false,
+  house = false,
+  banner = false,
   children,
   className = '',
   photoPage = false,
 }) => {
+  const [bannerFailed, setBannerFailed] = React.useState(false);
   const label = isQc ? 'IN-HOUSE QC INSPECTION REPORT' : reportLabel || 'SURVEY REPORT';
   const formattedHeaderRight =
     headerRight || (reportNumber ? `${label} ${isQc ? '#' : 'NO.'} ${reportNumber}` : label);
+
+  if (house) {
+    const showBanner = banner && !bannerFailed;
+    return (
+      <div
+        className={`page-container a4-page mca-page w-[210mm] min-h-[297mm] max-w-[210mm] mx-auto my-6 bg-white shadow-xl ring-1 ring-slate-900/10 box-border flex flex-col relative print:shadow-none print:ring-0 print:m-0 ${className}`}
+        style={{ width: '210mm', minHeight: '297mm', padding: '2.5cm 2.54cm 2.1cm 2.75cm' }}
+        data-testid="a4-page"
+      >
+        {/* Page border, 24 pt in from the page edge */}
+        <div className="absolute pointer-events-none" style={{ inset: '24pt', border: '0.5pt solid #000' }} />
+
+        {showBanner ? (
+          <img
+            src={bannerUrl()}
+            alt="Letterhead"
+            onError={() => setBannerFailed(true)}
+            className="absolute"
+            style={{ top: '24pt', left: '24pt', width: 'calc(210mm - 48pt)', height: 'auto' }}
+            data-testid="a4-banner"
+          />
+        ) : (
+          !banner && (
+            <header
+              className="absolute flex justify-between"
+              style={{ top: '1.3cm', left: '2.75cm', right: '2.54cm', ...RUNNING }}
+              data-testid="a4-running-header"
+            >
+              <span>{COMPANY}</span>
+              <span>{formattedHeaderRight.toUpperCase()}</span>
+            </header>
+          )
+        )}
+
+        {/* Page 1: the body starts under the banner (19.3 cm x 3.7 cm) */}
+        <main className="flex-1 flex flex-col text-black" style={showBanner ? { marginTop: '2.3cm' } : undefined}>
+          {children}
+        </main>
+
+        <footer className="absolute" style={{ bottom: '1.1cm', right: '2.54cm', ...RUNNING }} data-testid="a4-footer">
+          Page {pageNumber} of {totalPages}
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div

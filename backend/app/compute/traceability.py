@@ -175,6 +175,16 @@ def _build_whitelist(block_state: Any) -> Set[str]:
     for year in range(1900, 2100):
         whitelist.add(str(year))
 
+    # The surveyor licence number printed in the closing comes from the
+    # server's settings, not from the surveyor's data.
+    try:
+        from app.config import settings
+        for m in _NUM_PATTERN.finditer(settings.IRDAI_LICENCE_NUMBER or ""):
+            whitelist.add(m.group(0))
+            whitelist.add(_normalize_number(m.group(0)))
+    except Exception:
+        pass
+
     # Report number components
     metadata = block_state.get("metadata", {}) if isinstance(block_state, dict) else {}
     report_num = str(metadata.get("number", ""))

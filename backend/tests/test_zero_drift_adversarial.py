@@ -464,9 +464,9 @@ def test_adversarial_hare_niemeyer_7way_tie():
 # ===========================================================================
 
 def test_adversarial_photo_list_zero_photos():
-    """Photo plate with 0 photos (empty groups list)."""
+    """Photo plate with 0 photos (empty groups list) in a QC report: a placeholder line in both."""
     state = {
-        "metadata": {"number": "ADV-011", "docx_template": "mca-qc-synthetic.docx"},
+        "metadata": {"number": "ADV-011", "docx_template": "mca-qc-synthetic.docx", "family": "QC_REPORT"},
         "blocks": [
             {
                 "id": "b_plate_empty",
@@ -489,6 +489,19 @@ def test_adversarial_photo_list_zero_photos():
     assert html_data["photo_captions"] == []
     assert any("[No photos in this series]" in p for p in docx_data["paragraphs"])
     assert any("[No photos in this series]" in p for p in html_data["paragraphs"])
+
+
+def test_survey_report_prints_nothing_for_zero_photos():
+    """A survey report (the client's look) prints no photo heading and no placeholder, in either."""
+    state = {
+        "metadata": {"number": "ADV-011S", "family": "SURVEY_REPORT"},
+        "blocks": [{"id": "b_plate_empty", "type": "photo_plate", "label": "Photographic Evidence", "groups": []}],
+    }
+    docx_data = extract_docx_data(render_docx(state))
+    html_data = extract_html_data(render_html(state))
+    assert not any("[No photos in this series]" in p for p in docx_data["paragraphs"])
+    assert not any("[No photos in this series]" in p for p in html_data["paragraphs"])
+    assert not any("SURVEY PHOTOGRAPHS" in p for p in docx_data["paragraphs"])
 
 
 def test_adversarial_photo_list_single_photo():
